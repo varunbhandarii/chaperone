@@ -118,7 +118,8 @@ def test_wall_page_and_offline_fallbacks(client):
 def test_reset_truncates_and_reports(client, tmp_path):
     client.post("/events", json=event())
     r = client.post("/reset").json()
-    assert r["ok"] and r["policy"].startswith("unreachable") and r["merchant"].startswith("unreachable")
+    assert r["ok"] is False and r["policy"].startswith("unreachable") and r["merchant"].startswith("unreachable")
+    assert isinstance(r["ms"], int) and r["ms"] < 15000
     live = stream_events(client)
     assert [e["type"] for e in live] == ["reset"] and live[0]["seq"] == 2  # seq keeps counting
     assert (tmp_path / "by-id" / "s1.jsonl").exists()  # per-session history stays

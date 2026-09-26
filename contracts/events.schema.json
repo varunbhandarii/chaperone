@@ -36,6 +36,7 @@
         "caregiver_alerted",
         "mandate_signed",
         "judge_scored",
+        "replay_armed",
         "reset"
       ]
     },

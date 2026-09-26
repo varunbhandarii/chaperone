@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Chaperone Host</title>
+<style>
+  :root {
+    --bg: #f4f5f9; --card: #fff; --text: #111; --muted: #5d6475; --line: #e1e4ec;
+    --ok: #0a6b2b; --bad: #a3160c; --warn: #8a5a00; --btn: #1a1f71; --btnText: #fff; --danger: #a3160c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b0f17; --card: #121a27; --text: #e8edf5; --muted: #8fa0b8; --line: #223047;
+      --ok: #3fb950; --bad: #ff6b61; --warn: #e3b341; --btn: #3b4bd8; --btnText: #fff; --danger: #d6372b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); font: 20px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 820px; margin: auto; display: grid; gap: 14px; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 28px; margin: 0; }
+  .muted { color: var(--muted); } .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  h2 { font-size: 20px; margin: 0 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  button { width: 100%; padding: 18px 14px; font: 600 20px system-ui; border: 0; border-radius: 12px; background: var(--btn); color: var(--btnText); cursor: pointer; }
+  button.danger { background: var(--danger); }
+  button:disabled { opacity: 0.5; cursor: progress; }
+  kbd { font: 14px ui-monospace, Menlo, Consolas, monospace; padding: 1px 6px; border: 1px solid currentColor; border-radius: 5px; margin-left: 6px; opacity: 0.8; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
+  dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 17px; }
+  #code { font: 700 44px ui-monospace, Menlo, Consolas, monospace; letter-spacing: 6px; }
+  #log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 17px; }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Host controls</h1><span class="muted">LAN only · not on the wall</span></header>
+
+  <section class="grid">
+    <button id="pay">Confirm payment<kbd>P</kbd></button>
+    <button id="reset" class="danger">Reset demo<kbd>Shift+R</kbd></button>
+    <button id="replay">Arm replay<kbd>A</kbd></button>
+    <button id="showCode">Fallback code<kbd>C</kbd></button>
+  </section>
+
+  <section>
+    <h2>Latest order</h2>
+    <dl id="order"><dt>Order</dt><dd class="muted">none yet</dd></dl>
+  </section>
+
+  <section>
+    <h2>Caregiver approval</h2>
+    <dl id="approval"><dt>Approval</dt><dd class="muted">none</dd></dl>
+    <div id="codeBox" hidden><p class="muted" style="margin:10px 0 0">Read this to Priyank only if the passkey fails:</p><div id="code"></div></div>
+  </section>
+
+  <section>
+    <h2>Log</h2>
+    <ul id="log"></ul>
+  </section>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const money = (v) => (v === undefined || v === null || v === "") ? "" : "$" + Number(v).toFixed(2);
+
+function row(list, label, value, cls = "") {
+  const dt = document.createElement("dt"); dt.textContent = label;
+  const dd = document.createElement("dd"); dd.textContent = value ?? ""; if (cls) dd.className = cls;
+  list.append(dt, dd);
+}
+
+function log(text, cls = "") {
+  const li = document.createElement("li");
+  li.textContent = `${new Date().toLocaleTimeString([], { hour12: false })}  ${text}`;
+  if (cls) li.className = cls;
+  $("log").prepend(li);
+  while ($("log").children.length > 12) $("log").lastElementChild.remove();
+}
+
+async function call(method, path) {
+  const r = await fetch(path, { method, cache: "no-store" });
+  let body = null;
+  try { body = await r.json(); } catch { /* empty */ }
+  if (!r.ok) throw new Error((body && body.detail) || `HTTP ${r.status}`);
+  return body;
+}
+
+async function run(button, label, fn) {
+  if (button.disabled) return;
+  button.disabled = true;
+  const started = performance.now();
+  try {
+    const text = await fn();
+    log(`${label}: ${text} (${Math.round(performance.now() - started)} ms)`, "ok");
+  } catch (err) {
+    log(`${label} failed: ${err.message}`, "bad");
+  } finally {
+    button.disabled = false;
+    refresh();
+  }
+}
+
+const actions = {
+  pay: () => run($("pay"), "Confirm payment", async () => {
+    const r = await call("POST", "/host/api/confirm-payment");
+    return `${r.order_id} ${money(r.amount)} paid via ${r.path}. Say: "marked paid in the sandbox flow".`;
+  }),
+  reset: () => run($("reset"), "Reset", async () => {
+    const r = await call("POST", "/host/api/reset");
+    $("codeBox").hidden = true;
+    return `policy ${r.policy}, merchant ${r.merchant}, ${r.ms} ms`;
+  }),
+  replay: () => run($("replay"), "Arm replay", async () => { await call("POST", "/host/api/arm-replay"); return "the station replays on the next press"; }),
+  code: () => run($("showCode"), "Fallback code", async () => {
+    if (!$("codeBox").hidden) { $("codeBox").hidden = true; return "hidden"; }
+    const r = await call("GET", "/host/api/approval-code");
+    $("code").textContent = r.code || "";
+    $("codeBox").hidden = false;
+    setTimeout(() => { $("codeBox").hidden = true; }, 60000);
+    return `shown for ${r.approval_id}`;
+  }),
+};
+
+$("pay").onclick = actions.pay;
+$("reset").onclick = actions.reset;
+$("replay").onclick = actions.replay;
+$("showCode").onclick = actions.code;
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+  const key = e.key.toLowerCase();
+  if (key === "r" && e.shiftKey) actions.reset();
+  else if (e.shiftKey) return;
+  else if (key === "p") actions.pay();
+  else if (key === "a") actions.replay();
+  else if (key === "c") actions.code();
+});
+
+async function refresh() {
+  let s;
+  try { s = await call("GET", "/host/api/status"); } catch (err) { return; }
+  const order = $("order"); order.replaceChildren();
+  if (s.merchant_error) row(order, "Merchant", `offline (${s.merchant_error})`, "bad");
+  else if (!s.order) row(order, "Order", "none yet", "muted");
+  else {
+    const o = s.order;
+    row(order, "Status", o.status === "paid" ? `PAID via ${o.paid_via || ""}` : "awaiting payment", o.status === "paid" ? "ok" : "warn");
+    row(order, "Amount", money(o.amount));
+    row(order, "Order", o.order_id, "mono");
+    row(order, "Link", o.backend === "visa" ? "Visa Pay by Link (sandbox)" : "mock page");
+    row(order, "Session", o.session_id, "mono");
+  }
+  if (!s.webhook_key) row(order, "Paid path", "no webhook key: Confirm uses the callback", "warn");
+  const a = $("approval"); a.replaceChildren();
+  if (!s.approval) row(a, "Approval", "none", "muted");
+  else if (s.approval.type === "approval_result") {
+    row(a, "Approval", `${s.approval.approved ? "approved" : "not approved"} · ${s.approval.method || ""}`, s.approval.approved ? "ok" : "bad");
+    row(a, "Id", s.approval.approval_id, "mono");
+  } else {
+    const left = s.approval.expires_at ? Math.max(0, Math.round((Date.parse(s.approval.expires_at) - Date.now()) / 1000)) : null;
+    row(a, "Waiting", `${money(s.approval.amount)}${left !== null ? ` · ${left}s left` : ""}`, "warn");
+    row(a, "Id", s.approval.approval_id, "mono");
+  }
+}
+
+refresh();
+setInterval(refresh, 1000);
+</script>
+</body>
+</html>

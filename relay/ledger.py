@@ -14,7 +14,9 @@ GET  /sessions/{id}[?format=html]  that session's events, JSON; html is the read
 GET  /jwks.json, /.well-known/jwks.json
 GET  /audio/{name}                 refusal clips from ai/warnings/
 GET  /wall                         the wall page; /wall/data/{panel,mandate,budget} proxy merchant and policy
-POST /reset                        truncate live.jsonl, then policy and merchant /reset, then a `reset` event
+POST /reset                        truncate live.jsonl, policy and merchant /reset in parallel, then a `reset`
+                                   event (the station answers with a new session); answers with the time taken
+/host, /host/api/*                 the Host's LAN-only controls (relay/host.py)
 """
 
 from __future__ import annotations
@@ -270,23 +272,39 @@ async def wall_data(source: str):
         return JSONResponse({"unavailable": f"{source}: {type(exc).__name__}"}, status_code=503)
 
 
+RESET_TIMEOUT_S = 5.0
+
+
+async def _reset_one(client: httpx.AsyncClient, url: str) -> str:
+    try:
+        r = await client.post(f"{url}/reset")
+        return "ok" if r.is_success else f"HTTP {r.status_code}"
+    except httpx.HTTPError as exc:
+        return f"unreachable ({type(exc).__name__})"
+
+
 @router.post("/reset")
 async def reset():
-    """Back to the demo start in well under 15 s. Seq keeps counting so stream readers stay valid."""
-    LEDGER.truncate_live()
-    results = {}
-    async with httpx.AsyncClient(timeout=3.0) as client:
-        for name, url in (("policy", _service("POLICY_URL", "http://127.0.0.1:8001")),
-                          ("merchant", _service("MERCHANT_URL", "http://127.0.0.1:8002"))):
-            try:
-                r = await client.post(f"{url}/reset")
-                results[name] = "ok" if r.is_success else f"HTTP {r.status_code}"
-            except httpx.HTTPError as exc:
-                results[name] = f"unreachable ({type(exc).__name__})"
-    LEDGER.append({"type": "reset", "session_id": "none", "mandate_id": MANDATE_ID,
-                   "t": int(time.time() * 1000), "source": "relay", "results": results})
-    return {"ok": True, **results}
+    """Back to the demo start in well under 15 s. Seq keeps counting so stream readers stay valid.
 
+    Policy resets spend, decisions, approvals and the screen's session memory; the merchant its orders.
+    """
+    started = time.perf_counter()
+    LEDGER.truncate_live()
+    services = {"policy": _service("POLICY_URL", "http://127.0.0.1:8001"),
+                "merchant": _service("MERCHANT_URL", "http://127.0.0.1:8002")}
+    async with httpx.AsyncClient(timeout=RESET_TIMEOUT_S) as client:
+        answers = await asyncio.gather(*(_reset_one(client, url) for url in services.values()))
+    results = dict(zip(services, answers))
+    ms = round((time.perf_counter() - started) * 1000)
+    LEDGER.append({"type": "reset", "session_id": "none", "mandate_id": MANDATE_ID,
+                   "t": int(time.time() * 1000), "source": "relay", "results": results, "ms": ms})
+    return {"ok": all(v == "ok" for v in results.values()), **results, "ms": ms}
+
+
+from relay.host import router as host_router  # noqa: E402 - host.py uses this module's LEDGER and reset
+
+router.include_router(host_router)
 
 app = FastAPI(title="Chaperone ledger (standalone)")
 app.include_router(router)
