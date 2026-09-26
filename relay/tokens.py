@@ -15,6 +15,8 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 
+from common import tls
+
 ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = ROOT / ".env"
 load_dotenv(ENV_PATH)
@@ -80,7 +82,7 @@ async def mint_client_secret(seconds: int = 300) -> dict:
         )
     seconds = max(MIN_SECONDS, min(MAX_SECONDS, int(seconds)))
     try:
-        async with httpx.AsyncClient(timeout=10.0, transport=TRANSPORT) as client:
+        async with httpx.AsyncClient(verify=tls.context(), timeout=10.0, transport=TRANSPORT) as client:
             response = await client.post(
                 CLIENT_SECRETS_URL,
                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},

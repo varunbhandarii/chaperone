@@ -28,6 +28,7 @@ import requests
 from http_message_signatures import HTTPMessageVerifier
 from http_message_signatures.exceptions import InvalidSignature
 
+from common import tls
 from common.config import KEY_ID
 from signer.keys import jwks_lookup
 from signer.sign import WINDOW, KeyResolver, content_digest
@@ -75,7 +76,7 @@ async def fetch_decision(decision_id: str) -> dict | None:
     """Every policy failure (down, slow, 5xx, not JSON) is a failed decision check, never a signature failure."""
     base = os.environ.get("POLICY_URL", "http://127.0.0.1:8001").rstrip("/")
     try:
-        async with httpx.AsyncClient(timeout=DECISION_TIMEOUT) as client:
+        async with httpx.AsyncClient(verify=tls.context(), timeout=DECISION_TIMEOUT) as client:
             r = await client.get(f"{base}/decisions/{decision_id}")
         if r.status_code == 404:
             return None

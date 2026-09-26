@@ -25,6 +25,7 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel
 
+from common import tls
 from common.config import env
 from policy import judge as judge_mod
 from policy.rules import LANGS, Verdict, default_rules, evaluate, guess_lang
@@ -163,7 +164,7 @@ async def post_event(type_: str, session_id: str | None, mandate_id: str | None,
     event = {"type": type_, "session_id": session_id or "none", "mandate_id": mandate_id or DEFAULT_MANDATE_ID,
              "t": int(time.time() * 1000), "source": "policy", **fields}
     try:
-        async with httpx.AsyncClient(timeout=0.5) as client:
+        async with httpx.AsyncClient(verify=tls.context(), timeout=0.5) as client:
             await client.post(f"{relay.rstrip('/')}/events", json=event)
     except httpx.HTTPError as e:
         print(f"[screen] relay event {type_} failed: {e}", flush=True)

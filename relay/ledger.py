@@ -39,7 +39,7 @@ import jsonschema
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 
-from common import host_header
+from common import host_header, tls
 from common.config import JWKS_PATH, ROOT, ledger_path
 from relay import session_view
 
@@ -246,7 +246,7 @@ async def session_record(session_id: str):
 
 async def _orders_for(session_id: str) -> list[dict]:
     try:
-        async with httpx.AsyncClient(timeout=0.8) as client:
+        async with httpx.AsyncClient(verify=tls.context(), timeout=0.8) as client:
             r = await client.get(f"{_service('MERCHANT_URL', 'http://127.0.0.1:8002')}/orders",
                                  params={"session_id": session_id})
         return r.json() if r.is_success else []
@@ -257,7 +257,7 @@ async def _orders_for(session_id: str) -> list[dict]:
 async def _mandate() -> dict | None:
     """The active mandate as policy holds it, with the hash the caregiver's passkey signed."""
     try:
-        async with httpx.AsyncClient(timeout=0.8) as client:
+        async with httpx.AsyncClient(verify=tls.context(), timeout=0.8) as client:
             r = await client.get(f"{_service('POLICY_URL', 'http://127.0.0.1:8001')}/mandate")
         data = r.json() if r.is_success else None
     except (httpx.HTTPError, ValueError):
@@ -293,7 +293,7 @@ async def _receipts_for(events: list[dict]) -> list[dict]:
         except (httpx.HTTPError, ValueError):
             return None
 
-    async with httpx.AsyncClient(timeout=0.8) as client:
+    async with httpx.AsyncClient(verify=tls.context(), timeout=0.8) as client:
         return [r for r in await asyncio.gather(*(one(client, o) for o in order_ids)) if r]
 
 
@@ -335,7 +335,7 @@ async def wall_data(source: str):
     if source not in WALL_SOURCES:
         raise HTTPException(404, "unknown source")
     try:
-        async with httpx.AsyncClient(timeout=1.0) as client:
+        async with httpx.AsyncClient(verify=tls.context(), timeout=1.0) as client:
             r = await client.get(WALL_SOURCES[source]())
         return JSONResponse(r.json(), status_code=r.status_code, headers={"Cache-Control": "no-store"})
     except (httpx.HTTPError, ValueError) as exc:
@@ -369,7 +369,7 @@ async def reset(request: Request):
     started = time.perf_counter()
     services = {"policy": _service("POLICY_URL", "http://127.0.0.1:8001"),
                 "merchant": _service("MERCHANT_URL", "http://127.0.0.1:8002")}
-    async with httpx.AsyncClient(timeout=RESET_TIMEOUT_S) as client:
+    async with httpx.AsyncClient(verify=tls.context(), timeout=RESET_TIMEOUT_S) as client:
         answers = await asyncio.gather(*(_reset_one(client, url) for url in services.values()))
     results = dict(zip(services, answers))
     failed = [name for name, answer in results.items() if answer != "ok"]

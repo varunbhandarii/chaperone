@@ -28,7 +28,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from common import host_header
+from common import host_header, tls
 
 HOST_HTML = Path(__file__).with_name("host.html")
 PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-real-ip", "forwarded", "ngrok-trace-id", "x-original-url")
@@ -99,7 +99,7 @@ async def status(request: Request):
     lan_only(request)
     order, merchant_error = None, None
     try:
-        async with httpx.AsyncClient(timeout=1.0) as client:
+        async with httpx.AsyncClient(verify=tls.context(), timeout=1.0) as client:
             orders = await _orders(client)
         order = orders[0] if orders else None
     except (httpx.HTTPError, ValueError) as exc:
@@ -128,7 +128,7 @@ async def confirm_payment(request: Request):
     from merchant.simulate_payment import envelope
     from merchant.webhooks import headers_for
 
-    async with httpx.AsyncClient(timeout=5.0) as client:
+    async with httpx.AsyncClient(verify=tls.context(), timeout=5.0) as client:
         try:
             orders = await _orders(client)
         except (httpx.HTTPError, ValueError) as exc:
@@ -173,7 +173,7 @@ async def approval_code(request: Request):
         raise HTTPException(404, "no approval requested")
     approval_id = str(latest["approval_id"])
     try:
-        async with httpx.AsyncClient(timeout=1.0) as client:
+        async with httpx.AsyncClient(verify=tls.context(), timeout=1.0) as client:
             r = await client.get(f"{_policy()}/approvals/{approval_id}/host_code", headers={HOST_HEADER: "1"})
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"policy unreachable ({type(exc).__name__})") from exc

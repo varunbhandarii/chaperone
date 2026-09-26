@@ -11,6 +11,8 @@ import time
 
 import httpx
 
+from common import tls
+
 RECENT: collections.deque = collections.deque(maxlen=200)
 _pending: set[asyncio.Task] = set()  # keep forward tasks alive until they finish
 
@@ -28,7 +30,7 @@ def record(type_: str, *, session_id: str | None = None, mandate_id: str | None 
 
 async def _forward(relay: str, event: dict) -> None:
     try:
-        async with httpx.AsyncClient(timeout=1.0) as client:
+        async with httpx.AsyncClient(verify=tls.context(), timeout=1.0) as client:
             await client.post(f"{relay.rstrip('/')}/events", json=event)
     except httpx.HTTPError as e:
         print(f"[ledger] relay forward failed: {e}")
