@@ -4,7 +4,8 @@
 
 POST /orders             signed order from the checkout tool -> verify -> price from catalog -> payment link
                          (409 if the decision already has an order)
-GET  /orders[/{id}]      order state (wall, receipt)
+GET  /orders[/{id}]      order state (wall)
+GET  /orders/{id}/receipt[?lang=]  what the station prints; session_url is the receipt's QR code
 POST /orders/{id}/paid   callback fallback: Visa webhook or the Host marks paid
 GET  /pay/{link_id}      mock hosted payment page (MOCK_VISA=1 or fallback)
 GET  /checkout/{id}      CARD_AUTH=1: our checkout page with a real Cybersource sandbox card authorization
@@ -14,6 +15,7 @@ POST /webhooks/cybersource            signed Cybersource webhook -> order paid (
 """
 
 import asyncio
+import datetime
 import os
 import secrets
 import time
@@ -39,6 +41,7 @@ MAX_QTY = 24
 # CARD_AUTH=1: orders also get our own checkout page that runs a real sandbox card authorization
 # (merchant.card_auth) and marks the order paid only on AUTHORIZED. Default off: behavior unchanged.
 CARD_AUTH = os.environ.get("CARD_AUTH") == "1"
+RECEIPT_LANGS = {"en", "es", "hi"}
 
 catalog = Catalog.load()
 payment_links = get_payment_links(PUBLIC_URL)
@@ -76,6 +79,7 @@ class OrderRequest(BaseModel):
     cart: Cart
     approval_id: str | None = None
     session_id: str | None = None
+    lang: str | None = None
 
 
 @app.get("/health")
@@ -143,6 +147,7 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict) -> dict
         "order_id": order_id,
         **ids,
         "approval_id": order_req.approval_id,
+        "lang": order_req.lang if order_req.lang in RECEIPT_LANGS else None,
         "lines": lines,
         "amount": amount,
         "currency": "USD",
@@ -173,6 +178,40 @@ def get_order(order_id: str):
     if order_id not in ORDERS:
         raise HTTPException(404, "unknown order")
     return ORDERS[order_id]
+
+
+def session_url(session_id: str | None) -> str | None:
+    """The public session page behind the receipt's QR code: the caregiver app's /s/<id> through the tunnel."""
+    if not session_id or session_id == "none":
+        return None
+    tunnel = os.environ.get("TUNNEL_HOST", "").strip().removeprefix("https://").strip("/")
+    if tunnel:
+        return f"https://{tunnel}/s/{session_id}"
+    relay = os.environ.get("RELAY_URL", "http://192.168.8.10:8000").rstrip("/")
+    return f"{relay}/sessions/{session_id}?format=html"  # LAN only: set TUNNEL_HOST for phones on mobile data
+
+
+@app.get("/orders/{order_id}/receipt")
+def receipt(order_id: str, lang: str | None = None):
+    order = get_order(order_id)
+    paid_at = order["paid_at"]
+    return {
+        "merchant": "Corner Market",
+        "items": [{"name": l["name"], "qty": l["qty"], "price": money(float(l["unit_price"]) * l["qty"]),
+                   "unit_price": l["unit_price"], "sku": l["sku"]} for l in order["lines"]],
+        "total": order["amount"],
+        "currency": order["currency"],
+        "pickup": "after 3pm",
+        "order_id": order_id,
+        "decision_id": order["decision_id"],
+        "session_id": order["session_id"],
+        "status": order["status"],
+        "paid_at": datetime.datetime.fromtimestamp(paid_at, datetime.timezone.utc).isoformat() if paid_at else None,
+        "paid_via": order.get("paid_via"),
+        "session_url": session_url(order["session_id"]),
+        "lang": lang if lang in RECEIPT_LANGS else order.get("lang") or "en",
+        "sandbox_note": "Paid in the Visa sandbox. No real money.",
+    }
 
 
 async def mark_paid(order_id: str, via: str) -> dict:

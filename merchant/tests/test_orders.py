@@ -117,3 +117,22 @@ def test_a_failed_payment_link_frees_the_decision(monkeypatch):
         assert client.post("/orders", json=body).status_code == 502
         monkeypatch.undo()
         assert client.post("/orders", json=body).status_code == 200
+
+
+def test_receipt_has_the_d3_shape(monkeypatch):
+    monkeypatch.setenv("TUNNEL_HOST", "chaperone-demo.ngrok.app")
+    with TestClient(app) as client:
+        order = client.post("/orders", json=demo(cart={"items": [{"sku": "BAK-001", "qty": 2}, {"sku": "RX-001", "qty": 1}]},
+                                                 lang="hi")).json()
+        unpaid = client.get(f"/orders/{order['order_id']}/receipt").json()
+        assert unpaid["status"] == "awaiting_payment" and unpaid["paid_at"] is None
+        client.post(f"/orders/{order['order_id']}/paid")
+        r = client.get(f"/orders/{order['order_id']}/receipt").json()
+        assert set(r) >= {"merchant", "items", "total", "pickup", "order_id", "decision_id", "paid_at", "session_url", "lang"}
+        assert r["merchant"] == "Corner Market" and r["pickup"] == "after 3pm" and r["lang"] == "hi"
+        assert r["items"][0] == {"name": r["items"][0]["name"], "qty": 2, "price": "6.98", "unit_price": "3.49",
+                                 "sku": "BAK-001"}
+        assert r["total"] == "14.98" and r["paid_at"].endswith("+00:00")
+        assert r["session_url"] == "https://chaperone-demo.ngrok.app/s/s1"
+        assert client.get(f"/orders/{order['order_id']}/receipt?lang=es").json()["lang"] == "es"
+        assert client.get("/orders/ord_nope/receipt").status_code == 404
