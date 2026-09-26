@@ -32,6 +32,7 @@ Relay routes (8000). `relay/main.py` owns the token routes; `relay/ledger.py` ow
 | `POST /session/token`, `GET /health` | Grok Voice client secrets |
 | `POST /events` | validate, add `rt` and `seq`, append to `sessions/by-id/<session_id>.jsonl` and `sessions/live.jsonl`, fan out |
 | `GET /events/stream?session_id=&types=&since=` | SSE, `id: <seq>`, replay from `Last-Event-ID`, `:` heartbeat 15 s after the last write; `since=<ms>` skips replayed events older than that |
+| `GET /sessions/{id}/record.json` | the dispute-ready record: shopper's words, mandate hash, decisions, signatures, orders, payments, refunds |
 | `GET /sessions/{id}[?format=html]` | that session's events as JSON; `format=html` is the read-only page behind the receipt's QR code |
 | `GET /jwks.json`, `GET /.well-known/jwks.json` | `relay/jwks.json` |
 | `GET /audio/*` | refusal clips from `ai/warnings/` |
@@ -39,8 +40,8 @@ Relay routes (8000). `relay/main.py` owns the token routes; `relay/ledger.py` ow
 | `POST /reset` | call policy and merchant `/reset` in parallel, clear the live ledger, post `reset`; answers `{ok, policy, merchant, failed, ms}`. Needs `X-Chaperone-Host: 1` |
 | `GET /host`, `/host/api/*` | the Host's controls, LAN only (403 through a proxy); every POST needs `X-Chaperone-Host: 1`: confirm payment, reset, arm replay, fallback code |
 
-Merchant routes (8002): `POST /orders` (409 when the decision already has an order), `GET /orders[/{id}]`, `GET /orders/{id}/receipt[?lang=]`, `POST /orders/{id}/paid`, `GET /pay/{link_id}` (mock page), `GET /panel`, `POST /reset`, `POST /webhooks/cybersource`, `GET|POST /webhooks/cybersource/health`.
+Merchant routes (8002): `POST /orders` (409 when the decision already has an order), `POST /orders/{id}/cancel` and `POST /orders/{id}/refunds` (both RFC 9421 signed, five checks), `POST /orders/{id}/picked-up` (Host header), `GET /orders[/{id}][?session_id=]`, `GET /orders/{id}/receipt[?lang=]`, `POST /orders/{id}/paid`, `GET /pay/{link_id}` (mock page), `GET /panel`, `POST /reset`, `POST /webhooks/cybersource`, `GET|POST /webhooks/cybersource/health`.
 
-Public through the tunnel, nothing else: the caregiver app, `/s/<session_id>` (the caregiver app serves the relay's `GET /sessions/{id}?format=html`, read-only) and `/merchant/webhooks/cybersource` (proxied to the merchant). The raw `/relay/events/stream` rewrite is removed: it exposed every transcript.
+Public through the tunnel, nothing else: the caregiver app, `/s/<session_id>` and `/s/<session_id>/record.json` (the caregiver app serves the relay's `GET /sessions/{id}?format=html` and `/sessions/{id}/record.json`, read-only) and `/merchant/webhooks/cybersource` (proxied to the merchant). The raw `/relay/events/stream` rewrite is removed: it exposed every transcript.
 
 Policy route the Host page reads (LAN only): `GET /approvals/{id}/host_code` answers `{code, expires_at}` for a pending approval, 404 otherwise.

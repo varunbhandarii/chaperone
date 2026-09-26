@@ -51,6 +51,13 @@
   .tag { font: 600 14px system-ui; padding: 1px 7px; border-radius: 6px; margin-right: 8px; vertical-align: 2px; }
   .tag.replay { background: #3a2e0c; color: var(--amber); }
   .tag.lang { background: #1b2638; color: var(--muted); }
+  .timeline { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; list-style: none; padding: 0; }
+  .timeline li { font-size: 16px; padding: 3px 10px; border-radius: 999px; background: #1b2638; color: var(--muted); }
+  .timeline li.done { background: #12321b; color: var(--green); }
+  .timeline li.now { outline: 2px solid var(--green); }
+  .timeline li.off { background: #3d1614; color: var(--red); }
+  .refund { font-size: 18px; margin-top: 4px; }
+  .pickup { font: 700 30px var(--mono); letter-spacing: 4px; }
   .countdown { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--amber); }
   #replayBanner { display: none; font: 700 22px system-ui; color: #111; background: var(--amber); padding: 4px 14px; border-radius: 10px; }
   #replayBanner.on { display: inline-block; }
@@ -133,6 +140,13 @@ function summary(e) {
     case "caregiver_alerted": return e.reason || e.rule_id || "Priyank alerted";
     case "mandate_signed": return `${e.mandate_id || ""} by passkey`;
     case "receipt_printed": return `${e.order_id || ""} · ${e.via === "screen" ? "on screen" : "printed"}`;
+    case "order_status": return `${e.order_id || ""} · ${(e.status || "").replace(/_/g, " ")}${e.pickup_code ? " · pickup code " + e.pickup_code : ""}`;
+    case "order_cancelled": return `${money(e.amount)} · ${e.order_id || ""} · link ${e.link_status || ""}${e.request_id ? " · request " + short(e.request_id, 13) : ""}`;
+    case "refund_requested": return `${e.qty || 1} × ${e.sku || ""} · ${money(e.amount)} · ${e.reason || ""}`;
+    case "refund_result": return `${money(e.amount)} ${e.status || ""} · card ending ${e.card_last4 || ""} · ${e.label || "sandbox processor stub"}`;
+    case "mandate_paused": return "the agent is paused by Priyank";
+    case "mandate_resumed": return `resumed${e.method ? " by " + e.method : ""}`;
+    case "explanation_requested": return `Priyank asked why · ${e.decision_id || ""}`;
     case "reset": return "demo reset";
     default: return "";
   }
@@ -183,7 +197,9 @@ function addRow(e) {
   }
   if (e.type === "policy_decision" && e.monthly_total_after !== undefined) lastMonthly = e.monthly_total_after;
   if (e.replay) { $("replayBanner").classList.add("on"); clearTimeout(addRow.replayTimer); addRow.replayTimer = setTimeout(() => $("replayBanner").classList.remove("on"), 30000); }
-  if (["paid", "payment_link_created", "signature_verified", "signature_rejected", "card_authorized", "card_auth_failed"].includes(e.type)) refreshPanel();
+  if (["paid", "payment_link_created", "signature_verified", "signature_rejected", "card_authorized", "card_auth_failed",
+       "order_status", "order_cancelled", "refund_result"].includes(e.type)) refreshPanel();
+  if (["order_cancelled", "refund_result"].includes(e.type)) refreshBudget();
   if (["paid", "policy_decision", "approval_result"].includes(e.type)) refreshBudget();
   if (e.type === "mandate_signed") refreshMandate();
 }
@@ -255,6 +271,17 @@ function checkRow(c) {
   return el("li", {}, el("span", { class: cls }, mark), el("span", { class: "mono" }, c.id), el("span", { class: "detail" }, c.detail || ""));
 }
 
+const STEPS = [["awaiting_payment", "ordered"], ["paid", "paid"], ["preparing", "preparing"], ["ready_for_pickup", "ready"], ["picked_up", "picked up"]];
+
+function timelineNode(order) {
+  const reached = new Set((order.timeline || []).map((t) => t.status));
+  const now = order.status === "cancelled" ? "cancelled" : order.fulfilment || "awaiting_payment";
+  const items = STEPS.map(([id, text]) => el("li", { class: (reached.has(id) ? "done" : "") + (id === now ? " now" : "") }, text));
+  if (order.status === "cancelled") items.splice(1, items.length - 1, el("li", { class: "off now" }, "cancelled"));
+  if (order.status === "partially_refunded" || order.status === "refunded") items.push(el("li", { class: "off" }, order.status.replace(/_/g, " ")));
+  return el("ul", { class: "timeline" }, ...items);
+}
+
 async function refreshPanel() {
   const p = await getJSON("/wall/data/panel");
   if (!p || p.unavailable) { $("backend").textContent = "merchant offline"; $("backend").className = "badge bad"; return; }
@@ -266,8 +293,20 @@ async function refreshPanel() {
   if (!order && !lastCheck) return;
   const parts = [];
   if (order) {
-    const paid = order.status === "paid";
-    parts.push(el("div", { class: "status " + (paid ? "ok" : "warn") }, `${money(order.amount)} · ${paid ? "PAID" : "awaiting payment"}`));
+    const paid = !!order.paid_at;
+    const label = order.status === "cancelled" ? "CANCELLED" : order.status === "refunded" ? "REFUNDED"
+      : paid ? "PAID" : "awaiting payment";
+    parts.push(el("div", { class: "status " + (order.status === "cancelled" ? "bad" : paid ? "ok" : "warn") }, `${money(order.amount)} · ${label}`));
+    parts.push(timelineNode(order));
+    if (paid && order.pickup_code && order.status !== "refunded") {
+      parts.push(el("div", {}, el("span", { class: "muted" }, "Pickup code "), el("span", { class: "pickup" }, order.pickup_code)));
+    }
+    if (order.savings) parts.push(el("div", { class: "ok" }, `Saved ${money(order.savings)} · +${order.loyalty_points} Corner Market Rewards points`));
+    for (const r of order.refunds || []) {
+      parts.push(el("div", { class: "refund " + (r.status === "TRANSMITTED" ? "ok" : "warn") },
+        `Refund ${money(r.amount)} · ${r.qty} × ${short(r.name, 24)} · ${r.status} · card ending ${r.card_last4 || ""} · sandbox processor stub`));
+    }
+    if (order.cancel) parts.push(el("div", { class: "bad" }, `Link ${order.cancel.link_status}${order.cancel.request_id ? " · Cybersource request " + order.cancel.request_id : ""}`));
     parts.push(el("dl", {},
       el("dt", {}, "Order"), el("dd", { class: "mono" }, order.order_id),
       el("dt", {}, "Decision"), el("dd", { class: "mono" }, order.decision_id || ""),

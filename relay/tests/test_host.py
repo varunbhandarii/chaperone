@@ -150,3 +150,45 @@ def test_partial_reset_is_reported_and_the_ledger_is_still_cleared(client):
 def test_host_page_sends_the_header_and_reports_failures_in_red():
     page = (host.HOST_HTML).read_text()
     assert '"X-Chaperone-Host": "1"' in page and "NOT CLEAN" in page
+
+
+def test_session_page_and_dispute_record_show_the_order_after_payment(client, merchant, monkeypatch):
+    monkeypatch.setenv("REFUND_TRANSMIT_S", "0")
+    order = place(merchant)
+    merchant.post(f"/orders/{order['order_id']}/paid", params={"via": "host_confirmed"})
+    refund = {"mandate_id": "m_ruth_2026_09", "decision_id": order["decision_id"], "order_id": order["order_id"],
+              "sku": "BAK-001", "qty": 1, "reason": "stale"}
+    assert merchant.post(f"/orders/{order['order_id']}/refunds", json=refund).status_code == 200
+    for e in ({"type": "heard", "role": "shopper", "text": "medicine and bread", "item_id": "t1", "source": "station"},
+              {"type": "policy_decision", "decision": "allow", "decision_id": order["decision_id"], "source": "policy"},
+              {"type": "paid", "order_id": order["order_id"], "total": "11.49", "via": "host", "source": "merchant"},
+              {"type": "refund_result", "order_id": order["order_id"], "refund_id": "r1", "status": "PENDING",
+               "amount": "3.49", "card_last4": "1111", "source": "merchant"}):
+        client.post("/events", json={"session_id": "s1", "mandate_id": "m_ruth_2026_09", "t": int(time.time() * 1000), **e})
+    page = client.get("/sessions/s1", params={"format": "html"}).text
+    assert "Dispute-ready record" in page and 'href="s1/record.json"' in page
+    assert "partly refunded" in page and "Refund $3.49" in page and "sandbox processor stub" in page
+    assert order["pickup_code"] not in page.split("Order " + order["order_id"])[1][:400]
+    r = client.get("/sessions/s1/record.json")
+    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    record = r.json()
+    assert record["kind"] == "chaperone.dispute_record.v1"
+    assert record["shopper_words"][0]["text"] == "medicine and bread"
+    assert record["decisions"][0]["decision_id"] == order["decision_id"]
+    [stored] = record["orders"]
+    assert stored["status"] == "partially_refunded" and stored["refunds"][0]["amount"] == "3.49"
+    assert "pickup_code" not in stored and "url" not in stored["payment_link"]
+    assert record["mandate"] is None  # policy is down in this fixture; the record still builds
+    assert client.get("/sessions/nobody/record.json").status_code == 404
+    assert client.get("/sessions/none/record.json").status_code == 404
+
+
+def test_record_carries_the_mandate_hash_the_passkey_signed():
+    from policy.mandate import DEFAULT_MANDATE, mandate_hash
+    from relay import session_view
+
+    digest = base64.urlsafe_b64encode(mandate_hash(DEFAULT_MANDATE)).rstrip(b"=").decode()
+    mandate = {"mandate_id": DEFAULT_MANDATE["mandate_id"], "signed": True, "credential_id": "cred-1", "hash_b64url": digest}
+    record = session_view.dispute_record("s1", [], [], mandate)
+    page = session_view.render("s1", [], [], [], record)
+    assert record["mandate"]["hash_b64url"] == digest and digest in page and "signed by passkey cred-1" in page

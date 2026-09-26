@@ -11,6 +11,7 @@ GET  /events/stream?session_id=&types=&once=&since=
                                    tests). A reader that falls 1000 events behind is closed and reconnects.
                                    since=<ms> skips replayed events older than that (the phone's first
                                    connect, so old alerts don't buzz again); live events always pass.
+GET  /sessions/{id}/record.json     the dispute-ready record (the session's evidence as one JSON document)
 GET  /sessions/{id}[?format=html]  that session's events, JSON; html is the read-only page behind the receipt's
                                    QR code (relay/session_view.py), served publicly by the caregiver app at /s/<id>
 GET  /jwks.json, /.well-known/jwks.json
@@ -25,6 +26,7 @@ POST /reset                        policy and merchant /reset in parallel, then 
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import os
 import re
@@ -218,8 +220,58 @@ async def session_events(session_id: str, format: str = "json"):
         return events
     if not path.exists():
         raise HTTPException(404, "unknown session")
-    return HTMLResponse(session_view.render(session_id, events, await _receipts_for(events)),
+    receipts, orders, mandate = await asyncio.gather(_receipts_for(events), _orders_for(session_id), _mandate())
+    record = session_view.dispute_record(session_id, events, orders, mandate)
+    return HTMLResponse(session_view.render(session_id, events, receipts, orders, record),
                         headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
+
+@router.get("/sessions/{session_id}/record.json")
+async def session_record(session_id: str):
+    """The dispute-ready record: the session page's evidence as one JSON document."""
+    if session_id == "none":
+        raise HTTPException(404, "unknown session")
+    try:
+        path = LEDGER.session_path(session_id)
+    except ValueError:
+        raise HTTPException(404, "unknown session") from None
+    if not path.exists():
+        raise HTTPException(404, "unknown session")
+    events = _read_jsonl(path)
+    orders, mandate = await asyncio.gather(_orders_for(session_id), _mandate())
+    return JSONResponse(session_view.dispute_record(session_id, events, orders, mandate), headers={
+        "Cache-Control": "no-store", "X-Robots-Tag": "noindex",
+        "Content-Disposition": f'attachment; filename="chaperone-{session_id}.json"'})
+
+
+async def _orders_for(session_id: str) -> list[dict]:
+    try:
+        async with httpx.AsyncClient(timeout=0.8) as client:
+            r = await client.get(f"{_service('MERCHANT_URL', 'http://127.0.0.1:8002')}/orders",
+                                 params={"session_id": session_id})
+        return r.json() if r.is_success else []
+    except (httpx.HTTPError, ValueError):
+        return []
+
+
+async def _mandate() -> dict | None:
+    """The active mandate as policy holds it, with the hash the caregiver's passkey signed."""
+    try:
+        async with httpx.AsyncClient(timeout=0.8) as client:
+            r = await client.get(f"{_service('POLICY_URL', 'http://127.0.0.1:8001')}/mandate")
+        data = r.json() if r.is_success else None
+    except (httpx.HTTPError, ValueError):
+        data = None
+    if not data or not isinstance(data.get("mandate"), dict):
+        return None
+    from policy.mandate import mandate_hash
+
+    try:
+        digest = base64.urlsafe_b64encode(mandate_hash(data["mandate"])).rstrip(b"=").decode()
+    except Exception:  # noqa: BLE001 - a mandate that cannot be canonicalized still shows, without a hash
+        digest = None
+    return {"mandate_id": data["mandate"].get("mandate_id"), "signed": bool(data.get("signed")),
+            "credential_id": data.get("credential_id"), "hash_b64url": digest}
 
 
 MAX_RECEIPTS = 6

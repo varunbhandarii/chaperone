@@ -153,7 +153,9 @@ async function refresh() {
   else if (!s.order) row(order, "Order", "none yet", "muted");
   else {
     const o = s.order;
-    row(order, "Status", o.status === "paid" ? `PAID via ${o.paid_via || ""}` : "awaiting payment", o.status === "paid" ? "ok" : "warn");
+    const paid = !!o.paid_via;
+    row(order, "Status", o.status === "cancelled" ? "cancelled" : paid ? `${o.status.replace(/_/g, " ")} · paid via ${o.paid_via}` : "awaiting payment",
+        o.status === "cancelled" ? "bad" : paid ? "ok" : "warn");
     row(order, "Amount", money(o.amount));
     row(order, "Order", o.order_id, "mono");
     row(order, "Link", o.backend === "visa" ? "Visa Pay by Link (sandbox)" : "mock page");
