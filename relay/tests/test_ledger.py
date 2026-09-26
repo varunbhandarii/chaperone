@@ -30,7 +30,7 @@ def test_post_appends_with_seq_and_rt(client, tmp_path):
     r = client.post("/events", json=event(text="necesito pan"))
     assert r.status_code == 202 and r.json()["seq"] == 1
     live = [json.loads(line) for line in (tmp_path / "live.jsonl").read_text().splitlines()]
-    session = [json.loads(line) for line in (tmp_path / "s1.jsonl").read_text().splitlines()]
+    session = [json.loads(line) for line in (tmp_path / "by-id" / "s1.jsonl").read_text().splitlines()]
     assert live == session and live[0]["seq"] == 1 and isinstance(live[0]["rt"], int)
     assert client.post("/events", json=event()).json()["seq"] == 2
 
@@ -40,6 +40,9 @@ def test_post_appends_with_seq_and_rt(client, tmp_path):
     {**event(), "t": "1695600000"},                                # t must be an integer
     {**event(), "type": "made_up"},                                # not in the enum
     {**event(), "source": "someone"},                              # unknown sender
+    event(session_id="live"),                                      # reserved for the all-sessions log
+    event(session_id="../etc"),                                    # not a session id
+    event(session_id="x" * 65),                                    # too long
 ])
 def test_invalid_events_are_rejected(client, bad):
     assert client.post("/events", json=bad).status_code == 422
@@ -72,9 +75,9 @@ def test_stream_headers(client):
 def test_live_subscribers_get_new_events(tmp_path):
     async def run():
         book = ledger.Ledger(tmp_path / "live.jsonl")
-        queue = book.subscribe()
+        sub = book.subscribe()
         book.append(event("paid"))
-        return await asyncio.wait_for(queue.get(), 1)
+        return await asyncio.wait_for(sub.queue.get(), 1)
     assert asyncio.run(run())["type"] == "paid"
 
 
@@ -118,7 +121,7 @@ def test_reset_truncates_and_reports(client, tmp_path):
     assert r["ok"] and r["policy"].startswith("unreachable") and r["merchant"].startswith("unreachable")
     live = stream_events(client)
     assert [e["type"] for e in live] == ["reset"] and live[0]["seq"] == 2  # seq keeps counting
-    assert (tmp_path / "s1.jsonl").exists()  # per-session history stays
+    assert (tmp_path / "by-id" / "s1.jsonl").exists()  # per-session history stays
 
 
 def test_append_is_fast(tmp_path):
@@ -127,3 +130,52 @@ def test_append_is_fast(tmp_path):
     for _ in range(200):
         book.append(event())
     assert (time.perf_counter() - start) / 200 < 0.005
+
+
+def test_bad_session_id_is_404(client):
+    assert client.get("/sessions/live").status_code == 404
+    assert client.get("/sessions/a.b").status_code == 404
+    client.post("/events", json=event())
+    assert [e["seq"] for e in client.get("/sessions/s1").json()] == [1]
+
+
+def test_filtered_stream_still_gets_heartbeats(tmp_path, monkeypatch):
+    """The phone's stream filters by session; other sessions' events must not starve its heartbeat."""
+    monkeypatch.setattr(ledger, "HEARTBEAT_S", 0.2)
+    book = ledger.Ledger(tmp_path / "live.jsonl")
+    monkeypatch.setattr(ledger, "LEDGER", book)
+
+    class Req:
+        headers: dict = {}
+
+        async def is_disconnected(self):
+            return False
+
+    async def run():
+        response = await ledger.stream(Req(), session_id="phone", types=None, last_event_id=None, once=False)
+        chunks = response.body_iterator
+        assert (await anext(chunks)).startswith("retry")
+        async def noise():
+            for _ in range(8):
+                book.append(event(session_id="other"))
+                await asyncio.sleep(0.05)
+        task = asyncio.create_task(noise())
+        got = await asyncio.wait_for(anext(chunks), 1)
+        await task
+        await chunks.aclose()
+        return got
+    assert asyncio.run(run()) == ": heartbeat\n\n"
+
+
+def test_overflowing_reader_is_closed_to_reconnect(tmp_path, monkeypatch):
+    monkeypatch.setattr(ledger, "QUEUE_MAX", 3)
+    book = ledger.Ledger(tmp_path / "live.jsonl")
+
+    async def run():
+        sub = book.subscribe()
+        for _ in range(5):
+            book.append(event())
+        return sub
+    sub = asyncio.run(run())
+    assert sub.overflowed and sub not in book._subscribers
+    assert len(book.read_live()) == 5  # nothing lost: the reconnect replays from the file

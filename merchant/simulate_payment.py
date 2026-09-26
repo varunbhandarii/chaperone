@@ -3,7 +3,7 @@ order, signed with CYBS_WEBHOOK_KEY the way Cybersource signs, posted to the mer
 
     python -m merchant.simulate_payment <order_id> [--merchant http://127.0.0.1:8002]
 
-Demo line: "marked paid in the sandbox flow".
+The Host says: "marked paid in the sandbox flow".
 """
 
 import argparse

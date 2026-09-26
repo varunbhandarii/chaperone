@@ -18,6 +18,7 @@ venv/
 
 # local data and editor noise
 sessions/*.jsonl
+sessions/by-id/
 !sessions/sample.jsonl
 sessions/decisions.json
 sessions/monthly.json

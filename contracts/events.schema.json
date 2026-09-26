@@ -33,7 +33,12 @@
         "reset"
       ]
     },
-    "session_id": { "type": "string", "minLength": 1 },
+    "session_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$",
+      "not": { "const": "live" },
+      "description": "\"live\" is reserved: the relay's all-sessions log is sessions/live.jsonl"
+    },
     "mandate_id": { "type": "string", "minLength": 1 },
     "t": { "type": "integer", "description": "sender clock, ms since epoch" },
     "source": { "enum": ["station", "policy", "merchant", "caregiver", "relay"] },
