@@ -10,11 +10,11 @@ from fastapi.responses import JSONResponse
 from policy.approvals import code_mac, find_approval, public_approval, public_decision, state_of
 from policy.checkout import CartRejected, ReadBackRequired, UnsignedMandate, checkout as run_checkout
 from policy.checkout import send_signed_order
-from policy.engine import dollars
+from policy.engine import dollars, to_cents
 from policy.events import post_event
 from policy.mandate import DEFAULT_MANDATE
 from policy.pricing import UnknownSku
-from policy.store import load_caregiver_credential, load_mandate, load_spent_cents, reset as reset_store, save_decision, save_mandate
+from policy.store import add_spent_cents, load_caregiver_credential, load_mandate, load_spent_cents, reset as reset_store, save_caregiver_credential, save_decision, save_mandate
 from policy.verify_mandate import verify_mandate_assertion
 
 app = FastAPI(title="Chaperone policy")
@@ -129,6 +129,7 @@ def _finish_approval(document: dict, method: str) -> dict:
     save_decision(document)
     merchant_order = send_signed_order(body)
     merchant_order.pop("_signature", None)
+    add_spent_cents(to_cents(float(document["cart"]["total"])))
     link = merchant_order.get("payment_link") or {}
     document["order"] = {
         "order_id": merchant_order.get("order_id"),
@@ -215,8 +216,14 @@ def decide(approval_id: str, payload: dict):
         save_decision(document)
         return public_approval(document)
     pinned = load_caregiver_credential()
+    if not pinned:
+        stored = load_mandate() or {}
+        passkey = stored.get("passkey") or {}
+        if passkey.get("credential_id") and passkey.get("public_key"):
+            pinned = {"credential_id": passkey["credential_id"], "public_key": passkey["public_key"], "sign_count": 0}
+            save_caregiver_credential(pinned)
     if not pinned or not payload.get("response"):
-        raise HTTPException(400, "passkey assertion required")
+        return JSONResponse({"error": "passkey assertion required"}, status_code=400)
     from policy.approvals import challenge_bytes
     from webauthn import verify_authentication_response
     from webauthn.helpers import base64url_to_bytes
@@ -234,10 +241,8 @@ def decide(approval_id: str, payload: dict):
             require_user_verification=True,
         )
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(400, "assertion rejected") from exc
+        return JSONResponse({"error": str(exc)}, status_code=400)
     pinned["sign_count"] = verified.new_sign_count
-    from policy.store import save_caregiver_credential
-
     save_caregiver_credential(pinned)
     approval["approved"] = True
     return _finish_approval(document, "passkey")

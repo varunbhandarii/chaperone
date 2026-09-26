@@ -15,7 +15,7 @@ from policy.engine import dollars, evaluate, mandate_category, to_cents
 from policy.events import post_event
 from policy.mandate import DEFAULT_MANDATE
 from policy.pricing import UnknownSku, reprice
-from policy.store import get_decision, load_mandate, load_spent_cents, save_decision, store_spent_cents
+from policy.store import add_spent_cents, get_decision, load_mandate, load_spent_cents, save_decision
 from signer.sign import sign_request
 
 JUDGE_THRESHOLD = float(os.environ.get("JUDGE_THRESHOLD", "0.6"))
@@ -199,7 +199,7 @@ def checkout(payload: dict) -> dict:
                 nonce=signature.get("nonce"),
                 expires=signature.get("expires"),
             )
-            store_spent_cents(to_cents(decision["monthly_total_after"]))
+            add_spent_cents(to_cents(priced["total"]))
         except Exception as exc:  # noqa: BLE001 - the decision still stands if the merchant is down
             order_error = str(exc)
     elif decision["decision"] == "approve":

@@ -57,10 +57,18 @@ export function ensureSetupCode() {
   console.log(`CAREGIVER SETUP CODE: ${code}`);
 }
 
+export function setupCodeStatus(record, now = Date.now()) {
+  if (!record) return "missing";
+  if (record.used) return "used";
+  if (now > record.expires_at) return "expired";
+  if ((record.attempts || 0) >= 5) return "locked";
+  return "open";
+}
+
 export function consumeSetupCode(code) {
   const digest = createHash("sha256").update(String(code || "")).digest("hex");
   const record = readJson(setupPath, null) || { attempts: 0, used: false, expires_at: Date.now() + 10 * 60 * 1000 };
-  if (record.used || Date.now() > record.expires_at || record.attempts >= 5) return false;
+  if (setupCodeStatus(record) !== "open") return false;
   const expected = process.env.CAREGIVER_SETUP_CODE_HASH || record.hash;
   if (!expected || digest !== expected) {
     record.attempts = (record.attempts || 0) + 1;

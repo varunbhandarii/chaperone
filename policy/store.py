@@ -47,7 +47,15 @@ def load_spent_cents() -> int:
 
 
 def store_spent_cents(cents: int) -> None:
-    _write(monthly_path(), {"spent_cents": cents, "total": round(cents / 100, 2)})
+    with _lock:
+        _write(monthly_path(), {"spent_cents": cents, "total": round(cents / 100, 2)})
+
+
+def add_spent_cents(delta: int) -> int:
+    with _lock:
+        updated = load_spent_cents() + delta
+        _write(monthly_path(), {"spent_cents": updated, "total": round(updated / 100, 2)})
+        return updated
 
 
 def load_decisions() -> dict:

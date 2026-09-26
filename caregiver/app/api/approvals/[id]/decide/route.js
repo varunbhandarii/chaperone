@@ -18,7 +18,11 @@ export async function POST(request, { params }) {
     const options = await generateAuthenticationOptions({
       rpID: rpID(),
       challenge: isoBase64URL.toBuffer(challengeB64),
-      allowCredentials: loadCredentials().map((credential) => ({ id: credential.id, transports: credential.transports })),
+      userVerification: "preferred",
+      allowCredentials: loadCredentials().map((credential) => ({
+        id: credential.id,
+        transports: credential.transports,
+      })),
     });
     const jar = await cookies();
     jar.set("sid", saveChallenge("approval", options.challenge), {
