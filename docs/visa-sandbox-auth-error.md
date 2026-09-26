@@ -51,6 +51,14 @@ We ran the same $1.00 REST authorization with the same code and test card agains
 
 Same code and same card, and the only difference is the merchant account. So the fault is our account's provisioning.
 
+## Cybersource's definition of reason 150, and what it means for us
+
+> System error. … Depending on which payment processor is handling the transaction, the error might indicate a valid Cybersource system error, or it might indicate a processor rejection because of invalid data. In either case, do not design your system to endlessly try to resend a transaction when a system error occurs.
+
+- **Which kind is ours?** The reply message names two merchant configuration properties, not request fields, and the identical request authorizes on the `testrest` merchant. So this is account provisioning, not invalid data. It is also not transient: 4 failures over 30 minutes, and forum accounts stayed broken for days.
+- **No endless retries (we comply):** the merchant never sends authorizations itself; the hosted page sends one per Pay click. `cybs_check` makes one authorization per run and only polls the read-only transaction lookup, for up to 30 s. Link creation does not retry; on failure it falls back once to the mock and records `visa_last_error`.
+- **Rule for future payment detection:** treat 150 as terminal for that attempt. Surface it to the Host ("payment system error: mark paid or retry once") and never auto-resend in a loop.
+
 ## What the internet says
 
 We read all 19 Cybersource Developer Community threads on this error (2022 to Sep 16 2026):
