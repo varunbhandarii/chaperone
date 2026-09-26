@@ -32,8 +32,16 @@ def parts(prepared, body=None):
     return prepared.method, split.netloc, split.path, headers, raw
 
 
-def check(prepared, store, body=None):
-    return verify.verify_request(*parts(prepared, body), public_key=KEY.public_key(), nonce_store=store)
+ALLOWED = {"decision_id": "dec-001", "decision": "allow", "cart": {"items": [{"sku": "RX-001", "qty": 1}]}}
+
+
+def policy_says(decision):
+    return lambda decision_id: decision if decision and decision_id == decision.get("decision_id") else None
+
+
+def check(prepared, store, body=None, decision=ALLOWED):
+    return verify.verify_request(*parts(prepared, body), public_key=KEY.public_key(), nonce_store=store,
+                                 fetch_decision=policy_says(decision))
 
 
 @pytest.fixture(autouse=True)
@@ -104,6 +112,7 @@ def test_unsigned_order_is_refused_when_enforcing():
 
 def test_signed_order_goes_through_the_endpoint(monkeypatch):
     monkeypatch.setattr(verify, "jwks_lookup", lambda key_id: KEY.public_key())
+    monkeypatch.setattr(verify, "fetch_decision", policy_says(ALLOWED))
     prepared = sign_request(URL, ORDER, private_key=KEY)
     response = TestClient(app).post("/orders", content=prepared.body, headers=dict(prepared.headers))
     assert response.status_code == 200, response.text
@@ -115,3 +124,42 @@ def test_off_mode_skips(monkeypatch):
     result = verify.verify_request("POST", "testserver", "/orders", {}, b"{}")
     assert result.ok
     assert result.checks[0]["passed"] is None
+
+
+def test_unknown_decision_is_rejected():
+    result = check(sign_request(URL, ORDER, private_key=KEY), verify.NonceStore(), decision=None)
+    assert not result.ok
+    assert result.checks[-1] == {"id": "decision", "passed": False, "detail": "unknown decision dec-001"}
+    assert all(c["passed"] for c in result.checks[:-1])  # the signature itself was fine
+
+
+def test_cart_different_from_the_decision_is_rejected():
+    decided = {**ALLOWED, "cart": {"items": [{"sku": "RX-001", "qty": 1}, {"sku": "BAK-001", "qty": 1}]}}
+    result = check(sign_request(URL, ORDER, private_key=KEY), verify.NonceStore(), decision=decided)
+    assert not result.ok and result.checks[-1]["id"] == "decision"
+    assert "cart differs" in result.checks[-1]["detail"]
+
+
+def test_denied_decision_is_rejected():
+    result = check(sign_request(URL, ORDER, private_key=KEY), verify.NonceStore(), decision={**ALLOWED, "decision": "deny"})
+    assert not result.ok and result.checks[-1]["detail"] == "decision dec-001 is deny"
+
+
+def test_approve_needs_the_caregiver_yes():
+    waiting = {**ALLOWED, "decision": "approve", "approval": {"approved": False}}
+    assert not check(sign_request(URL, ORDER, private_key=KEY), verify.NonceStore(), decision=waiting).ok
+    approved = {**ALLOWED, "decision": "approve", "approval": {"approved": True}}
+    assert check(sign_request(URL, ORDER, private_key=KEY), verify.NonceStore(), decision=approved).ok
+
+
+def test_cart_lines_are_compared_by_sku_and_total_qty():
+    split = {**ALLOWED, "cart": {"lines": [{"sku": "RX-001", "qty": 1}]}}
+    assert check(sign_request(URL, ORDER, private_key=KEY), verify.NonceStore(), decision=split).ok
+
+
+def test_policy_down_fails_closed(monkeypatch):
+    monkeypatch.setenv("POLICY_URL", "http://127.0.0.1:9")  # nothing listens there
+    result = verify.verify_request(*parts(sign_request(URL, ORDER, private_key=KEY)), public_key=KEY.public_key(),
+                                   nonce_store=verify.NonceStore())
+    assert not result.ok
+    assert result.checks[-1]["id"] == "decision" and "policy unreachable" in result.checks[-1]["detail"]

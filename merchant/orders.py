@@ -8,6 +8,8 @@ POST /orders/{id}/paid   callback fallback: Visa webhook or the Host marks paid
 GET  /pay/{link_id}      mock hosted payment page (MOCK_VISA=1 or fallback)
 GET  /checkout/{id}      CARD_AUTH=1: our checkout page with a real Cybersource sandbox card authorization
 GET  /panel              merchant verification panel data for the wall
+POST /reset              demo reset: clear orders and the panel's event buffer (nonces are kept)
+POST /webhooks/cybersource            signed Cybersource webhook -> order paid (see merchant.webhooks)
 """
 
 import asyncio
@@ -27,7 +29,7 @@ from pydantic import BaseModel, Field, ValidationError
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from catalog.search import Catalog  # noqa: E402
-from merchant import card_auth, events  # noqa: E402
+from merchant import card_auth, events, webhooks  # noqa: E402
 from merchant.verify import verify_request  # noqa: E402
 from merchant.visa import LineItem, get_payment_links, money, new_purchase_number  # noqa: E402
 
@@ -41,6 +43,7 @@ catalog = Catalog.load()
 payment_links = get_payment_links(PUBLIC_URL)
 ORDERS: dict[str, dict] = {}
 LINK_TO_ORDER: dict[str, str] = {}
+PURCHASE_TO_ORDER: dict[str, str] = {}  # Cybersource purchaseNumber -> order, for webhooks
 
 
 @asynccontextmanager
@@ -90,7 +93,8 @@ async def create_order(request: Request):
     except ValidationError as e:
         raise HTTPException(422, e.errors(include_url=False, include_context=False)) from e
     ids = {"session_id": order_req.session_id, "mandate_id": order_req.mandate_id, "decision_id": order_req.decision_id}
-    await events.emit("signature_verified", keyid=verification.keyid, checks=verification.checks, **ids)
+    await events.emit("signature_verified", keyid=verification.keyid, checks=verification.checks,
+                      **verification.params, **ids)
 
     # Price from our own catalog; the agent only says which SKUs and how many.
     lines, total_cents = [], 0
@@ -101,7 +105,7 @@ async def create_order(request: Request):
         cents = round(item["price"] * 100)
         total_cents += cents * line.qty
         lines.append({"sku": line.sku, "name": item["name"], "qty": line.qty, "unit_price": money(cents / 100),
-                      "category": item["category"]})
+                      "category": item["category"], "mandate_category": item.get("mandate_category")})
     amount = money(total_cents / 100)
 
     try:
@@ -132,6 +136,7 @@ async def create_order(request: Request):
     }
     ORDERS[order_id] = order
     LINK_TO_ORDER[link.id] = order_id
+    PURCHASE_TO_ORDER[link.purchase_number] = order_id
     await events.emit("payment_link_created", order_id=order_id, amount=amount, link_id=link.id, url=link.url,
                       backend=link.backend, **ids)
     return order
@@ -225,6 +230,46 @@ def panel():
         "orders": list_orders()[:10],
         "events": list(events.RECENT)[-50:],
     }
+
+
+@app.post("/webhooks/cybersource")
+async def cybersource_webhook(request: Request):
+    """Pay by Link payment notification. HMAC over the exact bytes received; nothing is re-parsed first."""
+    raw = await request.body()
+    print(f"[webhook] {request.headers.get('v-c-event-type', '?')} {raw[:2000]!r}")
+    try:
+        note = webhooks.verify(raw, request.headers.get("v-c-signature"))
+    except webhooks.WebhookError as e:
+        status = 503 if "not configured" in str(e) else 401
+        await events.emit("signature_rejected", checks=[{"id": "cybersource_webhook", "passed": False,
+                                                         "detail": str(e)}])
+        raise HTTPException(status, str(e)) from e
+    found = [s for s in webhooks.strings_in(note.body) if s in PURCHASE_TO_ORDER or s in LINK_TO_ORDER]
+    if not found:  # 200 so Cybersource does not retry a notification for an order we never made
+        return {"ok": True, "matched": False}
+    order_id = PURCHASE_TO_ORDER.get(found[0]) or LINK_TO_ORDER[found[0]]
+    event_type = str(note.body.get("eventType", ""))
+    if "payment" not in event_type.lower():
+        return {"ok": True, "matched": True, "ignored": event_type}
+    order = await mark_paid(order_id, via=f"cybersource_webhook ({note.variant})")
+    return {"ok": True, "matched": True, "order_id": order_id, "status": order["status"], "duplicate": note.duplicate}
+
+
+@app.api_route("/webhooks/cybersource/health", methods=["GET", "POST"])
+def cybersource_webhook_health():
+    """Cybersource's subscription health check calls this with both methods."""
+    return {"ok": True}
+
+
+@app.post("/reset")
+def reset():
+    """Nonces stay: a reset must not let an old signed order replay."""
+    cleared = len(ORDERS)
+    ORDERS.clear()
+    LINK_TO_ORDER.clear()
+    PURCHASE_TO_ORDER.clear()
+    events.clear()
+    return {"ok": True, "orders_cleared": cleared}
 
 
 def render_checkout_page(order: dict) -> str:

@@ -5,15 +5,23 @@ verify_request() is what the order flow calls: it rebuilds the request from the 
 returns every check for the wall. MERCHANT_VERIFY=off (the default) records the check as skipped
 instead of failing orders; enforce runs the verifier and rejects anything that fails.
 
-Not here yet: step 6 of the contract (decision_id is allow/approved on the ledger).
+Step 6 of the contract (enforce mode only): the body's decision_id must be known to policy
+(GET {POLICY_URL}/decisions/{id}, 300 ms timeout) with decision "allow", or "approve" whose approval was
+approved, and the decision's cart (sku and qty) must equal the order's cart, so a valid decision cannot be
+replayed with a different cart. Policy unreachable fails closed. Accepted decision shapes, until the
+policy contract pins one: cart under "cart" or "priced_cart", lines under "items" or "lines"; approval as
+{"approval": {"approved": true}} or {"approval_status": "approved"}.
 """
 
 from __future__ import annotations
 
 import datetime
+import json
 import os
+from collections import Counter
 from dataclasses import dataclass, field
 
+import httpx
 import requests
 from http_message_signatures import HTTPMessageVerifier
 from http_message_signatures.exceptions import InvalidSignature
@@ -43,6 +51,58 @@ class DigestMismatch(InvalidSignature):
 
 class WindowError(InvalidSignature):
     pass
+
+
+class DecisionError(InvalidSignature):
+    pass
+
+
+DECISION_TIMEOUT = 0.3
+
+
+def _cart_counts(cart) -> Counter:
+    if isinstance(cart, dict):
+        cart = cart.get("items") or cart.get("lines") or []
+    counts: Counter = Counter()
+    for line in cart or []:
+        counts[str(line["sku"])] += int(line.get("qty", 1))
+    return counts
+
+
+def fetch_decision(decision_id: str) -> dict | None:
+    base = os.environ.get("POLICY_URL", "http://127.0.0.1:8001").rstrip("/")
+    try:
+        r = httpx.get(f"{base}/decisions/{decision_id}", timeout=DECISION_TIMEOUT)
+    except httpx.HTTPError as exc:
+        raise DecisionError(f"policy unreachable: {type(exc).__name__}") from exc
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    return r.json()
+
+
+def check_decision(body: bytes, fetch=None) -> str:
+    """Contract step 6. Returns the passing detail or raises DecisionError."""
+    fetch = fetch or fetch_decision  # looked up at call time so tests can patch the module
+    try:
+        order = json.loads(body)
+        decision_id = order["decision_id"]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise DecisionError("body has no decision_id") from exc
+    decision = fetch(decision_id)
+    if decision is None:
+        raise DecisionError(f"unknown decision {decision_id}")
+    outcome = decision.get("decision")
+    if outcome == "approve":
+        approval = decision.get("approval") or {}
+        if not (approval.get("approved") is True or decision.get("approval_status") == "approved"):
+            raise DecisionError(f"decision {decision_id} awaits caregiver approval")
+    elif outcome != "allow":
+        raise DecisionError(f"decision {decision_id} is {outcome}")
+    decided = _cart_counts(decision.get("cart") or decision.get("priced_cart"))
+    if decided != _cart_counts(order.get("cart")):
+        raise DecisionError(f"cart differs from decision {decision_id}")
+    return f"{decision_id} is {outcome}, cart matches"
 
 
 class NonceStore:
@@ -95,9 +155,10 @@ class Verification:
     ok: bool
     keyid: str | None = None
     checks: list[dict] = field(default_factory=list)
+    params: dict = field(default_factory=dict)  # nonce, created, expires of a verified signature (for the wall)
 
 
-STEPS = ("content_digest", "signature", "window", "nonce")
+STEPS = ("content_digest", "signature", "window", "nonce", "decision")
 
 
 def verify_request(
@@ -109,6 +170,7 @@ def verify_request(
     *,
     public_key=None,
     nonce_store: NonceStore | None = None,
+    fetch_decision=None,
 ) -> Verification:
     mode = os.environ.get("MERCHANT_VERIFY", "off")
     has_sig = "signature" in headers and "signature-input" in headers
@@ -123,6 +185,7 @@ def verify_request(
     request = prepared_from_parts(method, f"http://{authority}{path}", headers, body)
     try:
         result = verify_prepared(request, nonce_store or NONCES, public_key=public_key)
+        decision_detail = check_decision(body, fetch_decision)
     except Exception as exc:  # every failure becomes a red check on the wall, never a 500
         if isinstance(exc, DigestMismatch):
             failed = "content_digest"
@@ -130,6 +193,8 @@ def verify_request(
             failed = "window"
         elif isinstance(exc, ReplayError):
             failed = "nonce"
+        elif isinstance(exc, DecisionError):
+            failed = "decision"
         else:
             failed = "signature"
         checks = []
@@ -146,10 +211,12 @@ def verify_request(
     return Verification(
         ok=True,
         keyid=keyid,
+        params={"nonce": str(params["nonce"]), "created": int(params["created"]), "expires": int(params["expires"])},
         checks=[
             {"id": "content_digest", "passed": True, "detail": "sha-256 matches the body"},
             {"id": "signature", "passed": True, "detail": f"ed25519, keyid {keyid}, tag agent-payer-auth"},
             {"id": "window", "passed": True, "detail": f"{span}s window, inside 8 minutes"},
             {"id": "nonce", "passed": True, "detail": "first use"},
+            {"id": "decision", "passed": True, "detail": decision_detail},
         ],
     )
