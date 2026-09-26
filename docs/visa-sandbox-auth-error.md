@@ -9,6 +9,11 @@ the paid step ("marked paid in the sandbox flow"). Don't retry card payments on 
 fails the same way. Still failing as of Sep 26 18:34 GMT: request `7904476728146353004011` ($49.95, Pay by Link)
 and `7904329513516873604807` (14:29 GMT), both reason 150, `fdiglobal`, `usd_outlet_id, usd_terminal_id`.
 
+**Cancel is real (Sep 26):** `PATCH /ipl/v2/payment-links/{id}` with `status: INACTIVE` moves a live sandbox link
+`ACTIVE → INACTIVE`, and a `GET` of the same link confirms `INACTIVE`. PATCH correlation ids:
+`64bbe6f1-084d-4c95-a2e5-f8692d4dcae2`, `addbb116-57d3-4d01-9ac4-28f95faeba47` (spike) and
+`d608ac0b-b8d8-42b9-94f2-240aacc1ca8e` (through the merchant's cancel route, 0.81 s).
+
 ## TL;DR
 
 Our Cybersource sandbox account (merchant `…6462`) can create real Visa Pay by Link pages, but **every card authorization fails** with reason code 150:
