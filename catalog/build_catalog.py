@@ -9,6 +9,7 @@ on top; a missing or broken raw file is skipped, so this always produces a catal
 """
 
 import json
+import re
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -130,9 +131,18 @@ def load_raw():
     return items
 
 
+def same_product(a: str, b: str) -> bool:
+    norm = lambda s: re.sub(r"[^a-z0-9 ]", "", s.lower())
+    return norm(a).startswith(norm(b)) or norm(b).startswith(norm(a))
+
+
 def build():
     by_sku = {}
-    for it in load_raw() + SYNTHETIC:  # synthetic last so demo items always win
+    for it in load_raw():
+        # A real listing of a demo product would sit beside it at another price; the demo item wins.
+        if not any(same_product(it["name"], demo["name"]) for demo in SYNTHETIC):
+            by_sku[it["sku"]] = it
+    for it in SYNTHETIC:
         by_sku[it["sku"]] = it
     catalog = {
         "merchant": MERCHANT,

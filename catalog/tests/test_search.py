@@ -75,3 +75,22 @@ def test_search_under_100ms():
     for _ in range(20):
         catalog.search("low sodium chicken noodle soup")
     assert (time.perf_counter() - start) / 20 < 0.1
+
+
+def test_spanish_pan_is_bread_not_peter_pan():
+    assert catalog.search("pan", 1)[0]["group"] == "bread"
+
+
+def test_spanish_tag_words_find_low_sodium():
+    top = catalog.search("sopa baja en sodio", 3)
+    assert all(it["group"] == "soup" and "low_sodium" in it["tags"] for it in top)
+
+
+def test_suggestions_stay_close_to_the_product():
+    alts = catalog.suggest("SOU-001")
+    assert alts and all("chicken" in a["name"].lower() for a in alts)
+
+
+def test_real_listing_of_a_demo_product_is_deduped():
+    names = [it["name"].lower() for it in catalog.items.values() if it["group"] == "bread"]
+    assert sum(n.startswith("nature's own honey wheat bread") for n in names) == 1

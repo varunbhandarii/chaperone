@@ -9,6 +9,7 @@ Without them this exits and build_catalog uses the synthetic catalog only.
 import base64
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -45,8 +46,17 @@ TERMS = {
     "low sodium soup": ("soup", "pantry"),
 }
 
+# Kroger search is fuzzy ("bananas" returns banana peppers and smoothies); keep only real matches.
+MUST_CONTAIN = {"bananas": "banana", "apples": "apple", "eggs": "egg", "milk": "milk"}
+EXCLUDE_WORDS = {
+    "bananas": ["pepper", "smoothie", "chip", "trail", "dried", "protein", "yogurt", "pouch", "boat", "sunscreen",
+                "juice", "nectar", "drink", "bread", "muffin", "pudding", "almond", "snaps", "crispy", "kids"],
+    "apples": ["caramel", "juice", "sauce", "chip", "cider", "vinegar", "pie", "drink", "snack"],
+}
+
 TAG_WORDS = {
-    "low sodium": "low_sodium", "reduced sodium": "low_sodium", "organic": "organic", "lactose free": "lactose_free",
+    "low sodium": "low_sodium", "reduced sodium": "low_sodium", "less sodium": "low_sodium",
+    "no salt": "low_sodium", "unsalted": "low_sodium", "lower sugar": "reduced_sugar", "less sugar": "reduced_sugar", "organic": "organic", "lactose free": "lactose_free",
     "whole grain": "whole_grain", "whole wheat": "whole_grain", "sugar free": "sugar_free", "decaf": "caffeine_free",
     "caffeine free": "caffeine_free", "kroger": "store_brand", "simple truth": "store_brand", "private selection": "store_brand",
 }
@@ -69,14 +79,25 @@ def nearest_location(client: httpx.Client, zip_code: str) -> dict:
     return locations[0]
 
 
+def clean(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[®™]", "", text)).strip()
+
+
+def wanted(term: str, name: str) -> bool:
+    lower = name.lower()
+    if term in MUST_CONTAIN and MUST_CONTAIN[term] not in lower:
+        return False
+    return not any(w in lower for w in EXCLUDE_WORDS.get(term, []))
+
+
 def to_item(p: dict, group: str, category: str) -> dict | None:
     offer = (p.get("items") or [{}])[0]
     price = offer.get("price") or {}
     amount = price.get("promo") or price.get("regular")
     if not amount:
         return None  # not sold at this store
-    name = p.get("description", "").strip()
-    brand = (p.get("brand") or "").strip()
+    name = clean(p.get("description", ""))
+    brand = clean(p.get("brand") or "")
     text = f"{name} {brand}".lower()
     return {
         "sku": f"KR-{p['productId']}",
@@ -108,7 +129,7 @@ def main():
             kept = 0
             for p in r.json().get("data", []):
                 it = to_item(p, group, category)
-                if it and it["sku"] not in items:
+                if it and it["sku"] not in items and wanted(term, it["name"]):
                     items[it["sku"]] = it
                     kept += 1
                     if kept == PER_TERM:

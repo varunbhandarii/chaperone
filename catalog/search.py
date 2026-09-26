@@ -24,6 +24,15 @@ PROFILE_PATH = HERE / "profile.json"
 GIFT_LIKE_CATEGORIES = {"gift_card", "prepaid_card"}
 NO_SUGGEST_CATEGORIES = {"pharmacy_pickup"} | GIFT_LIKE_CATEGORIES
 
+# Tag words shoppers say in es/hi, so "sopa baja en sodio" finds low_sodium items.
+TAG_ALIASES = {
+    "low_sodium": ["bajo en sodio", "baja en sodio", "poca sal", "sin sal", "kam namak", "कम नमक"],
+    "reduced_sugar": ["menos azucar", "sin azucar", "kam cheeni"],
+    "lactose_free": ["sin lactosa"],
+    "organic": ["organico", "organica"],
+    "whole_grain": ["integral"],
+}
+
 STOPWORDS = {
     # en
     "a", "an", "the", "my", "some", "of", "and", "please", "i", "want", "need", "buy", "get", "me", "to", "for", "usual",
@@ -75,6 +84,7 @@ class Catalog:
 
     def _index_tokens(self, it: dict) -> tuple[set[str], set[str]]:
         own = [it["name"], it["brand"]] + [t.replace("_", " ") for t in it["tags"]]
+        own += [a for t in it["tags"] for a in TAG_ALIASES.get(t, [])]
         group = [it["category"].replace("_", " "), it["group"].replace("_", " ")] + self.group_aliases.get(it["group"], [])
         return {t for w in own for t in tokens(w)}, {t for w in group for t in tokens(w)}
 
@@ -93,8 +103,8 @@ class Catalog:
             for t in qtokens:
                 if t in own:
                     score += 3
-                elif t in group:
-                    score += 2
+                if t in group:
+                    score += 2  # additive: "pan" in a bread name beats the "Peter Pan" brand
                 if len(t) >= 3 and any(w != t and (w.startswith(t) or (len(w) >= 5 and t.startswith(w))) for w in own):
                     score += 1  # "ibuprofeno" ~ "ibuprofen", "chick" ~ "chicken"
             if any(contains_phrase(qn, a) for a in self.group_aliases.get(it["group"], []) if " " in a):
@@ -146,7 +156,9 @@ class Catalog:
                 reasons.append("your usual")
             if not reasons:
                 continue
-            out.append({**self.view(it), "reasons": reasons, "_rank": (len(gained), diff)})
+            # Prefer the closest product (chicken noodle -> chicken noodle, not cream of mushroom).
+            similar = len(set(tokens(it["name"])) & set(tokens(base["name"])))
+            out.append({**self.view(it), "reasons": reasons, "_rank": (len(gained), similar, diff)})
         out.sort(key=lambda s: s["_rank"], reverse=True)
         for s in out:
             del s["_rank"]

@@ -285,6 +285,212 @@
       "purpose": "Purpose Antihistamine"
     },
     {
+      "sku": "KR-0000000004132",
+      "name": "Small Gala Apple – Each",
+      "brand": "Fresh Apples",
+      "category": "produce",
+      "group": "apples",
+      "price": 0.75,
+      "size": "1 each",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0000000004131",
+      "name": "Large Fuji Apple – Each",
+      "brand": "Fresh Apples",
+      "category": "produce",
+      "group": "apples",
+      "price": 1.89,
+      "size": "1 lb",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0000000004017",
+      "name": "Large Granny Smith Apple - Each",
+      "brand": "Fresh Apples",
+      "category": "produce",
+      "group": "apples",
+      "price": 1.99,
+      "size": "1 lb",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0000000004130",
+      "name": "Large Pink Lady Apple – Each",
+      "brand": "Fresh Apples",
+      "category": "produce",
+      "group": "apples",
+      "price": 1.99,
+      "size": "1 lb",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0000000004134",
+      "name": "Large Gala Apple - Each",
+      "brand": "Fresh Apples",
+      "category": "produce",
+      "group": "apples",
+      "price": 2.19,
+      "size": "1 lb",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0000000003507",
+      "name": "Large Cosmic Crisp Apple – Each",
+      "brand": "Fresh Apples",
+      "category": "produce",
+      "group": "apples",
+      "price": 2.49,
+      "size": "1 lb",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0000000003283",
+      "name": "Large Honeycrisp Apple – Each",
+      "brand": "Fresh Apples",
+      "category": "produce",
+      "group": "apples",
+      "price": 3.49,
+      "size": "1 lb",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111091829",
+      "name": "Kroger Granny Smith Apples – 3 Pound Bag",
+      "brand": "",
+      "category": "produce",
+      "group": "apples",
+      "price": 3.99,
+      "size": "3 lb",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111070112",
+      "name": "Kroger Cosmic Crisp Apples - 4 Pack Tray",
+      "brand": "",
+      "category": "produce",
+      "group": "apples",
+      "price": 4.0,
+      "size": "4 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111014902",
+      "name": "Kroger Pink Lady Apples – 3 Pound Bag",
+      "brand": "Kroger",
+      "category": "produce",
+      "group": "apples",
+      "price": 4.29,
+      "size": "3 lb",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111091825",
+      "name": "Kroger Gala Apples – 3 Pound Bag",
+      "brand": "",
+      "category": "produce",
+      "group": "apples",
+      "price": 4.49,
+      "size": "3 lb",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0073231300266",
+      "name": "Fresh Apples in 3lb Minions Bag",
+      "brand": "",
+      "category": "produce",
+      "group": "apples",
+      "price": 4.99,
+      "size": "3 lb",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111070110",
+      "name": "Kroger Honeycrisp Apples - 4 Pack Tray",
+      "brand": "",
+      "category": "produce",
+      "group": "apples",
+      "price": 5.0,
+      "size": "4 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111063956",
+      "name": "Kroger Pink Lady Apples – 5 Pound Bag BIG DEAL!",
+      "brand": "Kroger",
+      "category": "produce",
+      "group": "apples",
+      "price": 5.0,
+      "size": "5 lb",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111018189",
+      "name": "Kroger Honeycrisp Apples – 3 Pound Bag",
+      "brand": "Kroger",
+      "category": "produce",
+      "group": "apples",
+      "price": 7.99,
+      "size": "3 lb",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0000000004011",
+      "name": "Fresh Bunch of Bananas – 5-7 Bananas",
+      "brand": "Fresh Bananas",
+      "category": "produce",
+      "group": "bananas",
+      "price": 0.59,
+      "size": "1 lb",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "PRO-001",
       "name": "Bananas",
       "brand": "Fresh",
@@ -297,6 +503,20 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0000000094011",
+      "name": "Fresh Bunch of Organic Bananas – 5-7 Bananas",
+      "brand": "Fresh Bananas",
+      "category": "produce",
+      "group": "bananas",
+      "price": 0.85,
+      "size": "1 lb",
+      "tags": [
+        "organic"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "PRO-002",
@@ -312,6 +532,339 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0001111016103",
+      "name": "Kroger Frozen Sliced Bananas",
+      "brand": "Kroger",
+      "category": "produce",
+      "group": "bananas",
+      "price": 2.89,
+      "size": "16 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111010642",
+      "name": "Kroger Dark Red Kidney Beans",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "beans",
+      "price": 0.88,
+      "size": "15.5 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111010646",
+      "name": "Kroger Pinto Beans",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "beans",
+      "price": 0.88,
+      "size": "15.5 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111010647",
+      "name": "Kroger Black Beans",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "beans",
+      "price": 0.88,
+      "size": "15.5 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111012057",
+      "name": "Kroger Mild Chili Beans",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "beans",
+      "price": 0.88,
+      "size": "15.5 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111071789",
+      "name": "Kroger Great Northern Beans",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "beans",
+      "price": 0.88,
+      "size": "15.5 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111010643",
+      "name": "Kroger Great Northern Beans",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "beans",
+      "price": 0.88,
+      "size": "15.5 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111010649",
+      "name": "Kroger Cannellini Beans",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "beans",
+      "price": 0.88,
+      "size": "15.5 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111010641",
+      "name": "Kroger Light Red Kidney Beans",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "beans",
+      "price": 0.88,
+      "size": "15.5 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111086503",
+      "name": "Kroger Traditional Refried Beans",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "beans",
+      "price": 1.19,
+      "size": "16 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003940001880",
+      "name": "Bush's Black Beans 15 oz",
+      "brand": "Bush's Best",
+      "category": "pantry",
+      "group": "beans",
+      "price": 1.49,
+      "size": "15 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004430010632",
+      "name": "Rosarita Traditional Refried Beans, Canned Beans",
+      "brand": "Rosarita",
+      "category": "pantry",
+      "group": "beans",
+      "price": 1.5,
+      "size": "16 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111085713",
+      "name": "Simple Truth Organic Cut Green Beans - 14.5oz can",
+      "brand": "Simple Truth Organic",
+      "category": "pantry",
+      "group": "beans",
+      "price": 1.79,
+      "size": "14.5 oz",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111082428",
+      "name": "SIMPLE TRUTH ORGANIC NO SALT GREEN BEANS - 14.5oz can",
+      "brand": "Simple Truth Organic",
+      "category": "pantry",
+      "group": "beans",
+      "price": 1.79,
+      "size": "14.5 oz",
+      "tags": [
+        "low_sodium",
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111011472",
+      "name": "Kroger Cut Green Beans BIG DEAL!",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "beans",
+      "price": 3.89,
+      "size": "4 ct / 14.5 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111013233",
+      "name": "Simple Truth Organic Cut Canned Green Beans BIG DEAL!",
+      "brand": "Simple Truth",
+      "category": "pantry",
+      "group": "beans",
+      "price": 6.79,
+      "size": "4 ct / 14.5 oz",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111008485",
+      "name": "Kroger White Bread",
+      "brand": "Kroger",
+      "category": "bakery",
+      "group": "bread",
+      "price": 1.99,
+      "size": "20 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111008486",
+      "name": "Kroger White Sandwich Bread",
+      "brand": "Kroger",
+      "category": "bakery",
+      "group": "bread",
+      "price": 1.99,
+      "size": "20 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111008450",
+      "name": "Kroger Soft Wheat Bread",
+      "brand": "Kroger",
+      "category": "bakery",
+      "group": "bread",
+      "price": 1.99,
+      "size": "20 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007294560136",
+      "name": "Sara Lee Honey Wheat Bread",
+      "brand": "Sara Lee",
+      "category": "bakery",
+      "group": "bread",
+      "price": 2.09,
+      "size": "20 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111008449",
+      "name": "Kroger Honey Wheat Bread",
+      "brand": "Kroger",
+      "category": "bakery",
+      "group": "bread",
+      "price": 2.49,
+      "size": "20 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007225001137",
+      "name": "Wonder Classic White Bread",
+      "brand": "Wonder",
+      "category": "bakery",
+      "group": "bread",
+      "price": 2.99,
+      "size": "20 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111008415",
+      "name": "Private Selection White Bread Rustic Wide Pan",
+      "brand": "Private Selection",
+      "category": "bakery",
+      "group": "bread",
+      "price": 2.99,
+      "size": "24 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111008489",
+      "name": "Private Selection 100% Whole Wheat Bread Wide Pan",
+      "brand": "Private Selection",
+      "category": "bakery",
+      "group": "bread",
+      "price": 2.99,
+      "size": "24 oz",
+      "tags": [
+        "store_brand",
+        "whole_grain"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "BAK-002",
@@ -376,6 +929,30 @@
       "source": "synthetic"
     },
     {
+      "sku": "KR-0007016295870",
+      "name": "Artesano White Bread",
+      "brand": "Artesano",
+      "category": "bakery",
+      "group": "bread",
+      "price": 4.79,
+      "size": "20 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003967707213",
+      "name": "GOLDMINER CRACKED WHEAT SOURDOUGH SQUARE BREAD",
+      "brand": "California Goldminer",
+      "category": "bakery",
+      "group": "bread",
+      "price": 5.49,
+      "size": "24 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "BAK-004",
       "name": "Dave's Killer Bread 21 Whole Grains",
       "brand": "Dave's Killer Bread",
@@ -389,6 +966,811 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0001376402722",
+      "name": "Dave's Killer Bread White Bread Done Right, Artisan-Style Organic White Bread, 24 oz Loaf",
+      "brand": "Dave's Killer Bread",
+      "category": "bakery",
+      "group": "bread",
+      "price": 6.99,
+      "size": "24 oz",
+      "tags": [
+        "organic"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111086705",
+      "name": "Kroger Bite Size Frosted Shredded Wheat Cereal",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 2.0,
+      "size": "18 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003000057322",
+      "name": "Cap'n Crunch's Crunch Berries Cereal",
+      "brand": "Cap'N Crunch",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 2.49,
+      "size": "11.7 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003000006322",
+      "name": "Life Cinnamon Multigrain Cereal",
+      "brand": "Life",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 2.49,
+      "size": "13 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001600012254",
+      "name": "General Mills Cinnamon Toast Crunch Cereal",
+      "brand": "Cinnamon Toast Crunch",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 3.99,
+      "size": "12 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001600012479",
+      "name": "General Mills Honey Nut Cheerios Cereal",
+      "brand": "Cheerios",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 3.99,
+      "size": "10.8 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001600012399",
+      "name": "General Mills Gluten Free Lucky Charms with Marshmallows Cereal",
+      "brand": "Lucky Charms",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 3.99,
+      "size": "10.5 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001600012222",
+      "name": "General Mills REESE'S PUFFS Chocolatey Peanut Butter Cereal",
+      "brand": "Reese's Puffs",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 3.99,
+      "size": "11.5 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001600015128",
+      "name": "General Mills Cocoa Puffs Cereal",
+      "brand": "Cocoa Puffs",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 3.99,
+      "size": "10.4 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001600027532",
+      "name": "General Mills Trix Fruity Shapes Cereal",
+      "brand": "Trix",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 3.99,
+      "size": "10.7 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0088491212971",
+      "name": "Fruity Pebbles Cereal",
+      "brand": "Fruity Pebbles",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 3.99,
+      "size": "11 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0088491235915",
+      "name": "Honey Bunches of Oats Honey Roasted Cereal",
+      "brand": "Honey Bunches of Oats",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 3.99,
+      "size": "12 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001600012025",
+      "name": "General Mills Golden Grahams Cereal",
+      "brand": "General Mills",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 4.49,
+      "size": "11.7 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001600015163",
+      "name": "General Mills Cookie Crisp Cereal",
+      "brand": "Cookie Crisp",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 4.49,
+      "size": "10.6 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001600012685",
+      "name": "General Mills Cinnamon Toast Crunch Giant Size Cereal",
+      "brand": "Cinnamon Toast Crunch",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 6.99,
+      "size": "27 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001600012495",
+      "name": "General Mills Honey Nut Cheerios Giant Size Cereal",
+      "brand": "Cheerios",
+      "category": "pantry",
+      "group": "cereal",
+      "price": 6.99,
+      "size": "27.2 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111050204",
+      "name": "Kroger Mexican Style Blend Shredded Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.0,
+      "size": "8 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111058287",
+      "name": "Kroger Colby Jack Sliced Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.0,
+      "size": "8 slices / 6 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111050158",
+      "name": "Kroger Sharp Cheddar Shredded Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.0,
+      "size": "8 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111058678",
+      "name": "Kroger Colby Jack Block Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.0,
+      "size": "8 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111058627",
+      "name": "Kroger Sharp Cheddar Block Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.0,
+      "size": "8 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111050170",
+      "name": "Kroger Mild Cheddar Shredded Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.0,
+      "size": "8 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111050174",
+      "name": "Kroger Colby Jack Shredded Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.0,
+      "size": "8 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111058718",
+      "name": "Kroger Medium Cheddar Sliced Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.0,
+      "size": "8 slices / 6 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111050159",
+      "name": "Kroger Mozzarella Shredded Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.0,
+      "size": "8 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111050183",
+      "name": "Kroger Cheddar Jack Shredded Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.0,
+      "size": "8 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111009434",
+      "name": "Kroger Singles American Sliced Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.89,
+      "size": "16 slices / 12 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004610040092",
+      "name": "Sargento Off the Block Fine Cut 4 Cheese Mexican Blend Natural Cheese Shreds",
+      "brand": "Sargento",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 3.5,
+      "size": "8 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0002100060464",
+      "name": "Kraft Singles American Sliced Cheese",
+      "brand": "Kraft",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 4.39,
+      "size": "16 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111015121",
+      "name": "Kroger Mexican Style Blend Shredded Cheese Family Size",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 7.29,
+      "size": "32 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0022626600000",
+      "name": "Private Selection Colby Jack Fresh Sliced Deli Cheese",
+      "brand": "Private Selection",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 8.99,
+      "size": "1 lb",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0081363602065",
+      "name": "Califia Farms Pure Black Blonde Roast Cold Brew Coffee",
+      "brand": "Califia Farms",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 4.99,
+      "size": "48 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111007451",
+      "name": "Kroger Donut Shop Blend Medium Roast K-Cup Coffee Pods",
+      "brand": "Kroger",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 4.99,
+      "size": "12 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111010742",
+      "name": "Kroger French Vanilla Medium Roast Ground Coffee",
+      "brand": "Kroger",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 6.0,
+      "size": "11 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111010738",
+      "name": "Kroger Breakfast Blend Mild Roast Ground Coffee",
+      "brand": "Kroger",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 6.0,
+      "size": "11 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001291934269",
+      "name": "Seattle's Best Coffee 6th Ave Bistro Dark Roast Organic Ground Coffee",
+      "brand": "Seattle's Best",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 8.89,
+      "size": "10 oz",
+      "tags": [
+        "organic"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001291901206",
+      "name": "Seattle's Best Coffee Breakfast Blend Medium Roast Ground Coffee",
+      "brand": "Seattle's Best",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 8.89,
+      "size": "12 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001291912231",
+      "name": "Seattle's Best Coffee Post Alley Dark Roast Ground Coffee",
+      "brand": "Seattle's Best",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 8.89,
+      "size": "12 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0078260516110",
+      "name": "Kauai Coffee Vanilla Macadamia Nut Medium Roast Ground - 10 oz Bag",
+      "brand": "Kauai Coffee",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 8.99,
+      "size": "10 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0002550030401",
+      "name": "Folgers Classic Roast Ground Coffee, Medium Roast, 9.6 Oz. Canister",
+      "brand": "Folgers",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 9.79,
+      "size": "9.6 ounces",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111003531",
+      "name": "Simple Truth Organic House Blend Medium Dark Roast Ground Coffee",
+      "brand": "Simple Truth Organic",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 9.99,
+      "size": "11 oz",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0076211120605",
+      "name": "Starbucks House Blend Medium Roast Ground Coffee",
+      "brand": "Starbucks",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 9.99,
+      "size": "12 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0081006334306",
+      "name": "Death Wish Coffee Co. Medium Roast Ground Coffee",
+      "brand": "Death Wish Coffee",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 10.99,
+      "size": "10 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111015000",
+      "name": "Kroger Original Medium Roast Ground Coffee",
+      "brand": "Kroger",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 14.79,
+      "size": "29 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004300009422",
+      "name": "Maxwell House Original Roast Ground Coffee, Canister",
+      "brand": "Maxwell House",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 15.79,
+      "size": "27.5 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0002550030407",
+      "name": "Folgers Classic Roast Ground Coffee, Medium Roast",
+      "brand": "Folgers",
+      "category": "beverages",
+      "group": "coffee",
+      "price": 15.99,
+      "size": "25.9 ounces",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111013313",
+      "name": "Smart Way Saltines Crackers",
+      "brand": "Smart Way",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 1.89,
+      "size": "16 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111009773",
+      "name": "Kroger Mini Oyster Crackers",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 1.99,
+      "size": "10 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111009090",
+      "name": "Kroger Original Saltines Crackers",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 2.0,
+      "size": "16 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111014941",
+      "name": "Kroger Saltine Crackers Unsalted Tops",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 2.0,
+      "size": "16 oz",
+      "tags": [
+        "low_sodium",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111001979",
+      "name": "Kroger Original Oyster Crackers",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 2.39,
+      "size": "12 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111001980",
+      "name": "Kroger Reduced Sodium Oyster Crackers",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 2.39,
+      "size": "12 oz",
+      "tags": [
+        "low_sodium",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004400000057",
+      "name": "Premium Original Saltine Crackers",
+      "brand": "Premium",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 3.0,
+      "size": "16 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004400002681",
+      "name": "Premium Fresh Stacks Original Saltine Crackers",
+      "brand": "Premium",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 3.0,
+      "size": "13.6 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004400001777",
+      "name": "Premium Mini Original Saltine Crackers",
+      "brand": "Premium",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 3.0,
+      "size": "11 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004400000055",
+      "name": "Premium Unsalted Tops Saltine Crackers",
+      "brand": "Premium",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 3.0,
+      "size": "16 oz",
+      "tags": [
+        "low_sodium"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004400005495",
+      "name": "Premium with Whole Grain Wheat Saltine Crackers",
+      "brand": "Premium",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 3.0,
+      "size": "16.96 oz",
+      "tags": [
+        "whole_grain"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004400002477",
+      "name": "Premium Original Soup & Oyster Crackers",
+      "brand": "Premium",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 3.0,
+      "size": "9 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003010000133",
+      "name": "Zesta Saltines Crackers Original",
+      "brand": "Zesta",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 3.29,
+      "size": "16 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0068670010141",
+      "name": "Gamesa Saladitas Saltine Crackers",
+      "brand": "Gamesa",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 3.5,
+      "size": "2 ct / 7.3 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004400004483",
+      "name": "Premium Original Saltine Crackers",
+      "brand": "Nabisco",
+      "category": "pantry",
+      "group": "crackers",
+      "price": 5.99,
+      "size": "24 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111060906",
+      "name": "Kroger Grade A Large White Eggs",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 1.39,
+      "size": "6 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "EGG-003",
@@ -406,6 +1788,48 @@
       "source": "synthetic"
     },
     {
+      "sku": "KR-0001111060903",
+      "name": "Kroger Grade A Large White Eggs",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 2.19,
+      "size": "12 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111060904",
+      "name": "Kroger Grade A Extra Large White Eggs",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 2.39,
+      "size": "12 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111060905",
+      "name": "Kroger Grade A Jumbo White Eggs",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 2.59,
+      "size": "12 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "EGG-001",
       "name": "Kroger Grade A Large Eggs",
       "brand": "Kroger",
@@ -420,6 +1844,34 @@
       "source": "synthetic"
     },
     {
+      "sku": "KR-0001111060933",
+      "name": "Kroger Grade A Large White Eggs",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 3.19,
+      "size": "18 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111079770",
+      "name": "Simple Truth Natural Cage Free Grade A Large Brown Eggs",
+      "brand": "Simple Truth",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 3.99,
+      "size": "12 ct / 24 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "EGG-002",
       "name": "Eggland's Best Large Eggs",
       "brand": "Eggland's Best",
@@ -430,6 +1882,131 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0071514150349",
+      "name": "Eggland's Best Classic Large White Eggs",
+      "brand": "Eggland's Best",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 4.69,
+      "size": "12 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111079772",
+      "name": "Simple Truth Organic Brown Cage Free Large Eggs",
+      "brand": "Simple Truth Organic",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 4.99,
+      "size": "12 ct",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111060980",
+      "name": "Kroger Medium Grade A White Eggs",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 5.19,
+      "size": "30 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111089310",
+      "name": "Simple Truth Natural Cage Free Grade A Large Brown Eggs",
+      "brand": "Simple Truth",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 5.49,
+      "size": "18 ct / 36 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111016520",
+      "name": "Simple Truth Organic Pasture Raised Large Brown Eggs",
+      "brand": "Private Selection",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 6.0,
+      "size": "12 ct",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111015097",
+      "name": "Simple Truth Cage Free Grade A Large Brown Eggs",
+      "brand": "Simple Truth",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 6.79,
+      "size": "24 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0071514111357",
+      "name": "Eggland's Best Classic Large White Eggs, 18 count",
+      "brand": "Eggland's Best",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 6.99,
+      "size": "18 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111006479",
+      "name": "Simple Truth Organic Cage Free Grade A Large Brown Eggs",
+      "brand": "Simple Truth Organic",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 7.29,
+      "size": "18 ct",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111060914",
+      "name": "Kroger Grade A Large White Eggs",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 10.55,
+      "size": "60 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "GFT-003",
@@ -570,6 +2147,195 @@
       "purpose": "PURPOSE Antacid"
     },
     {
+      "sku": "KR-0002500000024",
+      "name": "Simply Pulp-Free Orange Juice Bottle",
+      "brand": "Simply",
+      "category": "beverages",
+      "group": "juice",
+      "price": 1.5,
+      "size": "11.5 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111015687",
+      "name": "Kroger Premium Orange Juice Pulp Free",
+      "brand": "Kroger",
+      "category": "beverages",
+      "group": "juice",
+      "price": 4.49,
+      "size": "46 fl oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111048480",
+      "name": "Kroger 100% Orange Juice Pulp Free",
+      "brand": "Kroger",
+      "category": "beverages",
+      "group": "juice",
+      "price": 4.59,
+      "size": "half gal",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004850020571",
+      "name": "Tropicana Pure Premium Original No Pulp No Sugar Added 100% Orange Juice",
+      "brand": "Tropicana",
+      "category": "beverages",
+      "group": "juice",
+      "price": 4.79,
+      "size": "46 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0002500013678",
+      "name": "Simply Pulp-Free Orange Juice Bottle",
+      "brand": "Simply",
+      "category": "beverages",
+      "group": "juice",
+      "price": 4.99,
+      "size": "46 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0002500013680",
+      "name": "Simply Orange Juice with Calcium Bottle",
+      "brand": "Simply",
+      "category": "beverages",
+      "group": "juice",
+      "price": 4.99,
+      "size": "46 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0002500013682",
+      "name": "Simply High-Pulp Orange Juice Bottle",
+      "brand": "Simply",
+      "category": "beverages",
+      "group": "juice",
+      "price": 4.99,
+      "size": "46 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0002500004789",
+      "name": "Minute Maid Orange Juice Pulp Free",
+      "brand": "Minute Maid",
+      "category": "beverages",
+      "group": "juice",
+      "price": 5.29,
+      "size": "59 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111015691",
+      "name": "Simple Truth Organic Orange Juice No Pulp",
+      "brand": "Simple Truth Organic",
+      "category": "beverages",
+      "group": "juice",
+      "price": 5.99,
+      "size": "46 fl oz",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0002500013025",
+      "name": "Simply Pulp-Free Orange Juice Bottles",
+      "brand": "Simply",
+      "category": "beverages",
+      "group": "juice",
+      "price": 6.49,
+      "size": "4 pk / 8 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004850001833",
+      "name": "Tropicana Pure Premium No Pulp Original Orange Juice",
+      "brand": "Tropicana",
+      "category": "beverages",
+      "group": "juice",
+      "price": 6.99,
+      "size": "89 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004850001830",
+      "name": "Tropicana Pure Premium 100% Orange Juice, No Pulp with Calcium and Vitamin D",
+      "brand": "Tropicana",
+      "category": "beverages",
+      "group": "juice",
+      "price": 6.99,
+      "size": "89 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111048482",
+      "name": "Kroger 100% Orange Juice Pulp Free",
+      "brand": "Kroger",
+      "category": "beverages",
+      "group": "juice",
+      "price": 7.0,
+      "size": "1 gal",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0002500013663",
+      "name": "Simply Pulp-Free Orange Juice Bottle",
+      "brand": "Simply",
+      "category": "beverages",
+      "group": "juice",
+      "price": 8.29,
+      "size": "76 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0002500013665",
+      "name": "Simply Orange Juice with Calcium Bottle",
+      "brand": "Simply",
+      "category": "beverages",
+      "group": "juice",
+      "price": 8.29,
+      "size": "76 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "DAI-002",
       "name": "Kroger 2% Reduced Fat Milk",
       "brand": "Kroger",
@@ -583,6 +2349,90 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0001111040601",
+      "name": "Kroger Vitamin D Whole Milk Half Gallon",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "milk",
+      "price": 2.39,
+      "size": "1/2 gal",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111041661",
+      "name": "Kroger 1% Lowfat Milk Half Gallon",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "milk",
+      "price": 2.39,
+      "size": "1/2 gal",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111050574",
+      "name": "Kroger 1% Lowfat Chocolate Milk Half Gallon",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "milk",
+      "price": 2.99,
+      "size": "1/2 gal",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111040101",
+      "name": "Kroger Vitamin D Whole Milk Gallon",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "milk",
+      "price": 3.29,
+      "size": "1 gal",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111041660",
+      "name": "Kroger 1% Lowfat Milk Gallon",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "milk",
+      "price": 3.29,
+      "size": "1 gal",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111042315",
+      "name": "Kroger Skim Milk Gallon",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "milk",
+      "price": 3.29,
+      "size": "1 gal",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "DAI-001",
@@ -599,6 +2449,80 @@
       "source": "synthetic"
     },
     {
+      "sku": "KR-0001111082556",
+      "name": "Kroger Lactose Free 2% Reduced Fat Milk Half Gallon",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "milk",
+      "price": 3.49,
+      "size": "1/2 gal",
+      "tags": [
+        "lactose_free",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111050573",
+      "name": "Kroger 1% Lowfat Chocolate Milk Gallon",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "milk",
+      "price": 4.29,
+      "size": "1 gal",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111042852",
+      "name": "Simple Truth Organic 2% Reduced Fat Milk Half Gallon",
+      "brand": "Simple Truth Organic",
+      "category": "dairy",
+      "group": "milk",
+      "price": 4.69,
+      "size": "1/2 gal",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111042850",
+      "name": "Simple Truth Organic Vitamin D Whole Milk Half Gallon",
+      "brand": "Simple Truth Organic",
+      "category": "dairy",
+      "group": "milk",
+      "price": 4.69,
+      "size": "1/2 gal",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111016338",
+      "name": "Kroger CARBMaster Original Lactose Free Skim Milk",
+      "brand": "Kroger Carbmaster",
+      "category": "dairy",
+      "group": "milk",
+      "price": 4.79,
+      "size": "59 fl oz",
+      "tags": [
+        "lactose_free",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "DAI-003",
       "name": "Lactaid 2% Reduced Fat Milk",
       "brand": "Lactaid",
@@ -611,6 +2535,20 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0009396651300",
+      "name": "Organic Valley Whole Milk Half Gallon",
+      "brand": "Organic Valley",
+      "category": "dairy",
+      "group": "milk",
+      "price": 5.49,
+      "size": "64 fl oz",
+      "tags": [
+        "organic"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "DAI-004",
@@ -627,6 +2565,21 @@
       "source": "synthetic"
     },
     {
+      "sku": "KR-0001111042908",
+      "name": "Simple Truth Organic Vitamin D Whole Milk Gallon",
+      "brand": "Simple Truth Organic",
+      "category": "dairy",
+      "group": "milk",
+      "price": 7.49,
+      "size": "1 gal",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "NUT-003",
       "name": "Ensure Max Protein Milk Chocolate Shake",
       "brand": "Ensure",
@@ -640,6 +2593,102 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0007007440701",
+      "name": "Ensure Original Milk Chocolate Nutrition Shake | Small Meal Replacement Shake | 8 fl oz - 6 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 10.0,
+      "size": "6 pk / 8 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007007440705",
+      "name": "Ensure Original Strawberry Nutrition Shake | Small Meal Replacement Shake | 8 fl oz - 6 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 10.0,
+      "size": "6 bottles / 8 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007007466897",
+      "name": "Ensure Max Protein Nutrition Shake, Milk Chocolate, 30g Protein, 11 fl oz, 4 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 10.99,
+      "size": "4 ct / 11 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007007467166",
+      "name": "Ensure Max Protein Nutrition Shake, French Vanilla, 30g Protein, 11 fl oz, 4 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 10.99,
+      "size": "4 ct / 11 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007007464116",
+      "name": "Ensure High Protein Milk Chocolate Nutrition Shake | 8 fl oz, 6 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 10.99,
+      "size": "8 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007007464118",
+      "name": "Ensure High Protein Vanilla Nutrition Shake | 8 fl oz, 6 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 10.99,
+      "size": "8 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007007468170",
+      "name": "Ensure Max Protein Nutrition Shake, Creamy Strawberry, 30g Protein, 11 fl oz, 4 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 10.99,
+      "size": "4 ct / 11 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007007466891",
+      "name": "Ensure Max Protein Nutrition Shake, Cafe Mocha, 30g Protein, 11 fl oz, 4 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 10.99,
+      "size": "4 pk / 11 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "NUT-001",
@@ -671,6 +2720,66 @@
       "source": "synthetic"
     },
     {
+      "sku": "KR-0007007440707",
+      "name": "Ensure Plus Vanilla Nutrition Shake | Meal Replacement Shake | 8 fl oz - 6 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 13.99,
+      "size": "6 pk / 8 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007007440702",
+      "name": "Ensure Plus Milk Chocolate Nutrition Shake | Meal Replacement Shake | 8 fl oz - 6 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 13.99,
+      "size": "6 pk / 8 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007007440718",
+      "name": "Ensure Plus Strawberry Nutrition Shake | Meal Replacement Shake | 8 fl oz - 6 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 13.99,
+      "size": "6 bottles / 8 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007007453623",
+      "name": "Ensure Original Milk Chocolate Nutrition Shake | Small Meal Replacement Shake | 8 fl oz - 16 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 25.99,
+      "size": "16 pk / 8 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007007467725",
+      "name": "Ensure Max Protein Nutrition Shake, Milk Chocolate, 30g Protein, 11 fl oz, 12 Pack",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 29.99,
+      "size": "12 pk / 11 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "NUT-002",
       "name": "Ensure Original Vanilla Nutrition Shake, Case",
       "brand": "Ensure",
@@ -684,6 +2793,137 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0001111007268",
+      "name": "FRUIT & CREAM VARIETY PACK NATURALLY FLAVORED INSTANT OATMEAL 8 PK - KROGER - 8.4 OZ",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 2.0,
+      "size": "8.4 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111007191",
+      "name": "Kroger Apple and Cinnamon Instant Oatmeal",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 2.0,
+      "size": "8 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111007330",
+      "name": "LESS SUGAR MAPLE & BROWN SUGAR NATURALLY FLAVORED INSTANT OATMEAL 8 PK - KROGER - 9.5 OZ",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 2.0,
+      "size": "9.5 oz",
+      "tags": [
+        "reduced_sugar",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111007301",
+      "name": "Kroger Strawberries and Cream Instant Oatmeal",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 2.0,
+      "size": "8 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003000056728",
+      "name": "Quaker Maple & Brown Sugar Instant Oatmeal",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 2.49,
+      "size": "8 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003000056828",
+      "name": "Quaker Fruit & Cream Instant Oatmeal Variety Pack",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 2.49,
+      "size": "8 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003000056729",
+      "name": "Quaker Apple Cinnamon Instant Oatmeal",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 2.49,
+      "size": "8 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003000056849",
+      "name": "Quaker Instant Oatmeal Variety Pack",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 2.49,
+      "size": "8 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003000056731",
+      "name": "Quaker Original Instant Oatmeal",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 2.49,
+      "size": "10 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003000056855",
+      "name": "Quaker Maple & Brown Sugar Lower Sugar Instant Oatmeal",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 2.49,
+      "size": "8 ct",
+      "tags": [
+        "reduced_sugar"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "PAN-003",
@@ -700,6 +2940,36 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0001111010264",
+      "name": "Simple Truth Organic Maple and Brown Sugar Instant Oatmeal",
+      "brand": "Simple Truth",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 3.49,
+      "size": "10 ct",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111010302",
+      "name": "Simple Truth Organic Original Instant Oatmeal",
+      "brand": "Simple Truth Organic",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 3.49,
+      "size": "12 ct",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "PAN-001",
@@ -730,6 +3000,30 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0003000031504",
+      "name": "Quaker Maple Brown Sugar Instant Oatmeal",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 6.99,
+      "size": "20 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003000056831",
+      "name": "Quaker Fruit & Cream Instant Oatmeal Variety Pack",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 6.99,
+      "size": "20 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "FDA-00146B91",
@@ -988,6 +3282,204 @@
       "purpose": "Purpose Pain reliever"
     },
     {
+      "sku": "KR-0001111001618",
+      "name": "Creamy Peanut Butter - Kroger - 16 Oz",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 2.29,
+      "size": "16 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111001652",
+      "name": "Kroger Honey Peanut Butter Spread Creamy",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 2.29,
+      "size": "16 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111001649",
+      "name": "Kroger Natural Peanut Butter Creamy",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 2.29,
+      "size": "15 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111001619",
+      "name": "Kroger Crunchy Peanut Butter",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 2.29,
+      "size": "16 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004530000549",
+      "name": "Peter Pan Gluten Free Creamy Peanut Butter Made with Roasted Peanuts",
+      "brand": "Peter Pan",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 2.89,
+      "size": "16.3 ounces",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005150025516",
+      "name": "Jif Creamy Peanut Butter",
+      "brand": "Jif",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 3.19,
+      "size": "16 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005150025565",
+      "name": "Jif Creamy Natural Peanut Butter",
+      "brand": "Jif",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 3.19,
+      "size": "16 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111079156",
+      "name": "Simple Truth Organic No Stir Creamy Peanut Butter Spread",
+      "brand": "Simple Truth Organic",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 4.79,
+      "size": "16 oz",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111009853",
+      "name": "Kroger Creamy Peanut Butter",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 4.99,
+      "size": "40 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005150024177",
+      "name": "Jif Creamy Peanut Butter",
+      "brand": "Jif",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 5.49,
+      "size": "28 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111073932",
+      "name": "Kroger Peanut Butter Creamy BIG Deal!",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 6.0,
+      "size": "64 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005150072001",
+      "name": "Jif Creamy Peanut Butter",
+      "brand": "Jif",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 7.49,
+      "size": "40 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005150024321",
+      "name": "Jif Creamy Natural Peanut Butter",
+      "brand": "Jif",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 7.49,
+      "size": "40 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111012605",
+      "name": "Simple Truth Organic No Stir Crunchy Peanut Butter BIG DEAL!",
+      "brand": "Simple Truth Organic",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 10.99,
+      "size": "40 oz",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005150024769",
+      "name": "Jif Creamy Peanut Butter",
+      "brand": "Jif",
+      "category": "pantry",
+      "group": "peanut_butter",
+      "price": 13.99,
+      "size": "80 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "PPD-001",
       "name": "Reloadable Prepaid Debit Card",
       "brand": "PrePaid Plus",
@@ -1019,6 +3511,212 @@
       "note": "Ready for pickup, $8.00 copay"
     },
     {
+      "sku": "KR-0001111001950",
+      "name": "Kroger 90 Second Jasmine Rice Pouch",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "rice",
+      "price": 1.49,
+      "size": "8.8 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111089875",
+      "name": "Kroger Enriched Long Grain White Rice",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "rice",
+      "price": 1.79,
+      "size": "32 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111084726",
+      "name": "Kroger Instant Enriched White Rice",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "rice",
+      "price": 1.89,
+      "size": "14 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001740014031",
+      "name": "Minute Ready-to-Eat Jasmine Rice, Microwaveable Rice Cups, , 2 Count",
+      "brand": "Minute",
+      "category": "pantry",
+      "group": "rice",
+      "price": 2.19,
+      "size": "8.8 onz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001740014000",
+      "name": "Minute Ready-to-Eat White Rice, Microwaveable Rice Cups, , 2 Count",
+      "brand": "Minute",
+      "category": "pantry",
+      "group": "rice",
+      "price": 2.19,
+      "size": "8.8 onz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001740010077",
+      "name": "Success Boil-in-Bag White Rice, Gluten-Free, Non-GMO, 4 Bags",
+      "brand": "Success",
+      "category": "pantry",
+      "group": "rice",
+      "price": 2.49,
+      "size": "14 onz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001740010675",
+      "name": "Mahatma Extra Long Grain White Rice, Uncooked Rice, 32 oz (907g)",
+      "brand": "Mahatma",
+      "category": "pantry",
+      "group": "rice",
+      "price": 2.89,
+      "size": "32 onz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001740011805",
+      "name": "Minute Instant White Rice, Gluten-Free",
+      "brand": "Minute",
+      "category": "pantry",
+      "group": "rice",
+      "price": 3.19,
+      "size": "14 onz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111015341",
+      "name": "Kroger Jasmine Rice",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "rice",
+      "price": 3.69,
+      "size": "2 lb",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111084703",
+      "name": "Kroger Long Grain Rice",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "rice",
+      "price": 3.79,
+      "size": "5 lb",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001740010695",
+      "name": "Mahatma Thai Fragrant Jasmine Rice, Uncooked Rice, 32 oz (907g)",
+      "brand": "Mahatma",
+      "category": "pantry",
+      "group": "rice",
+      "price": 3.99,
+      "size": "2 lbr",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001740010932",
+      "name": "Mahatma Extra Long Grain White Rice, Uncooked Rice, 80 oz (2.27kg)",
+      "brand": "Mahatma",
+      "category": "pantry",
+      "group": "rice",
+      "price": 5.49,
+      "size": "5 lbr",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111015343",
+      "name": "Kroger Jasmine Rice",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "rice",
+      "price": 6.49,
+      "size": "5 lb",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001740010951",
+      "name": "Mahatma Thai Fragrant Jasmine Rice, Uncooked Rice, 80 oz (2.27kg)",
+      "brand": "Mahatma",
+      "category": "pantry",
+      "group": "rice",
+      "price": 6.99,
+      "size": "5 lbr",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001115203470",
+      "name": "Botan Calrose Rice",
+      "brand": "Botan",
+      "category": "pantry",
+      "group": "rice",
+      "price": 8.99,
+      "size": "5 lb",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111016039",
+      "name": "Kroger Condensed Chicken Noodle Soup",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "soup",
+      "price": 0.85,
+      "size": "10.5 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "SOU-004",
       "name": "Kroger Chicken Noodle Soup",
       "brand": "Kroger",
@@ -1033,6 +3731,50 @@
       "source": "synthetic"
     },
     {
+      "sku": "KR-0001111086545",
+      "name": "Kroger Less Sodium Condensed Chicken Noodle Soup",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.0,
+      "size": "10.5 oz",
+      "tags": [
+        "low_sodium",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111004523",
+      "name": "Kroger Condensed Cream of Chicken Soup",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.0,
+      "size": "10.5 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111016047",
+      "name": "Kroger Less Sodium Condensed Cream of Mushroom Soup",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.0,
+      "size": "10.5 oz",
+      "tags": [
+        "low_sodium",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "SOU-001",
       "name": "Campbell's Chicken Noodle Soup",
       "brand": "Campbell's",
@@ -1045,6 +3787,125 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0005100001251",
+      "name": "Campbell's Condensed Chicken Noodle Soup, 10.75 oz Can",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.5,
+      "size": "10.75 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111004970",
+      "name": "Kroger Less Sodium Fat Free Chicken Broth",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.59,
+      "size": "32 oz",
+      "tags": [
+        "low_sodium",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005100002457",
+      "name": "Campbell's Condensed Homestyle Chicken Noodle Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.99,
+      "size": "10.5 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005100028800",
+      "name": "Campbell's Homestyle Tomato Basil Soup 16.3 oz Can",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.99,
+      "size": "16.3 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005100001047",
+      "name": "Campbell's Condensed Beef Consomme Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.99,
+      "size": "10.5 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005100016680",
+      "name": "Campbell's Condensed 25% Less Sodium Chicken Noodle Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.99,
+      "size": "10.75 oz",
+      "tags": [
+        "low_sodium"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005100029114",
+      "name": "Campbell's Condensed 25% Less Sodium Chicken And Rice Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.99,
+      "size": "10.5 oz",
+      "tags": [
+        "low_sodium"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005100029113",
+      "name": "Campbell's Condensed 25% Less Sodium Bean With Bacon Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.99,
+      "size": "11.25 oz",
+      "tags": [
+        "low_sodium"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005100016681",
+      "name": "Campbell's Condensed 25% Less Sodium Cream Of Mushroom Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.99,
+      "size": "10.5 oz",
+      "tags": [
+        "low_sodium"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "SOU-002",
@@ -1063,6 +3924,144 @@
       "source": "synthetic"
     },
     {
+      "sku": "KR-0001111004963",
+      "name": "Free Range Chicken Broth Low Sodium - Simple Truth Organic - 32 Oz",
+      "brand": "Simple Truth",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.0,
+      "size": "32 oz",
+      "tags": [
+        "low_sodium",
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111008602",
+      "name": "Simple Truth Organic Low Sodium Vegetable Broth",
+      "brand": "Simple Truth Organic",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.0,
+      "size": "32 oz",
+      "tags": [
+        "low_sodium",
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004119691401",
+      "name": "Progresso Rich and Hearty Chicken and Homestyle Noodles Soup",
+      "brand": "Progresso",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.99,
+      "size": "19 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004119601088",
+      "name": "Progresso Traditional Chicken Noodle Soup",
+      "brand": "Progresso",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.99,
+      "size": "19 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005100003885",
+      "name": "Campbell's Chunky Classic Chicken Noodle Soup, 18.6 oz Can",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.99,
+      "size": "18.6 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004119680548",
+      "name": "Progresso Reduced Sodium Canned Roasted Chicken Noodle Soup",
+      "brand": "Progresso",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.99,
+      "size": "18.5 oz",
+      "tags": [
+        "low_sodium"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004119674074",
+      "name": "Progresso Reduced Sodium Savory Chicken & Wild Rice Soup",
+      "brand": "Progresso",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.99,
+      "size": "18.5 oz",
+      "tags": [
+        "low_sodium"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004119613648",
+      "name": "Progresso Reduced Sodium New England Clam Chowder Canned Soup",
+      "brand": "Progresso",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.99,
+      "size": "18.5 oz",
+      "tags": [
+        "low_sodium"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004119613649",
+      "name": "Progresso Reduced Sodium Chicken Corn Chowder Canned Soup",
+      "brand": "Progresso",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.99,
+      "size": "18.5 oz",
+      "tags": [
+        "low_sodium"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004119641942",
+      "name": "Progresso Reduced Sodium Creamy Tomato with Basil Soup",
+      "brand": "Progresso",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.99,
+      "size": "19 oz",
+      "tags": [
+        "low_sodium"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "SOU-003",
       "name": "Progresso Reduced Sodium Chicken Noodle Soup",
       "brand": "Progresso",
@@ -1076,6 +4075,219 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0001111014281",
+      "name": "Simple Truth Organic Chicken Noodle Soup",
+      "brand": "Simple Truth Organic",
+      "category": "pantry",
+      "group": "soup",
+      "price": 3.79,
+      "size": "18.6 oz",
+      "tags": [
+        "organic",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005260329011",
+      "name": "Pacific Foods Organic Lightly Salted Chicken and Wild Rice Soup 16.3 oz Can",
+      "brand": "Pacific Foods",
+      "category": "pantry",
+      "group": "soup",
+      "price": 3.99,
+      "size": "16.3 oz",
+      "tags": [
+        "organic"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005260328919",
+      "name": "Pacific Foods Organic Spicy Chicken Noodle Soup 16.1 oz Can",
+      "brand": "Pacific Foods",
+      "category": "pantry",
+      "group": "soup",
+      "price": 4.79,
+      "size": "16.1 oz",
+      "tags": [
+        "organic"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005100012938",
+      "name": "Campbell's Condensed Chicken Noodle Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 5.49,
+      "size": "4 ct / 10.75 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005100028207",
+      "name": "Campbell's Condensed Homestyle Chicken Noodle Soup 10.5 Oz Can 4 Pack",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 5.79,
+      "size": "4 ct / 10.5 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0005100027358",
+      "name": "Campbell's Homestyle Chicken Noodle Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 5.99,
+      "size": "4 ct / 7 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007795869041",
+      "name": "Panera Bread Ready-to-Heat Chicken Noodle Soup Cup",
+      "brand": "Panera Bread",
+      "category": "pantry",
+      "group": "soup",
+      "price": 6.99,
+      "size": "16 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111016537",
+      "name": "Smart Way Black Tea Bags",
+      "brand": "Smart Way",
+      "category": "beverages",
+      "group": "tea",
+      "price": 2.39,
+      "size": "100 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111011754",
+      "name": "Smart Way Tagless Classic Black Tea Bags",
+      "brand": "Smart Way",
+      "category": "beverages",
+      "group": "tea",
+      "price": 2.39,
+      "size": "100 bags",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004790030319",
+      "name": "Luzianne Original Iced Tea Bags",
+      "brand": "Luzianne",
+      "category": "beverages",
+      "group": "tea",
+      "price": 2.69,
+      "size": "24 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007231000123",
+      "name": "Bigelow Earl Grey Black Tea Bags",
+      "brand": "Bigelow",
+      "category": "beverages",
+      "group": "tea",
+      "price": 2.99,
+      "size": "1.18 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007231000189",
+      "name": "Bigelow Perfectly Mint Black Tea Bags",
+      "brand": "Bigelow",
+      "category": "beverages",
+      "group": "tea",
+      "price": 2.99,
+      "size": "20 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007231000161",
+      "name": "Bigelow Spiced Chai Black Tea Bags",
+      "brand": "Bigelow",
+      "category": "beverages",
+      "group": "tea",
+      "price": 2.99,
+      "size": "20 ct / 1.73 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007231000177",
+      "name": "Bigelow English Teatime Black Tea Bags",
+      "brand": "Bigelow",
+      "category": "beverages",
+      "group": "tea",
+      "price": 2.99,
+      "size": "20 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007231001091",
+      "name": "Bigelow Lavender Chamomile plus Probiotics Caffeine Free Herbal Tea Bags",
+      "brand": "Bigelow",
+      "category": "beverages",
+      "group": "tea",
+      "price": 2.99,
+      "size": "0.98 oz",
+      "tags": [
+        "caffeine_free"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001115605805",
+      "name": "Tetley Iced Tea Blend Tea Bags Family Size",
+      "brand": "Tetley",
+      "category": "beverages",
+      "group": "tea",
+      "price": 3.19,
+      "size": "24 ct / 6 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007024221110",
+      "name": "Red Diamond Tea Filter Bags Carton",
+      "brand": "Red Diamond",
+      "category": "beverages",
+      "group": "tea",
+      "price": 3.29,
+      "size": "6oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
     },
     {
       "sku": "BEV-002",
@@ -1092,6 +4304,44 @@
       "source": "synthetic"
     },
     {
+      "sku": "KR-0079452200425",
+      "name": "Lipton Unsweetened Black Iced Tea Family Size Bags",
+      "brand": "Lipton",
+      "category": "beverages",
+      "group": "tea",
+      "price": 3.59,
+      "size": "24 ct / 6 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0001111016584",
+      "name": "Kroger Black Tea Bags",
+      "brand": "Kroger",
+      "category": "beverages",
+      "group": "tea",
+      "price": 3.59,
+      "size": "100 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0004790030329",
+      "name": "Luzianne Tea Bags Original Iced Tea Family",
+      "brand": "Luzianne",
+      "category": "beverages",
+      "group": "tea",
+      "price": 5.29,
+      "size": "48 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "BEV-001",
       "name": "Lipton Black Tea Bags",
       "brand": "Lipton",
@@ -1104,6 +4354,18 @@
       "source": "synthetic"
     },
     {
+      "sku": "KR-0079452200418",
+      "name": "Lipton Black Iced Tea Family Size Tea Bags",
+      "brand": "Lipton",
+      "category": "beverages",
+      "group": "tea",
+      "price": 5.99,
+      "size": "12 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
       "sku": "BEV-003",
       "name": "Wagh Bakri Masala Chai",
       "brand": "Wagh Bakri",
@@ -1114,6 +4376,186 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "synthetic"
+    },
+    {
+      "sku": "KR-0007047000300",
+      "name": "Yoplait Original Low Fat Strawberry Yogurt Cup",
+      "brand": "Yoplait",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 0.8,
+      "size": "6 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007047000307",
+      "name": "Yoplait Original Low Fat Harvest Peach Yogurt Cup",
+      "brand": "Yoplait",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 0.8,
+      "size": "6 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0089824800107",
+      "name": "siggi’s Vanilla Icelandic-Style Nonfat Yogurt, 5.3 oz",
+      "brand": "Siggi's",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 1.67,
+      "size": "5.3 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003663204258",
+      "name": "Oikos Pro 20g Protein Mixed Berry Yogurt-Cultured Ultra-Filtered Milk Product Cup​",
+      "brand": "Oikos",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 2.19,
+      "size": "5.3 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003663202635",
+      "name": "Activia Black Cherry Probiotic Low Fat Yogurt Cups",
+      "brand": "Activia",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 3.39,
+      "size": "4 ct / 4 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0085006540380",
+      "name": "Mixed Berry Vanilla Yogurt Parfait with Granola",
+      "brand": "",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 3.99,
+      "size": "7.5 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0085006540378",
+      "name": "Fresh Made In Store Parfait Strawberry",
+      "brand": "",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 3.99,
+      "size": "7.5 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007835557010",
+      "name": "The Greek Gods Honey Vanilla Greek Style Yogurt Tub",
+      "brand": "The Greek Gods",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 4.79,
+      "size": "24 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003663201953",
+      "name": "Oikos Triple Zero Vanilla High Protein Nonfat Greek Yogurt Cups",
+      "brand": "Oikos",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 5.49,
+      "size": "5.3 oz., 4 pack",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0081829001626",
+      "name": "Chobani Vanilla with Mixed Berry Low Fat Greek Yogurt Cups",
+      "brand": "Chobani",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 5.79,
+      "size": "4 pk / 5.3 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0007047040389",
+      "name": "Yoplait Original Low Fat Strawberry and Harvest Peach Yogurt Cups",
+      "brand": "Yoplait",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 5.79,
+      "size": "8 ct / 6 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0089470001014",
+      "name": "Chobani Vanilla Nonfat Greek Yogurt Tub",
+      "brand": "Chobani",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 6.49,
+      "size": "32 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003663204264",
+      "name": "Oikos Pro 20g Protein Vanilla Yogurt-Cultured Ultra-Filtered Milk Product Cup​s",
+      "brand": "Oikos",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 6.99,
+      "size": "4 ct / 5.3 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003663204266",
+      "name": "Oikos Pro 20g Protein Strawberry Yogurt-Cultured Ultra-Filtered Milk Product Cup​s",
+      "brand": "Oikos",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 6.99,
+      "size": "4 ct / 5.3 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
+    },
+    {
+      "sku": "KR-0003663201944",
+      "name": "Oikos Triple Zero Vanilla High Protein Nonfat Greek Yogurt Tub",
+      "brand": "Oikos",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 7.99,
+      "size": "32 fl oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger"
     }
   ]
 }
