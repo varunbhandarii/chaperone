@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "headline": {"type": "string", "description": "What happened, six to ten words."},
+    "what_happened": {"type": "string", "description": "One sentence: what Ruth asked for and what Chaperone did."},
+    "rule_in_plain_words": {"type": "string", "description": "One sentence: the rule or reason, in everyday words."},
+    "what_ruth_heard": {"type": "string", "description": "One sentence: what Chaperone told Ruth."},
+    "what_you_can_do": {"type": "string", "description": "One sentence: a concrete next step for Priyank."}
+  },
+  "required": ["headline", "what_happened", "rule_in_plain_words", "what_ruth_heard", "what_you_can_do"],
+  "additionalProperties": false
+}

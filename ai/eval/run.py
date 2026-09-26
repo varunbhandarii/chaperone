@@ -11,8 +11,9 @@ of precision, recall and false refusals. The judge runs on every script the rule
 refuse, as /checkout does (R7).
 
 Judge calls run under the production deadline (JUDGE_TIMEOUT_S, 3 s). A call that misses it
-counts as the judge being unavailable, which policy does not turn into a refusal, so it scores
-as a miss (score 0) for that run.
+counts as the judge being unavailable, and the script gets what policy does then: `held` (for
+Priyank's approval) when the rules sent it to the judge, else `allow`. Held is not a refusal; the
+table counts it in its own column.
 
 JUDGE_THRESHOLD is picked on one half of the set (stratified by language and label) over a
 0.50-0.80 grid. Every row of the results table is scored on the other (held-out) half only,
@@ -41,6 +42,10 @@ GRID = [round(0.50 + 0.05 * i, 2) for i in range(7)]
 # Benign scripts whose rules-only outcome changed after lexicon edits made while looking at them;
 # the rules-only rows are optimistic on these.
 TUNED_ON = ["en_b_medicare_card", "hi_b_own_otp", "en_b_read_label", "hl_b_beta_jaldi"]
+# Written by the rule author together with the refund, recovery and delivery rules.
+WRITTEN_WITH_RULES = ["en_refund_overpay", "en_recovery_retainer", "es_aduana_arancel", "es_tecnico_reembolso",
+                      "hi_refund_screen_share", "hl_renewal_callback", "en_b_return_milk", "es_b_devolver_sopa",
+                      "hi_b_order_status", "hl_b_return_extra_bread"]
 MANDATE_SUMMARY = {k: DEFAULT_MANDATE[k] for k in (
     "currency", "per_purchase_cap", "monthly_cap", "approval_threshold", "allowed_categories", "blocked_categories")}
 
@@ -55,20 +60,24 @@ def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return max(0.0, center - half), min(1.0, center + half)
 
 
-def rules_prediction(script: dict) -> str:
+def rules_prediction(script: dict) -> tuple[str, str]:
+    """(prediction, screen action) from the rules alone."""
     reset_sessions()
     out = screen(script["text"], None, session_id=f"eval-{script['id']}")
     if out["action"] != "refuse":
-        return "allow"
-    return "refuse" if set(out["refusal"]["patterns"]) - {"blocked_category"} else "category_block"
+        return "allow", out["action"]
+    return ("refuse" if set(out["refusal"]["patterns"]) - {"blocked_category"} else "category_block"), "refuse"
 
 
 def metrics(scripts: list[dict], preds: dict[str, str]) -> dict:
-    tp = fp = fn = fr = n_benign = 0
+    tp = fp = fn = fr = n_benign = held_scam = held_benign = 0
     for s in scripts:
         if s["expected"] == "category_block":
             continue
-        positive = preds[s["id"]] != "allow"
+        if preds[s["id"]] == "held":
+            held_scam += s["label"] == "scam"
+            held_benign += s["label"] != "scam"
+        positive = preds[s["id"]] in ("refuse", "category_block")
         if s["label"] == "scam":
             tp += positive
             fn += not positive
@@ -81,12 +90,26 @@ def metrics(scripts: list[dict], preds: dict[str, str]) -> dict:
     f1 = 2 * precision * recall / (precision + recall) if tp else 0.0
     lo, hi = wilson(fr, n_benign)
     return {"p": precision, "r": recall, "f1": f1, "tp": tp, "fn": fn, "fp": fp,
-            "fr": fr, "n_benign": n_benign, "fr_lo": lo, "fr_hi": hi}
+            "fr": fr, "n_benign": n_benign, "fr_lo": lo, "fr_hi": hi, "held_scam": held_scam, "held_benign": held_benign}
 
 
-def combined(rule_preds: dict[str, str], scores: dict[str, float], t: float) -> dict[str, str]:
-    return {sid: p if p != "allow" else ("refuse" if scores.get(sid, 0.0) >= t else "allow")
-            for sid, p in rule_preds.items()}
+def verdict(score: float | None, screen_action: str, t: float) -> str:
+    """One judge run as policy acts on it; None means the judge missed the deadline."""
+    if score is None:
+        return "held" if screen_action == "judge" else "allow"
+    return "refuse" if score >= t else "allow"
+
+
+def combined(rule_preds: dict[str, str], actions: dict[str, str], scores: dict[str, list], t: float) -> dict[str, str]:
+    """Rules first; for the rest, the majority verdict over the judge runs."""
+    out = {}
+    for sid, p in rule_preds.items():
+        if p != "allow":
+            out[sid] = p
+            continue
+        votes = [verdict(v, actions[sid], t) for v in scores.get(sid, [])] or ["allow"]
+        out[sid] = max(("refuse", "held", "allow"), key=votes.count)
+    return out
 
 
 def split(scripts: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -111,7 +134,7 @@ def run_judge(model: str, scripts: list[dict], runs: int, timeout: float, worker
                 model=model, timeout=timeout)
             return s["id"], r, out["scam_score"], meta, None
         except judge_mod.JudgeError as e:
-            return s["id"], r, 0.0, None, str(e)
+            return s["id"], r, None, None, str(e)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         results = list(pool.map(call, jobs))
@@ -132,12 +155,12 @@ def fmt(x: float) -> str:
 
 
 def table(rows: list[tuple[str, dict]]) -> list[str]:
-    out = ["| Layer | Language | Precision | Recall | F1 | Scams caught | False refusals (95% Wilson) |",
-           "|---|---|---|---|---|---|---|"]
+    out = ["| Layer | Language | Precision | Recall | F1 | Scams caught | Held for Priyank (scam / benign) | False refusals (95% Wilson) |",
+           "|---|---|---|---|---|---|---|---|"]
     for name, m in rows:
         layer, lang = name.split(" / ")
         out.append(f"| {layer} | {lang} | {fmt(m['p'])} | {fmt(m['r'])} | {fmt(m['f1'])} | "
-                   f"{m['tp']}/{m['tp'] + m['fn']} | {m['fr']}/{m['n_benign']} "
+                   f"{m['tp']}/{m['tp'] + m['fn']} | {m['held_scam']} / {m['held_benign']} | {m['fr']}/{m['n_benign']} "
                    f"({m['fr_lo']:.0%} to {m['fr_hi']:.0%}) |")
     return out
 
@@ -155,7 +178,9 @@ def main() -> None:
     args = ap.parse_args()
 
     scripts = yaml.safe_load((HERE / "scripts.yaml").read_text(encoding="utf-8"))["scripts"]
-    rule_preds = {s["id"]: rules_prediction(s) for s in scripts}
+    rules_out = {s["id"]: rules_prediction(s) for s in scripts}
+    rule_preds = {sid: p for sid, (p, _) in rules_out.items()}
+    actions = {sid: a for sid, (_, a) in rules_out.items()}
     tune, test = split(scripts)
     by_lang = {lang: [s for s in test if s["lang"] == lang] for lang in LANGS}
 
@@ -183,15 +208,13 @@ def main() -> None:
         for model in [m.strip() for m in args.models.split(",") if m.strip()]:
             print(f"judging with {model} ({args.runs} runs)...", flush=True)
             res = run_judge(model, [s for s in scripts if rule_preds[s["id"]] == "allow"], args.runs, args.timeout, args.workers)
-            median = {sid: statistics.median(v) for sid, v in res["scores"].items()}
-
             def f1_at(t, subset):
-                m = metrics(subset, combined({s["id"]: rule_preds[s["id"]] for s in subset}, median, t))
+                m = metrics(subset, combined({s["id"]: rule_preds[s["id"]] for s in subset}, actions, res["scores"], t))
                 return (m["f1"], -m["fr"], -abs(t - 0.6))
 
             t_best = max(GRID, key=lambda t: f1_at(t, tune))
-            preds = combined(rule_preds, median, t_best)
-            flips = sum(len({v >= t_best for v in vals}) > 1 for vals in res["scores"].values())
+            preds = combined(rule_preds, actions, res["scores"], t_best)
+            flips = sum(len({verdict(v, actions[sid], t_best) for v in vals}) > 1 for sid, vals in res["scores"].items())
             lat = sorted(res["latencies"])
             p90 = lat[min(len(lat) - 1, math.ceil(0.9 * len(lat)) - 1)] if lat else 0
             deadline = args.timeout or float(judge_mod.env("JUDGE_TIMEOUT_S", "3"))
@@ -208,7 +231,7 @@ def main() -> None:
                 f"F1 {fmt(held['f1'])}, recall {fmt(held['r'])}, false refusals {held['fr']}/{held['n_benign']} "
                 f"(95% Wilson up to {held['fr_hi']:.0%}).",
                 f"- Judge calls under the {deadline:g} s deadline: {len(lat)} answered, {len(res['errors'])} missed it "
-                f"or failed and counted as misses. Latency of answered calls: median "
+                f"or failed (held for Priyank when the rules had asked for the judge, else allowed). Latency of answered calls: median "
                 f"{statistics.median(lat) if lat else 0:.0f} ms, p90 {p90:.0f} ms ({args.workers} call(s) at a time).",
                 f"- Verdict flips across {args.runs} runs at the chosen threshold: {flips} of {len(res['scores'])} judged scripts.",
                 f"- Prompt cache: median cached prompt tokens per call {statistics.median(res['cached']) if res['cached'] else 0:.0f}.",
@@ -225,6 +248,8 @@ def main() -> None:
         f"- Innocent requests for a blocked item (expected category block): {cat_ok}/{len(cat_rows)} blocked as a category.",
         f"- The lexicon was edited after these benign scripts were seen, which changed their rules-only outcome, so the "
         f"rules-only rows are optimistic on them: {', '.join(TUNED_ON)}.",
+        f"- These scripts were written together with the refund, recovery and delivery rules, so the rules-only "
+        f"rows are optimistic on them too: {', '.join(WRITTEN_WITH_RULES)}.",
         f"- Misclassified by rules alone, full set (the judge covers these): {', '.join(misses) or 'none'}.",
         "",
     ]
