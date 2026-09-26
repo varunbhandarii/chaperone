@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chaperone station</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1>Chaperone</h1>
+      <span id="state" class="pill state-off">Off</span>
+      <button id="start" class="start" type="button">Start</button>
+    </header>
+
+    <p id="status" class="status" role="status" aria-live="polite">
+      Press Start, then hold the big button (or the Space key) while you speak.
+    </p>
+
+    <section class="metric" aria-label="Release to first audio">
+      <div class="metric-label">Release to first audio</div>
+      <div id="latency" class="metric-value">&ndash;</div>
+      <div id="latency-stats" class="metric-stats">min &ndash; &middot; median &ndash; &middot; n 0</div>
+    </section>
+
+    <div id="rules" class="rules" role="alert" hidden></div>
+
+    <button id="ptt" class="ptt state-off" type="button" disabled>
+      <span id="ptt-label">Press Start first</span>
+      <span id="ptt-hint" class="ptt-hint">hold to talk &middot; key: Space</span>
+    </button>
+
+    <section class="panel">
+      <h2>Conversation</h2>
+      <ol id="log" class="log" aria-live="polite"></ol>
+    </section>
+
+    <section id="items-panel" class="panel" hidden>
+      <h2>Found <span id="items-source" class="tag"></span></h2>
+      <ul id="items" class="items"></ul>
+    </section>
+
+    <form id="typed" class="typed panel" autocomplete="off">
+      <label for="typed-input">Type instead of speaking</label>
+      <div class="typed-row">
+        <input id="typed-input" type="text" placeholder="Necesito pan" />
+        <button type="submit">Send</button>
+      </div>
+    </form>
+
+    <details class="panel hardware" open>
+      <summary>Hardware</summary>
+      <div class="hw-grid">
+        <div>Push-to-talk key</div>
+        <div>
+          <kbd id="ptt-key">Space</kbd>
+          <button id="map-key" type="button">Map a new key</button>
+          <button id="reset-key" type="button">Reset</button>
+        </div>
+        <div>Last key pressed</div>
+        <div><kbd id="last-key">&ndash;</kbd></div>
+        <label for="mic">Microphone</label>
+        <div><select id="mic"><option value="">Default microphone</option></select> <span id="mic-label" class="muted"></span></div>
+        <label for="speaker">Speaker</label>
+        <div><select id="speaker"><option value="">Default speaker</option></select> <span id="speaker-note" class="muted"></span></div>
+        <div>Mic level</div>
+        <div class="meter"><div id="level" class="meter-bar"></div></div>
+        <div>Services</div>
+        <div id="services" class="muted mono"></div>
+        <div>Session</div>
+        <div id="session" class="muted mono">&ndash;</div>
+      </div>
+    </details>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

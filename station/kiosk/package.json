@@ -1,0 +1,21 @@
+{
+  "name": "chaperone-station-voice",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Push-to-talk Grok Voice client for the shopper station",
+  "scripts": {
+    "dev": "vite --port 5173 --strictPort --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 5173 --strictPort --host 0.0.0.0",
+    "test": "node --test \"test/*.test.mjs\"",
+    "probe": "node ws_probe.mjs"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "model": "grok-voice-think-fast-2.0",
+  "ws_url": "wss://api.x.ai/v1/realtime",
+  "subprotocol_prefix": "xai-client-secret.",
+  "token_path": "/session/token",
+  "voice_notes": {
+    "ara": "warm; default for Spanish and English",
+    "naksh": "Indian-accented; use for Hindi sessions (open the page with ?voice=naksh)",
+    "eve": "British",
+    "leo": "British",
+    "all": "every voice speaks every supported language"
+  },
+  "ports": { "relay": 8000, "policy": 8001, "catalog": 8003 },
+  "mandate_id": "m_ruth_2026_09",
+  "merchant": "corner_market",
+  "capture": {
+    "preferred_sample_rate": 24000,
+    "chunk_ms": 100,
+    "block_ms": 20,
+    "preroll_ms": 300,
+    "min_press_ms": 250
+  },
+  "screen": { "timeout_ms": 1500, "screen_partials": true },
+  "refusal": { "fallback": "force_message", "clip_timeout_ms": 800 },
+  "barge_in": { "truncate": true },
+  "session": {
+    "instructions": "## Role & Persona\nYou are Chaperone, a patient shopping helper for older adults.\n\n## Objective\nHelp the shopper buy groceries and pharmacy items, spending only what the caregiver's rules allow.\n\n## Conversation Flow\nWhenever the user names any product, call search_catalog with a short English query before answering. Offer at most three options, cheapest first, and say which one is their usual. Before any purchase, read back every item, its price and the total, and ask for a yes. When the user says yes to the read-back, call checkout with the skus and quantities. After checkout, say in one short sentence whether the order went through, needs the caregiver's approval, or was declined.\n\n## Guardrails & Escalation\nNever invent products or prices; use only tool results. If a tool result has refused true, say its say text exactly and nothing else.\n\n## Voice & Communication Style\nSpeak slowly, one question at a time, plain words. Always reply in the language the user spoke in their most recent turn. Before calling a tool, say one very short line in the user's language, such as \"Un momento.\" Say prices the way a person says them out loud.",
+    "voice": "ara",
+    "reasoning": { "effort": "none" },
+    "turn_detection": { "type": null },
+    "audio": {
+      "input": {
+        "format": { "type": "audio/pcm", "rate": null },
+        "transport": "json",
+        "transcription": {
+          "model": "grok-transcribe",
+          "keyterms": ["MiniCap", "Ensure", "lisinopril"]
+        }
+      },
+      "output": {
+        "format": { "type": "audio/pcm", "rate": null },
+        "transport": "json",
+        "speed": 0.95
+      }
+    },
+    "tools": [
+      {
+        "type": "function",
+        "name": "search_catalog",
+        "description": "Search the grocery and pharmacy catalog. Call this whenever the user names a product, in any language, before you answer. Pass a short English query of one to three words, for example \"bread\" or \"blood pressure medicine\". Returns up to three items with sku, name, brand, size, price and usual (true for the shopper's usual item).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": { "type": "string", "description": "short English product query, one to three words" }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "type": "function",
+        "name": "checkout",
+        "description": "Buy the items through the caregiver's spending rules. Call this only after you read back every item, its price and the total, and the user said yes. Pass skus exactly as returned by search_catalog. The result has decision allow, approve or deny; if it has refused true, say its say text exactly.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sku": { "type": "string", "description": "sku from a search_catalog result" },
+                  "qty": { "type": "integer", "minimum": 1 }
+                },
+                "required": ["sku", "qty"]
+              }
+            }
+          },
+          "required": ["items"]
+        }
+      }
+    ]
+  },
+  "measured": { "release_to_first_audio_ms": 998, "samples": 1, "note": "Chrome, laptop mic, Spanish; first audio is the spoken preamble before the tool call" }
+}
