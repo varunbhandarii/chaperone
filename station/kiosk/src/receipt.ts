@@ -160,7 +160,7 @@ export function formatPaidAt(paidAt: string | number | undefined): string {
 
 // ---------------------------------------------------------------- caregiver approval
 
-export type ApprovalState = "pending" | "approved" | "rejected" | "expired";
+export type ApprovalState = "pending" | "approved" | "rejected" | "expired" | "cancelled";
 
 export interface ApprovalStatus {
   approval_id: string;
@@ -176,7 +176,7 @@ export function parseApproval(body: unknown): ApprovalStatus | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;
   const state = b.state;
-  if (typeof b.approval_id !== "string" || (state !== "pending" && state !== "approved" && state !== "rejected" && state !== "expired")) {
+  if (typeof b.approval_id !== "string" || (state !== "pending" && state !== "approved" && state !== "rejected" && state !== "expired" && state !== "cancelled")) {
     return null;
   }
   const expires =

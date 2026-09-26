@@ -430,3 +430,25 @@ test("spoken lines: the refusal, caregiver and receipt keys exist, and line file
   assert.equal(sayFor("brand_new_key", "hi"), "नया");
   assert.equal(sayFor("brand_new_key", "en"), sayFor("declined", "en")); // other languages fall back
 });
+
+// ---------- recorded sessions and approval states ----------
+
+import { collapseShopperTurns } from "../src/recording.ts";
+
+test("a recording keeps one transcript per shopper turn (the last version), everything else in order", () => {
+  const events = [
+    { t: 0, kind: "shopper", turn: 1, text: "मेरे" },
+    { t: 5, kind: "agent_audio", audio: "AAAA" },
+    { t: 9, kind: "shopper", turn: 1, text: "मेरे पोते के लिए गिफ्ट कार्ड" },
+    { t: 20, kind: "tool", name: "search_catalog" },
+    { t: 30, kind: "shopper", turn: 2, text: "sí" },
+    { t: 31, kind: "shopper", text: "old recording without a turn" },
+  ];
+  const out = collapseShopperTurns(events);
+  assert.deepEqual(out.map((e) => e.text ?? e.kind), ["agent_audio", "मेरे पोते के लिए गिफ्ट कार्ड", "tool", "sí", "old recording without a turn"]);
+  assert.equal(out[1].t, 9);
+});
+
+test("a cancelled approval parses (the station closed it when the shopper moved on)", () => {
+  assert.equal(parseApproval({ approval_id: "a_1", state: "cancelled" }).state, "cancelled");
+});

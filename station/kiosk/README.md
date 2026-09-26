@@ -88,12 +88,17 @@ Microphone and speaker pickers are in the same panel (the speaker picker needs a
 
 ## After checkout: caregiver, payment, receipt
 
-- **Waiting for the caregiver.** On `approve` the model says the `asking_priya` line and the page polls
+- **Waiting for the caregiver.** On `approve` the page plays the `line.asking_priya.<lang>.mp3` clip (no
+  model turn follows; if the clip cannot load in 800 ms the model speaks the line instead) and polls
   `GET {policy}/approvals/{id}` every second for up to 95 s; the state strip counts down (*Waiting for Priyank
   · 85 s*). `approved` with an order: the page says `caregiver_approved` and the order goes on to payment.
   `rejected`: the caregiver's message, or `caregiver_declined`. `expired`: `caregiver_timeout`, and the cart
-  stays. These fixed lines are spoken verbatim with `force_message`, only once the shopper and the model are
-  quiet. The button stays live: a new request cancels the wait.
+  stays; Priyank's own message is spoken when he typed one. These fixed lines are spoken verbatim with
+  `force_message`, only once the shopper and the model are quiet. The button stays live: a new request (a turn
+  with words, not a noise press) or a cart change ends the wait and asks policy to close the approval
+  (`POST {policy}/approvals/{id}/cancel`), so a late tap cannot order. A second checkout of an unchanged cart
+  that gets the same pending approval back keeps the existing wait. (`line.receipt_done` is not used: it says
+  the receipt was printed, and without a printer the station says `receipt_on_screen`.)
 - **Paid.** The page follows the relay's event stream (`/events/stream?types=paid,reset`, same-origin through
   the proxy; the backlog replayed on connect is skipped). On `paid` for its session it fetches
   `GET {merchant}/orders/{id}/receipt` (or builds the receipt from its own order record), shows it full-screen,
@@ -112,7 +117,7 @@ Microphone and speaker pickers are in the same panel (the speaker picker needs a
 |---|---|
 | Ctrl+Shift+R | Reset: new session id, empty cart, gate, transcript and screen, a new voice conversation; the relay resets policy, merchant and the live ledger. A `reset` event from the relay (the Host page) does the same on the station |
 | Ctrl+Shift+S | Save this session (agent audio, transcripts, tool calls, refusal clip) as the cached session for its language: `sessions/cached/<lang>.json` through the receipt helper, and a copy in this browser's IndexedDB (used when the helper is not running) |
-| Ctrl+Shift+P | Replay a cached session: pick the language; the recorded voice plays and **REPLAY** shows in large type, while the rule screen, the cart tools and checkout run live against the services (events carry `replay: true`) |
+| Ctrl+Shift+P | Replay a cached session (the Host page's **Arm replay** makes the next button press do the same): pick the language; the recorded voice plays and **REPLAY** shows in large type, while the rule screen, the cart tools and checkout run live against the services (events carry `replay: true`) |
 | Escape | Close the receipt or the chooser, or stop a replay (pressing the talk button also stops it) |
 
 Spoken lines: the built-in texts in `src/cart.ts` are replaced at build time by `ai/prompts/refusal.<key>.<lang>.txt`

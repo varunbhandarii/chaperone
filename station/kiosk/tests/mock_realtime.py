@@ -207,6 +207,18 @@ async def approval_status(approval_id: str) -> dict:
         {"message": a["message"]} if a.get("message") else {})
 
 
+@app.post("/approvals/{approval_id}/cancel")
+async def cancel_approval(approval_id: str, request: Request) -> dict:
+    """The station moved on (new request or cart change): a pending approval closes as cancelled."""
+    a = APPROVALS.get(approval_id)
+    if a is None:
+        raise HTTPException(404, "unknown approval")
+    record("http", path=f"/approvals/{approval_id}/cancel", host_header=request.headers.get("x-chaperone-host"))
+    if a["state"] == "pending":
+        a["state"] = "cancelled"
+    return {"approval_id": approval_id, "state": a["state"]}
+
+
 @app.post("/mock/approvals/{approval_id}/{verdict}")
 async def mock_decide(approval_id: str, verdict: str, request: Request) -> dict:
     """Stands in for the caregiver's passkey approval: approve places the order, reject may carry a message."""

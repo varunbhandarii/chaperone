@@ -18,6 +18,7 @@ function proxyTo(name: "relay" | "policy" | "merchant" | "catalog" | "printer", 
   return {
     target: `http://${host}:${voice.ports[name]}`,
     changeOrigin: true,
+    xfwd: false, // policy's LAN-only routes refuse requests that carry X-Forwarded-* headers
     rewrite: (path) => path.replace(new RegExp(`^/svc/${name}`), "") || "/",
     proxyTimeout: 20000, // checkout signs the order and waits for the merchant
     configure: (proxy) => {
