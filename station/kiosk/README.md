@@ -3,7 +3,8 @@
 A one-page push-to-talk client for the shopper station. It opens a Grok Voice realtime session with an
 ephemeral token from the relay, streams the microphone only while the button is held, plays the reply,
 and runs the shopping tools for the model: `search_catalog`, `add_to_cart`, `remove_from_cart`,
-`read_cart`, `budget_left` and `checkout`. The cart lives in the page, and `checkout` takes no arguments:
+`read_cart`, `budget_left` and `checkout`, and after payment `order_status`, `cancel_order`, `request_refund`
+and `purchase_history`. The cart lives in the page, and `checkout` takes no arguments:
 it buys the cart that was read back, and only after the shopper spoke again (the "yes"). Every tool call
 waits for the policy service's rule screen first, and a refused request is answered with a fixed refusal
 instead of the model. The page doubles as the large-type companion screen (**Shopper view**).
@@ -17,7 +18,8 @@ Session settings (model, voice, instructions, tools, audio format) live in
 | `src/audio.ts` | AudioWorklet capture (PCM16, 20 ms blocks) and gapless playback |
 | `src/cart.ts` | the cart (integer cents, versioned), the read-back gate, read-back and outcome sentences in es/hi/en, checkout body |
 | `src/pcm.ts`, `src/lang.ts`, `src/screen.ts` | pure helpers (PCM/base64, pre-roll, language guess, screen parsing) |
-| `src/services.ts` | HTTP calls to relay, catalog (`/resolve`, `/search`), policy (`/screen`, `/checkout`, `/budget`); reachability probe; each degrades with a warning |
+| `src/postpurchase.ts` | the refund confirm gate, "repeat that" detection, order status words, and parsers for the order, cancel, refund and history replies |
+| `src/services.ts` | HTTP calls to relay, catalog (`/resolve`, `/search`), policy (`/screen`, `/checkout`, `/budget`, `/orders/{id}/cancel`, `/refunds`, `/history`), merchant (`/orders/{id}`, receipt); reachability probe; each degrades with a warning |
 | `src/ui.ts`, `src/main.ts`, `index.html` | large-type page and companion screen (state strip, cart, outcome, refusal banner), key mapping, device pickers |
 | `ws_probe.mjs` | CLI check of the realtime protocol and the tool round trip |
 | `voice_samples.mjs` | renders one read-back line in several voices (xAI TTS) to choose the station voice by ear |
@@ -107,9 +109,38 @@ Microphone and speaker pickers are in the same panel (the speaker picker needs a
   Without a printer the helper saves the receipt as a PDF: the page shows the rendered 58 mm slip beside the
   large-type receipt with an **Open PDF** button, and posts `via: "screen", pdf: true`. If the helper is not
   running, the large-type receipt alone is the copy. **Reprint** renders or prints it again.
-- **Receipt.** Store, items and prices, the total, pickup after 3 pm, order and decision ids, the paid time,
-  "Paid in the Visa sandbox. No real money.", and a QR code to `https://<TUNNEL_HOST>/s/<session_id>`
-  (`TUNNEL_HOST` from the root `.env`, or `?tunnel=`), in the session's language.
+- **Receipt.** Store, items and prices, the total, pickup after 3 pm, the pickup code in large type, "You saved
+  $X" (only when the merchant's `savings` is above zero) and "+N Corner Market Rewards points", order and
+  decision ids, the paid time, "Paid in the Visa sandbox. No real money.", and a QR code to
+  `https://<TUNNEL_HOST>/s/<session_id>` (`TUNNEL_HOST` from the root `.env`, or `?tunnel=`), in the session's
+  language. The spoken summary adds `you_saved` and `loyalty_points` when they apply.
+
+## After payment: status, cancel, returns, history, "repeat that"
+
+The model never passes an amount or a destination; policy prices everything from the order's own lines.
+Each tool defaults to the latest order of this session.
+
+- **`order_status {order_id?}`** reads `GET {merchant}/orders/{id}` and says `order_status` ("Your order is
+  being prepared.") or, once `ready_for_pickup`, `order_ready` with the pickup code read digit by digit
+  ("4-7-2"). The outcome panel shows the status and code.
+- **`cancel_order {order_id?}`** calls `POST {policy}/orders/{id}/cancel`. Cancelled: `order_cancelled`, and
+  the panel shows the payment link status. A paid order (409 or `cancel_too_late`): `cancel_too_late`, which
+  offers a return instead.
+- **`request_refund {order_id?, sku?, qty?, reason, confirmed}`** has a confirm step like the read-back gate:
+  1. `confirmed: false` posts a preview to `POST {policy}/refunds` and says `refund_preview` ("$3.49 back to
+     your card ending 1-1-1-1. Shall I?"). Nothing changes.
+  2. `confirmed: true` is held (`refund_confirm_required`) unless a preview for the same order, sku and qty
+     came first **and** the shopper spoke after it. Policy then gets only the words said since the preview,
+     so a refund-scam line said earlier does not block a real return. One preview allows one refund.
+  3. The reply in the processor's refund shape (`PENDING`, reconciliation id) says `refund_done`, and the
+     panel shows "Refund $3.49 · PENDING · to the original card · sandbox processor stub". A refusal speaks its
+     say key (`refund_not_allowed_rx`, `refund_scam`, or `refund_not_possible` for any other).
+- **`purchase_history {days?}`** reads `GET {policy}/history?mandate_id=&days=` and gives the model a compact
+  list of orders, refunds and refusals.
+- **"Repeat that"** ("repeat that", "otra vez", "phir se boliye", and the lines' `repeat_phrases`): when the
+  whole turn only asks to hear the last line again, the page replays that line verbatim with `force_message`
+  and no model turn. It is not the read-back "yes", and it does not change the session's language.
+  Before anything was said: `repeat_nothing`.
 
 ## Host shortcuts
 
@@ -122,6 +153,8 @@ Microphone and speaker pickers are in the same panel (the speaker picker needs a
 
 Spoken lines: the built-in texts in `src/cart.ts` are replaced at build time by `ai/prompts/refusal.<key>.<lang>.txt`
 and, when present, `ai/prompts/lines.<lang>.json` (`{"key": "text"}`; `{total}` or `$X` stands for the total).
+After-payment lines use the slots `{status}`, `{code}`, `{amount}`, `{last4}`, `{saved}` and `{points}`, and
+`"repeat_phrases": ["...", ...]` in a line file adds "repeat that" triggers for that language.
 
 ## Companion screen
 
@@ -232,7 +265,7 @@ a system message with a `text` part is accepted; the server does not echo the vo
 `capture.preferred_sample_rate` (null = device rate), `capture.preroll_ms`, `capture.chunk_ms`,
 `capture.min_press_ms`, `screen.timeout_ms`, `screen.screen_partials`, `refusal.fallback`
 (`force_message` or `instruct`), `refusal.clip_timeout_ms`, `barge_in.truncate`, `voice_by_lang`, the
-`session` object (instructions, voice, speed 0.9, keyterms, the six tools, resumption), and
+`session` object (instructions, voice, speed 0.9, keyterms, the ten tools, resumption), and
 `measured.release_to_first_audio_ms`.
 
 ## Tests (no credentials needed)
@@ -252,12 +285,17 @@ reply shape: allow under $40, approve above, deny for gift cards; `/budget`) and
 caregiver and payment side: `GET /approvals/{id}` (expiry on read; `{"approval_ttl": 4}` in `/mock/reset`
 shortens it), `POST /mock/approvals/{id}/approve|reject`, `GET /orders/{id}/receipt`, `POST /mock/pay/{order_id}`
 (emits `paid`), the relay's `/events/stream` and `POST /reset`, and the print helper's `POST /print`
-(`{"print_ok": true}` makes it succeed) and `/cached/{lang}`. Point every service at it with
+(`{"print_ok": true}` makes it succeed) and `/cached/{lang}`. After payment it has the merchant's
+`GET /orders/{id}` (paid, then preparing after 3 s and ready after 6 s, with a pickup code), policy's
+`POST /orders/{id}/cancel` (409 once paid), `POST /refunds` (preview, then the processor's refund shape; Rx
+refused, refund-scam words refused) and `GET /history`; the receipt carries savings and points. The scripted
+model handles "devolver" (preview, then "sí" confirms), "cancelar", "dónde" and "compré";
+`{"eager_refund": true}` makes it skip the preview (the gate must hold it). Point every service at it with
 `?relay=...&policy=...&catalog=...&merchant=...&printer=...` (all `http://127.0.0.1:8010`). To drive the page:
 
 ```bash
 .venv/Scripts/python -m uvicorn mock_realtime:app --app-dir station/kiosk/tests --port 8010
-# http://localhost:5173/?relay=http://127.0.0.1:8010&catalog=http://127.0.0.1:8010&policy=http://127.0.0.1:8010&ws=ws://127.0.0.1:8010/v1/realtime
+# http://localhost:5173/?relay=http://127.0.0.1:8010&catalog=http://127.0.0.1:8010&policy=http://127.0.0.1:8010&merchant=http://127.0.0.1:8010&printer=http://127.0.0.1:8010&ws=ws://127.0.0.1:8010/v1/realtime
 ```
 
 `?ws=` only accepts loopback addresses.

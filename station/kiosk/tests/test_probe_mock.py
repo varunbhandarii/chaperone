@@ -82,7 +82,8 @@ def test_probe_round_trip(mock_url):
     assert session["turn_detection"] == {"type": None}
     assert session["reasoning"] == {"effort": "none"}
     assert session["instructions"] == voice["session"]["instructions"]
-    assert [t["name"] for t in session["tools"]] == ["search_catalog", "add_to_cart", "remove_from_cart", "read_cart", "budget_left", "checkout"]
+    assert [t["name"] for t in session["tools"]] == ["search_catalog", "add_to_cart", "remove_from_cart", "read_cart", "budget_left", "checkout",
+                                                    "order_status", "cancel_order", "request_refund", "purchase_history"]
     checkout_tool = next(t for t in session["tools"] if t["name"] == "checkout")
     assert checkout_tool["parameters"] == {"type": "object", "properties": {}}  # checkout takes no list from the model
 

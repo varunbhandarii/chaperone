@@ -442,3 +442,14 @@ def test_cached_session_size_limit(make_client, monkeypatch):
     with make_client() as client:
         r = client.put("/cached/en", content=json.dumps({"events": "x" * 64}).encode())
     assert r.status_code == 413
+
+
+def test_savings_points_and_pickup_code_make_the_receipt_longer(fonts):
+    plain = P.render_receipt(SAMPLE, fonts)
+    extra = P.render_receipt({**SAMPLE, "savings": 0.50, "loyalty_points": 11, "pickup_code": "472"}, fonts)
+    assert extra.width == 384 and extra.height > plain.height
+    # nothing saved: the savings line is left out, so only the code and points add height
+    no_savings = P.render_receipt({**SAMPLE, "savings": 0, "loyalty_points": 11, "pickup_code": "472"}, fonts)
+    assert plain.height < no_savings.height < extra.height
+    for lang in ("es", "hi"):
+        P.render_receipt({**SAMPLE, "lang": lang, "savings": 0.5, "loyalty_points": 3, "pickup_code": "472"}, fonts)

@@ -251,6 +251,9 @@ test("read-back sentence in the shopper's language", () => {
   assert.equal(readBackSay([], 0, "es"), "Su carrito está vacío.");
   assert.equal(money(100, "es"), "1 dólar");
   assert.equal(money(1149, "hi"), "11 डॉलर 49 सेंट");
+  assert.equal(money(50, "es"), "50 centavos");
+  assert.equal(money(50, "hi"), "50 सेंट");
+  assert.equal(money(50, "en"), "$0.50");
 });
 
 test("checkout outcomes map the policy reply to what the model says", () => {
@@ -435,7 +438,7 @@ test("spoken lines: the refusal, caregiver and receipt keys exist, and line file
 
 import { collapseShopperTurns } from "../src/recording.ts";
 
-test("a recording keeps one transcript per shopper turn (the last version), everything else in order", () => {
+test("a recording keeps one transcript per shopper turn, everything else in order", () => {
   const events = [
     { t: 0, kind: "shopper", turn: 1, text: "मेरे" },
     { t: 5, kind: "agent_audio", audio: "AAAA" },
@@ -445,10 +448,129 @@ test("a recording keeps one transcript per shopper turn (the last version), ever
     { t: 31, kind: "shopper", text: "old recording without a turn" },
   ];
   const out = collapseShopperTurns(events);
-  assert.deepEqual(out.map((e) => e.text ?? e.kind), ["agent_audio", "मेरे पोते के लिए गिफ्ट कार्ड", "tool", "sí", "old recording without a turn"]);
-  assert.equal(out[1].t, 9);
+  // the first version's place and time, the last version's text
+  assert.deepEqual(out.map((e) => e.text ?? e.kind), ["मेरे पोते के लिए गिफ्ट कार्ड", "agent_audio", "tool", "sí", "old recording without a turn"]);
+  assert.equal(out[0].t, 0);
 });
 
 test("a cancelled approval parses (the station closed it when the shopper moved on)", () => {
   assert.equal(parseApproval({ approval_id: "a_1", state: "cancelled" }).state, "cancelled");
+});
+
+// ---------- after payment ----------
+
+import {
+  RefundGate,
+  isRepeatRequest,
+  parseCancelReply,
+  parseHistory,
+  parseOrder,
+  parseRefundReply,
+  spokenCode,
+  statusWords,
+} from "../src/postpurchase.ts";
+
+test("refund gate: preview, then yes, then the refund goes through", () => {
+  const gate = new RefundGate();
+  const bread = { order_id: "o_1", sku: "BAK-001" };
+  gate.markPreview(bread, 3, 5);
+  assert.deepEqual(gate.check(bread, 3), { ok: false, reason: "no_confirmation" }); // same response as the preview
+  assert.deepEqual(gate.check(bread, 4), { ok: true }); // "yes"
+  assert.equal(gate.sinceShopperIndex, 5); // only the words since the preview go to policy
+});
+
+test("refund gate: a refund without a preview is held", () => {
+  assert.deepEqual(new RefundGate().check({ order_id: "o_1", sku: "BAK-001" }, 9), { ok: false, reason: "no_preview" });
+});
+
+test("refund gate: a changed item or quantity after the preview is held", () => {
+  const gate = new RefundGate();
+  gate.markPreview({ order_id: "o_1", sku: "BAK-001", qty: 1 }, 1, 0);
+  assert.deepEqual(gate.check({ order_id: "o_1", sku: "NUT-002", qty: 1 }, 2), { ok: false, reason: "target_changed" });
+  assert.deepEqual(gate.check({ order_id: "o_1", sku: "BAK-001", qty: 2 }, 2), { ok: false, reason: "target_changed" });
+  assert.deepEqual(gate.check({ order_id: "o_2", sku: "BAK-001", qty: 1 }, 2), { ok: false, reason: "target_changed" });
+  gate.reset();
+  assert.deepEqual(gate.check({ order_id: "o_1", sku: "BAK-001", qty: 1 }, 2), { ok: false, reason: "no_preview" });
+});
+
+test("'repeat that' in three languages; requests that only mention repeating are not it", () => {
+  for (const t of ["Repeat that", "repeat that, please", "say that again?", "¿Otra vez?", "Repítalo por favor", "no le entendí", "phir se boliye", "फिर से बोलिए", "दोबारा बोलिए।", "kya kaha"]) {
+    assert.equal(isRepeatRequest(t), true, t);
+  }
+  for (const t of ["repeat my order of bread", "necesito pan", "sí", "", "otra vez quiero pan y leche con huevos por favor"]) {
+    assert.equal(isRepeatRequest(t), false, t);
+  }
+});
+
+test("order status words, and the pickup code read digit by digit", () => {
+  assert.equal(statusWords("ready_for_pickup", "es"), "listo para recoger");
+  assert.equal(statusWords("preparing", "hi"), "तैयार हो रहा है");
+  assert.equal(statusWords("something_new", "en"), "something new");
+  assert.equal(spokenCode("472"), "4-7-2");
+  assert.equal(spokenCode(undefined), "");
+  const o = parseOrder({ order_id: "o_1", status: "preparing", pickup_code: 472, amount: "11.49", timeline: [{ status: "paid", at: "2026-09-26T13:00:00Z" }, { bad: 1 }] });
+  assert.deepEqual(o, { order_id: "o_1", status: "preparing", pickup_code: "472", total: 11.49, timeline: [{ status: "paid", at: "2026-09-26T13:00:00Z" }] });
+  assert.equal(parseOrder({ status: "paid" }), null);
+});
+
+test("refund replies: preview, the processor's refund shape, a refusal, an error", () => {
+  const preview = parseRefundReply({ preview: { amount: "3.49", card_last4: "1111", items: [{ name: "Bread", qty: 1, amount: 3.49 }] }, say: "..." });
+  assert.equal(preview.kind, "preview");
+  assert.equal(preview.amount, 3.49);
+  assert.equal(preview.card_last4, "1111");
+  const done = parseRefundReply({
+    decision: "allow",
+    refund: { id: "rf_1", status: "PENDING", reconciliationId: "ABC123", refundAmountDetails: { refundAmount: "3.49", currency: "USD" }, processorInformation: { responseCode: "100" }, source: "sandbox-processor-stub" },
+  });
+  assert.deepEqual(done, { kind: "done", status: "PENDING", amount: 3.49, refund_id: "rf_1", reconciliation_id: "ABC123", source: "sandbox-processor-stub" });
+  assert.equal(parseRefundReply({ id: "rf_2", status: "TRANSMITTED", refundAmountDetails: { refundAmount: 1 } }).kind, "done");
+  const rx = parseRefundReply({ decision: "deny", say_key: "refund_not_allowed_rx", rules: [{ id: "RF4_returnable", passed: false }, { id: "RF1_order_owned", passed: true }] });
+  assert.deepEqual(rx, { kind: "declined", say_key: "refund_not_allowed_rx", rules_failed: ["RF4_returnable"] });
+  assert.equal(parseRefundReply({ detail: "boom" }).kind, "error");
+  assert.equal(parseRefundReply(null).kind, "error");
+});
+
+test("cancel replies: cancelled with the link status, too late once paid, errors", () => {
+  assert.deepEqual(parseCancelReply(200, { status: "cancelled", link_status: "INACTIVE" }), { kind: "cancelled", link_status: "INACTIVE" });
+  assert.deepEqual(parseCancelReply(409, { error: "order is paid" }), { kind: "too_late" });
+  assert.deepEqual(parseCancelReply(400, { say_key: "cancel_too_late" }), { kind: "too_late" });
+  assert.equal(parseCancelReply(500, { error: "merchant down" }).kind, "error");
+});
+
+test("history is compacted for the model", () => {
+  const h = parseHistory({
+    orders: [{ order_id: "o_1", at: "2026-09-20T15:00:00Z", total: "11.49", status: "picked_up", items: [{ name: "Bread", qty: 2 }, { name: "Lisinopril", qty: 1 }] }],
+    refunds: [{ order_id: "o_1", at: 1790400000, amount: "3.49", status: "TRANSMITTED" }],
+    refusals: [{}, {}],
+    totals: { spent: "153.59" },
+  });
+  assert.deepEqual(h.orders[0], { order_id: "o_1", when: "2026-09-20", total: 11.49, status: "picked_up", items: ["2 Bread", "Lisinopril"] });
+  assert.equal(h.refunds[0].amount, 3.49);
+  assert.equal(h.refusals, 2);
+  assert.equal(h.spent, 153.59);
+  assert.equal(parseHistory(null), null);
+});
+
+test("receipts carry savings, rewards points and the pickup code; no savings, no line", () => {
+  const r = parseReceipt({ order_id: "o", total: "11.49", items: [], savings: "0.50", loyalty_points: 11, pickup_code: 472 });
+  assert.equal(r.savings, 0.5);
+  assert.equal(r.loyalty_points, 11);
+  assert.equal(r.pickup_code, "472");
+  const none = parseReceipt({ order_id: "o", total: "3.49", items: [], savings: "0.00", loyalty_points: 0 });
+  assert.equal("savings" in none, false);
+  assert.equal("loyalty_points" in none, false);
+  assert.equal(RECEIPT_LABELS.es.saved("$0.50"), "Usted ahorró $0.50");
+});
+
+test("after-payment lines exist in every language with their slots filled", () => {
+  const vars = { status: "listo", code: "4-7-2", amount: "$3.49", last4: "1-1-1-1", saved: "$0.50", points: "11", total: "$11.49" };
+  for (const key of ["order_status", "order_ready", "order_cancelled", "cancel_too_late", "refund_preview", "refund_done", "refund_not_allowed_rx", "refund_scam", "agent_paused", "you_saved", "loyalty_points", "repeat_nothing", "no_orders", "refund_not_possible", "store_unavailable"]) {
+    assert.ok(hasSay(key), key);
+    for (const lang of ["es", "hi", "en"]) {
+      const line = sayFor(key, lang, vars);
+      assert.ok(line.length > 5 && !/\{\w+\}/.test(line), `${key} ${lang}: ${line}`);
+    }
+  }
+  assert.equal(sayFor("refund_preview", "en", vars), "$3.49 back to your card ending 1-1-1-1. Shall I?");
+  assert.match(sayFor("order_ready", "es", vars), /4-7-2/);
 });

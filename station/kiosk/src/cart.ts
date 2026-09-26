@@ -273,6 +273,8 @@ export class ReadBackGate {
 export function money(cents: number, lang: Lang = "en"): string {
   const dollars = Math.floor(cents / 100);
   const rest = cents % 100;
+  // under a dollar (savings, small refunds): "50 centavos", not "0 dólares con 50 centavos"
+  if (dollars === 0 && rest && lang !== "en") return lang === "es" ? `${rest} centavos` : `${rest} सेंट`;
   if (lang === "es") {
     const d = `${dollars} ${dollars === 1 ? "dólar" : "dólares"}`;
     return rest ? `${d} con ${rest} centavos` : d;
@@ -379,6 +381,83 @@ const SAY: Record<string, Record<Lang, string>> = {
     en: "Done. {total} at Corner Market, pickup after 3 pm. Your receipt is on the screen.",
     es: "Listo. {total} en Corner Market, para recoger después de las 3. Su recibo está en la pantalla.",
     hi: "हो गया। कॉर्नर मार्केट में {total}, दोपहर 3 बजे के बाद ले सकते हैं। आपकी रसीद स्क्रीन पर है।",
+  },
+  // After payment. Slots: {status} {code} {amount} {last4} {saved} {points} {total}
+  order_status: {
+    en: "Your order is {status}.",
+    es: "Su pedido está {status}.",
+    hi: "आपका ऑर्डर {status}।",
+  },
+  order_ready: {
+    en: "Your order is ready for pickup after 3 pm. Your pickup code is {code}.",
+    es: "Su pedido está listo para recoger después de las 3. Su código de recogida es {code}.",
+    hi: "आपका ऑर्डर दोपहर 3 बजे के बाद ले जाने के लिए तैयार है। आपका पिकअप कोड {code} है।",
+  },
+  order_cancelled: {
+    en: "I cancelled your order. Nothing was charged.",
+    es: "Cancelé su pedido. No se le cobró nada.",
+    hi: "आपका ऑर्डर रद्द कर दिया है। कोई पैसा नहीं कटा।",
+  },
+  cancel_too_late: {
+    en: "That order is already paid, so it can't be cancelled. I can return items for you instead.",
+    es: "Ese pedido ya está pagado, así que no se puede cancelar. Puedo devolver los artículos, si quiere.",
+    hi: "उस ऑर्डर का भुगतान हो चुका है, इसलिए वह रद्द नहीं हो सकता। मैं सामान वापस करवा सकती हूँ।",
+  },
+  refund_preview: {
+    en: "{amount} back to your card ending {last4}. Shall I?",
+    es: "{amount} de vuelta a su tarjeta que termina en {last4}. ¿Lo hago?",
+    hi: "{amount} आपके {last4} पर ख़त्म होने वाले कार्ड में वापस जाएँगे। कर दूँ?",
+  },
+  refund_done: {
+    en: "Done. {amount} is going back to your card ending {last4}. I've told Priyank.",
+    es: "Listo. {amount} regresan a su tarjeta que termina en {last4}. Ya le avisé a Priyank.",
+    hi: "हो गया। {amount} आपके {last4} पर ख़त्म होने वाले कार्ड में वापस जा रहे हैं। मैंने प्रियंक को बता दिया है।",
+  },
+  refund_not_allowed_rx: {
+    en: "Prescription medicine can't be returned. The pharmacist can help you with it.",
+    es: "Las medicinas con receta no se pueden devolver. El farmacéutico le puede ayudar.",
+    hi: "डॉक्टर की पर्ची वाली दवाई वापस नहीं होती। फ़ार्मासिस्ट आपकी मदद कर सकते हैं।",
+  },
+  refund_scam: {
+    en: "A real store never asks you to pay to get a refund, and never asks for gift cards. You did nothing wrong. I've told Priyank.",
+    es: "Una tienda de verdad nunca le pide pagar para recibir un reembolso, ni le pide tarjetas de regalo. Usted no hizo nada malo. Ya le avisé a Priyank.",
+    hi: "असली दुकान रिफंड के लिए कभी पैसे या गिफ्ट कार्ड नहीं माँगती। आपकी कोई गलती नहीं है। मैंने प्रियंक को बता दिया है।",
+  },
+  agent_paused: {
+    en: "Priyank has paused shopping for now, so I can't order anything. You can call him.",
+    es: "Priyank pausó las compras por ahora, así que no puedo pedir nada. Puede llamarlo.",
+    hi: "प्रियंक ने अभी खरीदारी रोक रखी है, इसलिए कुछ ऑर्डर नहीं हो सकता। आप उन्हें फ़ोन कर सकते हैं।",
+  },
+  you_saved: {
+    en: "You saved {saved}.",
+    es: "Ahorró {saved}.",
+    hi: "आपने {saved} बचाए।",
+  },
+  loyalty_points: {
+    en: "You earned {points} Corner Market Rewards points.",
+    es: "Ganó {points} puntos de Corner Market Rewards.",
+    hi: "आपको {points} कॉर्नर मार्केट रिवॉर्ड्स पॉइंट मिले।",
+  },
+  repeat_nothing: {
+    en: "I haven't said anything yet. What would you like?",
+    es: "Todavía no he dicho nada. ¿Qué le gustaría?",
+    hi: "मैंने अभी कुछ नहीं कहा है। आपको क्या चाहिए?",
+  },
+  no_orders: {
+    en: "I don't see an order from today yet.",
+    es: "Todavía no veo un pedido de hoy.",
+    hi: "आज का कोई ऑर्डर अभी नहीं दिख रहा।",
+  },
+  // Station fallbacks for after payment (a line file can replace them like any other key)
+  refund_not_possible: {
+    en: "I can't make that return. The store can help you at the counter.",
+    es: "No puedo hacer esa devolución. En la tienda le pueden ayudar.",
+    hi: "यह वापसी मैं नहीं कर सकती। दुकान पर वे आपकी मदद कर सकते हैं।",
+  },
+  store_unavailable: {
+    en: "I can't reach the store just now. Please try again in a minute.",
+    es: "No puedo comunicarme con la tienda ahora mismo. Intente otra vez en un minuto.",
+    hi: "अभी दुकान से संपर्क नहीं हो पा रहा। एक मिनट बाद फिर से कोशिश कीजिए।",
   },
 };
 
