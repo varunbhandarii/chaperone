@@ -34,8 +34,10 @@ These are practices named by OWASP (session handling, access control, input chec
 | Approval ids reject `../` and markup. Session ids reject the same. Session HTML escapes `<script>` | `caregiver/lib/ids.js`, `caregiver/app/s/[id]/route.js` | `caregiver/lib/ids.test.js` |
 | `GET /mandate` does not return the stored passkey assertion | `policy/main.py` `get_mandate` | `test_mandate_read_drops_the_assertion` |
 | Policy will not boot on the public default code key unless `POLICY_DEV_KEY_OK=1` | `policy/main.py` startup | The demo process is running with `POLICY_CODE_KEY` set |
+| Resuming a paused agent needs the caregiver marker and a passkey assertion over a challenge that is used once and expires in 5 minutes. A pause never edits the signed mandate | `policy/main.py` `mandate_resume`, `policy/store.py` `save_paused` | `test_resume_needs_the_marker_and_a_live_single_use_challenge`, `test_pause_blocks_checkout_words_and_explain_is_cached` |
+| Refunds carry no amount or destination from the caller: policy prices them from the order's own lines, and the merchant checks the same | `policy/postpurchase.py` `refund`, `merchant/aftercare.py` `check_refund` | `test_refund_rules_cover_preview_rx_and_confirm`, `merchant/tests/test_aftercare.py` |
 
-On 26 September 2026 those tests were run together: 32 policy tests passed, and 7 caregiver tests passed (`ids.test.js`, `setup.test.js`).
+On 26 September 2026 those tests were run together: 303 policy tests passed, and 8 caregiver tests passed (`ids.test.js`, `rulesSentence.test.js`, `setup.test.js`).
 
 ## 3. Passkeys and NIST digital identity
 

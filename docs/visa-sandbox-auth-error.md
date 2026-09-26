@@ -10,7 +10,7 @@ Our Cybersource sandbox account (merchant `…6462`) can create real Visa Pay by
 
 This is a known Cybersource sandbox provisioning bug. The account was created without the outlet/terminal IDs the test processor (`fdiglobal`) needs. It is not our code, the request, or the test card, and it cannot be fixed from the Business Center. Only Cybersource staff can fix it.
 
-Demo impact: none. Real links and the real Visa checkout page work. Until the account is fixed, the Host marks orders paid via `POST /orders/{id}/paid`.
+Demo impact: none. Real links and the real Visa checkout page work. Until the account is fixed, the Host marks orders paid with Confirm payment on the Host page (or `POST /orders/{id}/paid` with `X-Chaperone-Host: 1`).
 
 ## What works and what doesn't
 
@@ -79,7 +79,7 @@ Sources: [usd_outlet_id/usd_terminal_id thread (2026)](https://community.develop
 - [ ] Email developer@cybersource.com (or use **Get help** on the transaction's details page in the Business Center) with the merchant ID and request IDs above.
 - [ ] After any "fixed" reply, verify: `.venv/bin/python -m merchant.cybs_check` must print `AUTHORIZED`.
 - [ ] Then pay a fresh link (`.venv/bin/python -m merchant.spike_link`) with 4111 1111 1111 1111, 12/30, 123 and confirm Card Authorization turns green in Transaction Management.
-- [ ] Deadline Sat 6pm: if still broken, demo uses the real link and checkout page, and the Host marks paid via `POST /orders/{id}/paid`.
+- [ ] Deadline Sat 6pm: if still broken, demo uses the real link and checkout page, and the Host marks paid with Confirm payment on the Host page.
 - [ ] Optional backup (only if support can't help): charge a saved test card via REST `POST /pts/v2/payments` on the public `testrest` merchant, which gives a real AUTHORIZED response. Disclose that it is Cybersource's shared sample merchant.
 
 ## Email draft
