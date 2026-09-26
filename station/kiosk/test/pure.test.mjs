@@ -160,9 +160,15 @@ test("profile matches from /resolve come first, marked usual, then search result
   assert.equal(compactItem(profile[0]).shopper_calls_it, "blood pressure medicine");
   assert.deepEqual(parseResolveResponse({ q: "x", matches: [] }), []);
   assert.deepEqual(parseResolveResponse(null), []);
-  const merged = mergeResults(profile, [{ ...RX, usual: false }, BREAD, FALLBACK_ITEMS[1], FALLBACK_ITEMS[2]], 3);
-  assert.deepEqual(merged.map((i) => i.sku), ["RX-001", "BAK-001", "BAK-003"]);
+  // A prescription stands alone: no cheaper "alternatives" from an unrelated search.
+  const allergyPill = { sku: "FDA-03C0A599", name: "Cetirizine", category: "otc_medicine", group: "allergy", price: 4.99 };
+  const merged = mergeResults(profile, [allergyPill, { ...RX, usual: false }, BREAD, FALLBACK_ITEMS[1]], 3);
+  assert.deepEqual(merged.map((i) => i.sku), ["RX-001"]);
   assert.equal(merged[0].usual, true);
+  // Other usuals keep alternatives, but only of the same kind.
+  const usualBread = { ...BREAD, group: "bread", usual: true };
+  const breads = mergeResults([usualBread], [allergyPill, { ...FALLBACK_ITEMS[1], group: "bread" }, { ...FALLBACK_ITEMS[2], group: "bread" }], 3);
+  assert.deepEqual(breads.map((i) => i.sku), ["BAK-001", "BAK-003", "BAK-002"]);
 });
 
 test("cart totals in integer cents, bumps its version on every change, carries the mandate category", () => {

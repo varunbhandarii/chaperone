@@ -72,6 +72,10 @@ interface Turn {
   partialInFlight: boolean;
   partialQueued?: string;
   lastPartialScreened?: string;
+  /** Last completed transcript screened as final; Grok can send several .completed events per turn. */
+  finalScreened?: string;
+  /** This turn's slot in shopperTexts, so a longer transcript replaces the shorter one. */
+  shopperIndex?: number;
 }
 
 const DEFAULT_SAY = "I can't help with that purchase on this account.";
@@ -130,6 +134,10 @@ export class StationAgent {
   private responseActive = false;
   private currentResponseId: string | null = null;
   private cancelled = new Set<string>();
+  /** A response.create went out and its response.created has not arrived yet. */
+  private responsePending = false;
+  /** A refusal landed before that response existed: cancel it the moment it is created. */
+  private cancelWhenCreated = false;
   private generation = 0;
   private continuing = false;
   private toolBatches = new Map<string, Promise<void>[]>();
@@ -322,6 +330,7 @@ export class StationAgent {
 
   /** Sends now when the session is configured, otherwise queues (audio captured before the socket is ready is kept). */
   private send(msg: ClientEvent): void {
+    if (msg.type === "response.create") this.responsePending = true;
     if (this.configured && this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
       return;
@@ -523,7 +532,11 @@ export class StationAgent {
   }
 
   private recordShopper(turn: Turn, text: string, key: string, langSource: string): void {
-    this.shopperTexts.push(text);
+    if (turn.shopperIndex === undefined) {
+      turn.shopperIndex = this.shopperTexts.push(text) - 1;
+    } else if (turn.shopperIndex >= this.requestStart) {
+      this.shopperTexts[turn.shopperIndex] = text;
+    } // else the turn is already behind a refusal or checkout and stays out of the next request
     const langLabel = turn.lang ? `${turn.lang}${langSource === "guess" ? "?" : ""}` : "?";
     console.log(`%c[${ts()}] SHOPPER (${langLabel}): ${text}`, "color:#0a7;font-weight:bold");
     this.ui.transcript("shopper", key, text, true, langLabel);
@@ -550,10 +563,15 @@ export class StationAgent {
   }
 
   private settleScreen(turn: Turn, result: ScreenResult | null): void {
-    if (turn.screenSettled) return;
-    turn.screenSettled = true;
-    turn.screenResult = result;
-    turn.screen.resolve(result);
+    if (turn.screenSettled) {
+      // Only a refusal of a longer transcript may replace a settled result; anything else is stale.
+      if (result?.action !== "refuse" || turn.screenResult?.action === "refuse") return;
+      turn.screenResult = result;
+    } else {
+      turn.screenSettled = true;
+      turn.screenResult = result;
+      turn.screen.resolve(result);
+    }
     if (!result) return;
     const ids = ruleIds(result);
     if (result.action === "refuse") {
@@ -609,6 +627,8 @@ export class StationAgent {
     turn.refusal = "out_of_band";
     this.generation++;
     const waitingForAudio = this.awaitingFirstAudio;
+    // The reply requested on release may not exist yet, so bargeIn has nothing to cancel: catch it on creation.
+    if (this.responsePending) this.cancelWhenCreated = true;
     this.bargeIn("rule refusal");
     this.awaitingFirstAudio = waitingForAudio;
     const say = result.refusal?.text || DEFAULT_SAY;
@@ -718,22 +738,29 @@ export class StationAgent {
         if (turn.lang && detected.source !== "none") this.applyLanguage(turn.lang);
         if (ev.language) console.info(`[${ts()}] detected language (api): ${ev.language}`);
         this.recordShopper(turn, text, `voice-${turn.n}`, detected.source);
-        if (!turn.screenSettled) {
+        // Grok may complete a turn several times with a longer transcript each time ("मेरे..." then the whole
+        // sentence), so screen every new version; a later refusal overrides an earlier proceed.
+        if (turn.finalScreened !== text && turn.screenResult?.action !== "refuse") {
+          turn.finalScreened = text;
           void screenText(this.sessionId, text, turn.lang, (m) => this.warn("screen", m)).then((r) => this.settleScreen(turn, r));
         }
         break;
       }
 
-      case "response.created":
+      case "response.created": {
         this.responseActive = true;
         this.currentResponseId = ev.response?.id ?? null;
-        if (this.pressed && this.currentResponseId) {
-          // Requested before the button went down; never speak over the shopper.
+        const refusedFirst = this.cancelWhenCreated && this.responsePending;
+        this.responsePending = false;
+        this.cancelWhenCreated = false;
+        if ((this.pressed || refusedFirst) && this.currentResponseId) {
+          // Requested before the button went down, or overtaken by a rule refusal; never speak over either.
           this.cancelled.add(this.currentResponseId);
           this.send({ type: "response.cancel" });
         }
         this.refreshState();
         break;
+      }
 
       case "response.output_audio.delta": {
         if (this.cancelled.has(ev.response_id) || !this.player || typeof ev.delta !== "string") break;

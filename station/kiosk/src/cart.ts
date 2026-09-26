@@ -93,9 +93,18 @@ export function parseResolveResponse(body: unknown): CatalogItem[] {
 
 /** Profile matches first, then search results, no duplicates, at most `limit`. */
 export function mergeResults(profile: CatalogItem[], search: CatalogItem[], limit = 3): CatalogItem[] {
+  // Search results only pad a profile match when they are the same kind of product (same catalog group):
+  // "my blood pressure medicine" must never offer a cheaper allergy pill. A prescription stands alone.
+  let pool = search;
+  if (profile.some((p) => p.category === "pharmacy_pickup")) {
+    pool = [];
+  } else if (profile.length) {
+    const groups = new Set(profile.map((p) => p.group).filter((g): g is string => typeof g === "string"));
+    if (groups.size) pool = search.filter((s) => typeof s.group === "string" && groups.has(s.group));
+  }
   const seen = new Set<string>();
   const out: CatalogItem[] = [];
-  for (const item of [...profile, ...search]) {
+  for (const item of [...profile, ...pool]) {
     if (seen.has(item.sku)) continue;
     seen.add(item.sku);
     out.push(item);
