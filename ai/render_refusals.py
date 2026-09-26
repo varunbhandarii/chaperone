@@ -1,18 +1,18 @@
 """Render refusal scripts to mp3 with xAI TTS, in the station's voice.
 
     python -m ai.render_refusals                      # every ai/prompts/refusal.<key>.<lang>.txt
-    python -m ai.render_refusals --voice luna --hi-voice naksh --only blocked_category
+    python -m ai.render_refusals --voice es=luna --only blocked_category
 
 Output: ai/warnings/refusal.<key>.<lang>.mp3, served by the relay at /audio/refusal.<key>.<lang>.mp3.
-The default voices come from station/config/voice.json (session.voice; naksh for Hindi) so the clip
-sounds like the agent that was just talking.
+VOICES matches the station agent's voice per language so the clip sounds like
+the agent that was just talking. The Hindi scripts use feminine verb forms for the agent;
+switching Hindi to a male voice (naksh) needs those forms changed too.
 """
 
 from __future__ import annotations
 
 import argparse
 import base64
-import json
 import time
 from pathlib import Path
 
@@ -24,11 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PROMPTS = ROOT / "ai" / "prompts"
 WARNINGS = ROOT / "ai" / "warnings"
 TTS_LANG = {"en": "en", "es": "es-MX", "hi": "hi"}
-
-
-def station_voice() -> str:
-    config = json.loads((ROOT / "station" / "config" / "voice.json").read_text(encoding="utf-8"))
-    return config["session"]["voice"]
+VOICES = {"en": "ara", "es": "carina", "hi": "ara"}
 
 
 def available_voices() -> set[str]:
@@ -60,13 +56,18 @@ def tts(text: str, lang: str, voice: str, speed: float = 0.9) -> bytes:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--voice", default=None, help="voice for en and es (default: station voice)")
-    ap.add_argument("--hi-voice", default="naksh")
+    ap.add_argument("--voice", action="append", default=[], metavar="LANG=VOICE",
+                    help="override one language's voice, e.g. --voice es=luna (repeatable)")
     ap.add_argument("--speed", type=float, default=0.9)
     ap.add_argument("--only", help="render one spoken_key")
     args = ap.parse_args()
 
-    voices = {"en": args.voice or station_voice(), "es": args.voice or station_voice(), "hi": args.hi_voice}
+    voices = dict(VOICES)
+    for override in args.voice:
+        lang, _, voice = override.partition("=")
+        if lang not in voices or not voice:
+            raise SystemExit(f"--voice expects LANG=VOICE with LANG in {sorted(voices)}: {override!r}")
+        voices[lang] = voice
     missing = set(voices.values()) - available_voices()
     if missing:
         raise SystemExit(f"unknown voice(s): {sorted(missing)}; see GET /v1/tts/voices")
