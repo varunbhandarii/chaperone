@@ -14,6 +14,8 @@ def client(tmp_path, monkeypatch, *, unsigned="1"):
     monkeypatch.setenv("MANDATE_PATH", str(tmp_path / "mandate.json"))
     monkeypatch.setenv("JUDGE_FAKE", "1")
     monkeypatch.setenv("MANDATE_UNSIGNED_OK", unsigned)
+    monkeypatch.setenv("POLICY_DEV_KEY_OK", "1")
+    monkeypatch.setenv("EXPLAIN_FAKE", "1")
     monkeypatch.setenv("RELAY_URL", "")
     return TestClient(app)
 
@@ -149,13 +151,15 @@ def test_host_page_code_approves_and_then_disappears(tmp_path, monkeypatch):
     approval_id = api.post("/checkout", json=payload).json()["approval"]["approval_id"]
     proxied = api.get(f"/approvals/{approval_id}/host_code", headers={"X-Forwarded-For": "203.0.113.9"})
     assert proxied.status_code == 403
-    code = api.get(f"/approvals/{approval_id}/host_code").json()["code"]
+    missing = api.get(f"/approvals/{approval_id}/host_code")
+    assert missing.status_code == 403
+    code = api.get(f"/approvals/{approval_id}/host_code", headers={"X-Chaperone-Host": "1"}).json()["code"]
     assert len(code) == 6 and code.isdigit()
     assert code not in json.dumps(api.get(f"/decisions/{api.get(f'/approvals/{approval_id}').json()['decision_id']}").json())
-    approved = api.post(f"/approvals/{approval_id}/code", json={"code": code})
+    approved = api.post(f"/approvals/{approval_id}/code", json={"code": code}, headers={"X-Chaperone-Host": "1"})
     assert approved.status_code == 200, approved.text
     assert approved.json()["order"]["order_id"] == "ord_code"
-    assert api.get(f"/approvals/{approval_id}/host_code").status_code == 404
+    assert api.get(f"/approvals/{approval_id}/host_code", headers={"X-Chaperone-Host": "1"}).status_code == 404
 
 
 def test_rejection_closes_the_approval(tmp_path, monkeypatch):
@@ -304,8 +308,8 @@ def test_five_wrong_codes_lock_the_approval(tmp_path, monkeypatch):
     payload["cart"]["items"] = [{"sku": "BAK-001", "name": "bread", "category": "grocery", "qty": 15, "price": 3.49}]
     approval_id = api.post("/checkout", json=payload).json()["approval"]["approval_id"]
     for _ in range(5):
-        assert api.post(f"/approvals/{approval_id}/code", json={"code": "000000"}).status_code == 400
-    locked = api.post(f"/approvals/{approval_id}/code", json={"code": "000000"})
+        assert api.post(f"/approvals/{approval_id}/code", json={"code": "000000"}, headers={"X-Chaperone-Host": "1"}).status_code == 400
+    locked = api.post(f"/approvals/{approval_id}/code", json={"code": "000000"}, headers={"X-Chaperone-Host": "1"})
     assert locked.status_code == 400
     assert api.get(f"/approvals/{approval_id}").json()["state"] == "rejected"
 

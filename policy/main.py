@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import ipaddress
+import os
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -29,6 +30,13 @@ try:
     app.include_router(screen_router)
 except ImportError:
     pass
+
+
+@app.on_event("startup")
+def _require_code_key() -> None:
+    if os.environ.get("POLICY_CODE_KEY") or os.environ.get("POLICY_DEV_KEY_OK") == "1":
+        return
+    raise RuntimeError("POLICY_CODE_KEY is required unless POLICY_DEV_KEY_OK=1")
 
 
 @app.get("/health")
@@ -185,16 +193,20 @@ def _finish_approval(document: dict, method: str) -> dict:
 
 
 @app.get("/approvals")
-def list_approvals():
+def list_approvals(request: Request):
     from policy.store import load_decisions
 
+    show_excerpt = marker_matches("list", request.headers.get("x-chaperone-marker", ""), "list")
     pending = []
     for document in load_decisions().values():
         if not document.get("approval"):
             continue
         view = public_approval(document)
-        if view["state"] == "pending":
-            pending.append(view)
+        if view["state"] != "pending":
+            continue
+        if not show_excerpt:
+            view.pop("excerpt", None)
+        pending.append(view)
     return pending
 
 
@@ -321,6 +333,11 @@ def _verify_assertion(document: dict, payload: dict) -> None:
 PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-real-ip", "forwarded", "ngrok-trace-id", "x-original-url")
 
 
+def _host_header(request: Request) -> None:
+    if request.headers.get("x-chaperone-host") != "1":
+        raise HTTPException(403, "host header required")
+
+
 def _lan_only(request: Request) -> None:
     client = request.client.host if request.client else ""
     try:
@@ -360,6 +377,7 @@ def cancel_approval(approval_id: str, request: Request):
 def approval_host_code(approval_id: str, request: Request):
     """The fallback code for the relay's LAN-only Host page. Refused for proxied or non-LAN callers."""
     _lan_only(request)
+    _host_header(request)
     entry = host_code(approval_id)
     if not entry:
         raise HTTPException(404, "no open code for this approval")
@@ -367,7 +385,8 @@ def approval_host_code(approval_id: str, request: Request):
 
 
 @app.post("/approvals/{approval_id}/code")
-def submit_code(approval_id: str, payload: dict):
+def submit_code(approval_id: str, payload: dict, request: Request):
+    _host_header(request)
     with hold_decisions():
         document = find_approval(approval_id)
         if not document:
@@ -392,3 +411,110 @@ def submit_code(approval_id: str, payload: dict):
             raise HTTPException(400, "code rejected")
         approval["approved"] = True
         return _finish_approval(document, "code")
+
+
+@app.post("/orders/{order_id}/cancel")
+def cancel_saved_order(order_id: str, payload: dict | None = None):
+    from policy.postpurchase import cancel_order
+
+    body = payload or {}
+    try:
+        return cancel_order(order_id, body.get("mandate_id") or "")
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
+@app.post("/refunds")
+def request_refund(payload: dict):
+    from policy.postpurchase import refund
+
+    try:
+        return refund(payload)
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
+@app.get("/history")
+def purchase_history(mandate_id: str = "", days: int = 30):
+    from policy.postpurchase import history
+
+    return history(mandate_id, days)
+
+
+@app.post("/mandate/pause")
+def mandate_pause(request: Request):
+    from policy.postpurchase import pause_mandate
+
+    if not marker_matches("mandate", request.headers.get("x-chaperone-marker", ""), "pause"):
+        raise HTTPException(401, "sign in required")
+    try:
+        return pause_mandate()
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.post("/mandate/resume/challenge")
+def mandate_resume_challenge(request: Request):
+    from datetime import datetime, timedelta, timezone
+
+    from policy.approvals import new_nonce
+    from policy.postpurchase import resume_challenge
+    from webauthn.helpers import bytes_to_base64url
+
+    if not marker_matches("mandate", request.headers.get("x-chaperone-marker", ""), "pause"):
+        raise HTTPException(401, "sign in required")
+    stored = load_mandate()
+    if not stored:
+        raise HTTPException(404, "no mandate")
+    nonce = new_nonce()
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+    app.state.resume = {"mandate_id": stored.get("mandate_id"), "nonce": nonce, "expires_at": expires_at}
+    return {
+        "nonce": nonce,
+        "expires_at": expires_at,
+        "challenge": bytes_to_base64url(resume_challenge(nonce, expires_at, stored.get("mandate_id") or "")),
+    }
+
+
+@app.post("/mandate/resume")
+def mandate_resume(payload: dict):
+    from policy.postpurchase import resume_challenge
+    from policy.verify_mandate import relying_party
+    from webauthn import verify_authentication_response
+    from webauthn.helpers import base64url_to_bytes
+
+    stored = load_mandate()
+    challenge = getattr(app.state, "resume", None)
+    if not stored or not challenge or payload.get("nonce") != challenge.get("nonce"):
+        raise HTTPException(400, "resume challenge missing")
+    host, origin = relying_party()
+    try:
+        verify_authentication_response(
+            credential=payload.get("response") or {},
+            expected_challenge=resume_challenge(challenge["nonce"], challenge["expires_at"], stored.get("mandate_id") or ""),
+            expected_rp_id=host,
+            expected_origin=origin,
+            credential_public_key=base64url_to_bytes((load_caregiver_credential() or {}).get("public_key") or ""),
+            credential_current_sign_count=int((load_caregiver_credential() or {}).get("sign_count") or 0),
+            require_user_verification=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, str(exc)) from exc
+    stored["paused"] = False
+    save_mandate(stored)
+    post_event("mandate_resumed", "none", stored.get("mandate_id") or "none")
+    return {"paused": False, "mandate_id": stored.get("mandate_id")}
+
+
+@app.get("/decisions/{decision_id}/explain")
+def explain(decision_id: str):
+    from policy.postpurchase import explain_decision
+
+    try:
+        return explain_decision(decision_id)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc

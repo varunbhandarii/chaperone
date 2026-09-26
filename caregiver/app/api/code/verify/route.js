@@ -11,7 +11,7 @@ export async function POST(request) {
   const policy = process.env.POLICY_URL || "http://127.0.0.1:8001";
   const response = await fetch(`${policy.replace(/\/$/, "")}/approvals/${encodeURIComponent(approvalId)}/code`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Chaperone-Host": "1" },
     body: JSON.stringify({ code: String(code) }),
   }).catch(() => null);
   if (!response) return Response.json({ verified: false, error: "policy unavailable" }, { status: 502 });

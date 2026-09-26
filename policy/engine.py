@@ -70,7 +70,10 @@ def evaluate(
         in_window = start <= today <= end
     except (KeyError, ValueError):
         in_window = False
-    if unsigned_demo:
+    if mandate.get("paused"):
+        r0_ok = False
+        r0_detail = "agent paused"
+    elif unsigned_demo:
         r0_ok = in_window
         r0_detail = "unsigned (demo flag)"
     else:
@@ -119,7 +122,9 @@ def evaluate(
     if decision == "approve":
         say = "asking_priya"
     elif decision == "deny":
-        if not r1["passed"]:
+        if mandate.get("paused"):
+            say = "agent_paused"
+        elif not r1["passed"]:
             say = "blocked_category"
         elif not r5["passed"]:
             say = "over_monthly_cap"

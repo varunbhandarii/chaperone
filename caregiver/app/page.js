@@ -2,6 +2,11 @@
 
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { useEffect, useState } from "react";
+import HistoryView from "./components/HistoryView";
+import Home from "./components/Home";
+import Rules from "./components/Rules";
+import Welcome from "./components/Welcome";
+import Why from "./components/Why";
 
 const MANDATE = {
   mandate_id: "m_ruth_2026_09",
@@ -78,7 +83,15 @@ export default function Page() {
   const [approval, setApproval] = useState(null);
   const [now, setNow] = useState(Date.now());
   const [fallbackCode, setFallbackCode] = useState("");
+  const [declineNote, setDeclineNote] = useState("");
+  const [history, setHistory] = useState(null);
   const [prepared, setPrepared] = useState(null);
+  const [screen, setScreen] = useState("welcome");
+  const [mandate, setMandate] = useState(MANDATE);
+  const [budget, setBudget] = useState(null);
+  const [paused, setPaused] = useState(false);
+  const [alerts, setAlerts] = useState([]);
+  const [explanation, setExplanation] = useState(null);
 
   useEffect(() => {
     fetch("/api/config", { headers: { "ngrok-skip-browser-warning": "1" } })
@@ -141,18 +154,45 @@ export default function Page() {
     const assertion = await startAuthentication({ optionsJSON });
     await post("/api/passkeys/verify-authentication", { response: assertion, purpose: "session" });
     note("signed in");
+    setScreen("home");
+    refreshHome().catch(() => {});
+    armAlerts().catch(() => {});
+  }
+
+  async function refreshHome() {
+    const headers = { "ngrok-skip-browser-warning": "1" };
+    const budgetResponse = await fetch("/api/budget", { headers });
+    if (budgetResponse.ok) setBudget(await budgetResponse.json());
+    const mandateResponse = await fetch("/api/mandate", { headers });
+    if (mandateResponse.ok) {
+      const body = await mandateResponse.json();
+      setPaused(Boolean(body.mandate && body.mandate.paused));
+    }
+  }
+
+  function changeRule(key, value) {
+    const number = Number(value);
+    setMandate((prev) => ({ ...prev, [key]: Number.isFinite(number) ? number : value }));
+  }
+
+  function toggleBlocked(id) {
+    setMandate((prev) => {
+      const has = prev.blocked_categories.includes(id);
+      const blocked_categories = has ? prev.blocked_categories.filter((item) => item !== id) : [...prev.blocked_categories, id];
+      return { ...prev, blocked_categories };
+    });
   }
 
   async function assertMandate() {
-    const optionsJSON = await post("/api/passkeys/generate-authentication-options", { mandate: MANDATE });
+    const optionsJSON = await post("/api/passkeys/generate-authentication-options", { mandate });
     const assertion = await startAuthentication({ optionsJSON });
-    const verified = await post("/api/passkeys/verify-authentication", { mandate: MANDATE, response: assertion });
-    note("assertion verified=" + verified.verified + " counter=" + verified.counter);
-    const stored = await post("/api/mandate", {
-      ...MANDATE,
+    const verified = await post("/api/passkeys/verify-authentication", { mandate, response: assertion });
+    await post("/api/mandate", {
+      ...mandate,
       passkey: { credential_id: verified.credential_id, public_key: verified.public_key, response: assertion },
     });
-    note("mandate stored " + stored.mandate_id);
+    note("rules signed");
+    setScreen("home");
   }
 
   async function refreshApprovals() {
@@ -258,9 +298,50 @@ export default function Page() {
   }
 
   async function reject() {
-    const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: false });
+    const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: false, message: declineNote });
     note("approval " + result.state);
     setApproval(null);
+  }
+
+  async function pauseAgent() {
+    const result = await post("/api/pause");
+    setPaused(Boolean(result.paused));
+    note(result.paused ? "agent paused" : "pause failed");
+  }
+
+  async function resumeAgent() {
+    const challenge = await fetch("/api/resume", { headers: { "ngrok-skip-browser-warning": "1" } }).then((response) => response.json());
+    const credential = await navigator.credentials.get({
+      publicKey: {
+        challenge: b64urlToBuffer(challenge.challenge),
+        rpId: config ? config.rpID : undefined,
+        userVerification: "required",
+        timeout: 60000,
+      },
+    });
+    const result = await post("/api/resume", { response: packAssertion(credential), nonce: challenge.nonce });
+    setPaused(result.paused !== false);
+    note(result.paused === false ? "agent resumed" : "resume failed");
+  }
+
+  async function loadHistory() {
+    const response = await fetch("/api/history", { headers: { "ngrok-skip-browser-warning": "1" } });
+    setHistory(await response.json());
+  }
+
+  async function explainDecision(decisionId) {
+    const id = decisionId || (approval && approval.decision_id);
+    if (!id) return;
+    const response = await fetch(`/api/decisions/${id}/explain`, { headers: { "ngrok-skip-browser-warning": "1" } });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "no explanation");
+    setExplanation(body);
+  }
+
+  async function cancelOrder(orderId) {
+    const result = await post(`/api/orders/${orderId}/cancel`);
+    note(result.status === "cancelled" ? "order cancelled" : "cancel failed");
+    loadHistory().catch(() => {});
   }
 
   async function submitCode() {
@@ -309,6 +390,17 @@ export default function Page() {
           const eventId = text.match(/^id: (\d+)/m);
           if (eventId) armAlerts.lastEventId = eventId[1];
           if (text.includes("refusal") || text.includes("approval_requested") || text.includes("caregiver_alerted")) {
+            const dataLine = text.split("\n").find((line) => line.startsWith("data:"));
+            if (dataLine) {
+              try {
+                const event = JSON.parse(dataLine.slice(5).trim());
+                if (event.type === "refusal" || event.type === "caregiver_alerted") {
+                  setAlerts((prev) => [{ id: event.seq || Date.now(), text: event.type === "refusal" ? "Ruth was refused." : "Priyank was alerted.", decision_id: event.decision_id }, ...prev].slice(0, 12));
+                }
+              } catch {
+                /* a heartbeat is not an alert */
+              }
+            }
             refreshApprovals().catch(() => {});
             if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
             const beep = audio.createOscillator();
@@ -325,41 +417,39 @@ export default function Page() {
   }
 
   return (
-    <main style={{ maxWidth: "36rem" }}>
-      <h1>Caregiver</h1>
-      <p>Priyank signs Ruth&apos;s mandate. Relying party: {config ? config.rpID : "..."}</p>
-      <pre style={{ whiteSpace: "pre-wrap", background: "white", padding: "1rem" }}>{JSON.stringify(MANDATE, null, 2)}</pre>
-      {approval ? (
-        <section style={{ background: "#8c2f2f", color: "white", padding: "1rem" }}>
-          <p style={{ fontSize: "2.4rem", margin: "0.2rem 0" }}>${approval.amount}</p>
-          <p>{approval.merchant}</p>
-          <p>{approval.excerpt}</p>
-          <p>{approval.rule}</p>
-          <p>{Math.max(0, Math.ceil((new Date(approval.expires_at).getTime() - now) / 1000))}s left</p>
-          <button style={btn} onClick={() => approve().catch((error) => note(String(error)))}>Approve with passkey</button>
-          <button style={btn} onClick={() => reject().catch((error) => note(String(error)))}>Reject</button>
-          <a href="tel:">Call Ruth</a>
-          <p>
-            <input value={fallbackCode} onChange={(event) => setFallbackCode(event.target.value)} inputMode="numeric" maxLength={6} placeholder="approval code" style={{ fontSize: "1.2rem", padding: "0.4rem" }} />
-            <button style={btn} onClick={() => submitCode().catch((error) => note(String(error)))}>Submit code</button>
-          </p>
-        </section>
+    <main style={{ maxWidth: "36rem", fontSize: "18px" }}>
+      {screen === "welcome" ? (
+        <Welcome setupCode={setupCode} onSetupCode={setSetupCode} onRegister={() => register().catch((error) => note(String(error)))} onSignIn={() => signIn().catch((error) => note(String(error)))} />
       ) : null}
-      <p>
-        <input value={setupCode} onChange={(event) => setSetupCode(event.target.value)} inputMode="numeric" placeholder="setup code" style={{ fontSize: "1.2rem", padding: "0.4rem" }} />
-        <button style={btn} onClick={() => register().catch((error) => note(String(error)))}>Register passkey</button>
-      </p>
-      <p>
-        <button style={btn} onClick={() => signIn().catch((error) => note(String(error)))}>Sign in</button>
-        <button style={btn} onClick={() => armAlerts().catch((error) => note(String(error)))}>Arm alerts</button>
-      </p>
-      <p>
-        <button style={btn} onClick={() => assertMandate().catch((error) => note(String(error)))}>Sign mandate</button>
-      </p>
-      <p>Approval codes are printed on the host screen, not on this phone.</p>
-      <pre style={{ whiteSpace: "pre-wrap" }}>{log}</pre>
+      {screen === "rules" ? (
+        <Rules mandate={mandate} onChange={changeRule} onToggleBlocked={toggleBlocked} onSign={() => assertMandate().catch((error) => note(String(error)))} onHome={() => setScreen("home")} />
+      ) : null}
+      {screen === "home" ? (
+        <Home
+          budget={budget}
+          paused={paused}
+          approval={approval}
+          now={now}
+          alerts={alerts}
+          declineNote={declineNote}
+          fallbackCode={fallbackCode}
+          onDecline={setDeclineNote}
+          onCode={setFallbackCode}
+          onApprove={() => approve().catch((error) => note(String(error)))}
+          onReject={() => reject().catch((error) => note(String(error)))}
+          onWhy={() => explainDecision().catch((error) => note(String(error)))}
+          onCodeSubmit={() => submitCode().catch((error) => note(String(error)))}
+          onPause={() => pauseAgent().catch((error) => note(String(error)))}
+          onResume={() => resumeAgent().catch((error) => note(String(error)))}
+          onRules={() => setScreen("rules")}
+          onHistory={() => { setScreen("history"); loadHistory().catch((error) => note(String(error))); }}
+          onAlertWhy={(id) => explainDecision(id).catch((error) => note(String(error)))}
+        />
+      ) : null}
+      {screen === "history" ? <HistoryView history={history} onHome={() => setScreen("home")} onCancel={(id) => cancelOrder(id).catch((error) => note(String(error)))} /> : null}
+      <Why explanation={explanation} onClose={() => setExplanation(null)} />
+      <p style={{ fontSize: "1rem" }}>Approval codes are printed on the host screen, not on this phone.</p>
+      {log ? <pre style={{ whiteSpace: "pre-wrap", fontSize: "1rem" }}>{log}</pre> : null}
     </main>
   );
 }
-
-const btn = { fontSize: "1.3rem", padding: "0.8rem 1.1rem", marginRight: "0.6rem" };
