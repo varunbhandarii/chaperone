@@ -210,22 +210,31 @@ async def session_events(session_id: str, format: str = "json"):
         return events
     if not path.exists():
         raise HTTPException(404, "unknown session")
-    return HTMLResponse(session_view.render(session_id, events, await _receipt_for(events)),
+    return HTMLResponse(session_view.render(session_id, events, await _receipts_for(events)),
                         headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
 
 
-async def _receipt_for(events: list[dict]) -> dict | None:
-    """The merchant's receipt for this session's latest order; the page renders without it if the merchant is slow."""
-    order_id = next((e.get("order_id") for e in reversed(events)
-                     if e.get("type") in ("paid", "payment_link_created") and e.get("order_id")), None)
-    if not order_id or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", str(order_id)):
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=0.8) as client:
-            r = await client.get(f"{_service('MERCHANT_URL', 'http://127.0.0.1:8002')}/orders/{order_id}/receipt")
-        return r.json() if r.is_success else None
-    except (httpx.HTTPError, ValueError):
-        return None
+MAX_RECEIPTS = 6
+
+
+async def _receipts_for(events: list[dict]) -> list[dict]:
+    """The merchant's receipt for each paid order in the session, fetched in parallel. The page renders
+    without them if the merchant is slow."""
+    order_ids = [o["order_id"] for o in session_view.orders(events)
+                 if o["paid"] and re.fullmatch(r"[A-Za-z0-9_-]{1,64}", o["order_id"])][-MAX_RECEIPTS:]
+    if not order_ids:
+        return []
+    base = _service("MERCHANT_URL", "http://127.0.0.1:8002")
+
+    async def one(client: httpx.AsyncClient, order_id: str) -> dict | None:
+        try:
+            r = await client.get(f"{base}/orders/{order_id}/receipt")
+            return r.json() if r.is_success else None
+        except (httpx.HTTPError, ValueError):
+            return None
+
+    async with httpx.AsyncClient(timeout=0.8) as client:
+        return [r for r in await asyncio.gather(*(one(client, o) for o in order_ids)) if r]
 
 
 @router.get("/jwks.json")
