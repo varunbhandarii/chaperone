@@ -58,7 +58,7 @@ def main() -> int:
     body = json.dumps(envelope(r.json()))
     r = httpx.post(f"{base}/webhooks/cybersource", content=body, headers=headers_for(body, key_id, key), timeout=5)
     print(f"HTTP {r.status_code} {r.text}")
-    return 0 if r.status_code == 200 and r.json().get("status") == "paid" else 1
+    return 0 if r.status_code == 200 and r.json().get("status") in ("paid", "preparing", "ready_for_pickup") else 1
 
 
 if __name__ == "__main__":
