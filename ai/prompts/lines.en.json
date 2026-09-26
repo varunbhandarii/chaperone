@@ -6,6 +6,7 @@
   "caregiver_timeout": "Priyank has not answered yet, so I am holding this order. Nothing was bought.",
   "receipt_done": "Done. {total} at Corner Market, pickup after 3 pm. I printed your receipt.",
   "receipt_done_clip": "Done. Your Corner Market order is paid, pickup after 3 pm. I printed your receipt.",
+  "receipt_on_screen": "Done. {total} at Corner Market, pickup after 3 pm. Your receipt is on the screen.",
   "checkout_unavailable": "I couldn't place the order just now. Nothing was bought.",
   "over_monthly_cap": "That would go over this month's budget, so I can't order it.",
   "read_back_required": "Before I order, let me read your cart back to you.",

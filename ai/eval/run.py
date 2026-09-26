@@ -10,6 +10,10 @@ positive. Benign scripts expected to be `category_block` are scored separately a
 of precision, recall and false refusals. The judge runs on every script the rules do not
 refuse, as /checkout does (R7).
 
+Judge calls run under the production deadline (JUDGE_TIMEOUT_S, 3 s). A call that misses it
+counts as the judge being unavailable, which policy does not turn into a refusal, so it scores
+as a miss (score 0) for that run.
+
 JUDGE_THRESHOLD is picked on one half of the set (stratified by language and label) over a
 0.50-0.80 grid. Every row of the results table is scored on the other (held-out) half only,
 for every layer, so the rows compare like with like.
@@ -34,6 +38,9 @@ from policy.screen import reset_sessions, screen
 HERE = Path(__file__).resolve().parent
 LANGS = ["en", "es", "hi", "hi_latn"]
 GRID = [round(0.50 + 0.05 * i, 2) for i in range(7)]
+# Benign scripts whose rules-only outcome changed after lexicon edits made while looking at them;
+# the rules-only rows are optimistic on these.
+TUNED_ON = ["en_b_medicare_card", "hi_b_own_otp", "en_b_read_label", "hl_b_beta_jaldi"]
 MANDATE_SUMMARY = {k: DEFAULT_MANDATE[k] for k in (
     "currency", "per_purchase_cap", "monthly_cap", "approval_threshold", "allowed_categories", "blocked_categories")}
 
@@ -104,17 +111,17 @@ def run_judge(model: str, scripts: list[dict], runs: int, timeout: float, worker
                 model=model, timeout=timeout)
             return s["id"], r, out["scam_score"], meta, None
         except judge_mod.JudgeError as e:
-            return s["id"], r, None, None, str(e)
+            return s["id"], r, 0.0, None, str(e)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         results = list(pool.map(call, jobs))
     scores: dict[str, list[float]] = defaultdict(list)
     latencies, cached, errors = [], [], []
     for sid, _, score, meta, err in results:
+        scores[sid].append(score)
         if err:
             errors.append(f"{sid}: {err}")
             continue
-        scores[sid].append(score)
         latencies.append(meta["ms"])
         cached.append(meta["cached_tokens"])
     return {"scores": scores, "latencies": latencies, "cached": cached, "errors": errors}
@@ -139,7 +146,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", default=f"{judge_mod.FAST_MODEL},{judge_mod.REASONING_MODEL}")
     ap.add_argument("--runs", type=int, default=3)
-    ap.add_argument("--timeout", type=float, default=20.0, help="seconds per judge call during eval")
+    ap.add_argument("--timeout", type=float, default=None,
+                    help="seconds per judge call (default: the production JUDGE_TIMEOUT_S, 3)")
     ap.add_argument("--workers", type=int, default=1,
                     help="parallel judge calls; above 1 the latency figures are inflated")
     ap.add_argument("--rules-only", action="store_true")
@@ -186,7 +194,7 @@ def main() -> None:
             flips = sum(len({v >= t_best for v in vals}) > 1 for vals in res["scores"].values())
             lat = sorted(res["latencies"])
             p90 = lat[min(len(lat) - 1, math.ceil(0.9 * len(lat)) - 1)] if lat else 0
-            over = sum(ms > 3000 for ms in lat)
+            deadline = args.timeout or float(judge_mod.env("JUDGE_TIMEOUT_S", "3"))
             label = f"Rules + {model}"
             rows += [(f"{label} / {lang}", metrics(sub, preds)) for lang, sub in by_lang.items()]
             rows.append((f"{label} / all", metrics(test, preds)))
@@ -199,9 +207,9 @@ def main() -> None:
                 f"- Threshold picked on the tuning half: **{t_best:.2f}**. Held-out half at that threshold: "
                 f"F1 {fmt(held['f1'])}, recall {fmt(held['r'])}, false refusals {held['fr']}/{held['n_benign']} "
                 f"(95% Wilson up to {held['fr_hi']:.0%}).",
-                f"- Judge calls: {len(lat)} ok, {len(res['errors'])} failed. Latency median "
-                f"{statistics.median(lat) if lat else 0:.0f} ms, p90 {p90:.0f} ms; {over} of {len(lat)} over the 3 s timeout "
-                f"({args.workers} call(s) at a time).",
+                f"- Judge calls under the {deadline:g} s deadline: {len(lat)} answered, {len(res['errors'])} missed it "
+                f"or failed and counted as misses. Latency of answered calls: median "
+                f"{statistics.median(lat) if lat else 0:.0f} ms, p90 {p90:.0f} ms ({args.workers} call(s) at a time).",
                 f"- Verdict flips across {args.runs} runs at the chosen threshold: {flips} of {len(res['scores'])} judged scripts.",
                 f"- Prompt cache: median cached prompt tokens per call {statistics.median(res['cached']) if res['cached'] else 0:.0f}.",
                 f"- Misclassified, full set: {', '.join(wrong) or 'none'}.",
@@ -215,6 +223,8 @@ def main() -> None:
         "## Rules only",
         "",
         f"- Innocent requests for a blocked item (expected category block): {cat_ok}/{len(cat_rows)} blocked as a category.",
+        f"- The lexicon was edited after these benign scripts were seen, which changed their rules-only outcome, so the "
+        f"rules-only rows are optimistic on them: {', '.join(TUNED_ON)}.",
         f"- Misclassified by rules alone, full set (the judge covers these): {', '.join(misses) or 'none'}.",
         "",
     ]
