@@ -341,7 +341,9 @@ def test_judge_route_accepts_cart_dict():
 
 LINE_KEYS = {"ordering_now", "asking_priya", "caregiver_approved", "caregiver_declined", "caregiver_timeout",
              "receipt_done", "checkout_unavailable", "over_monthly_cap", "read_back_required",
-             "blocked_category", "scam_pattern", "code_reading"}
+             "blocked_category", "scam_pattern", "code_reading", "receipt_on_screen",
+             "order_status", "order_ready", "order_cancelled", "cancel_too_late", "refund_preview", "refund_done",
+             "refund_not_allowed_rx", "refund_scam", "agent_paused", "you_saved", "repeat_nothing"}
 
 
 def test_line_files_share_keys_and_placeholders():
@@ -354,7 +356,8 @@ def test_line_files_share_keys_and_placeholders():
         assert holes["en"] == holes["es"] == holes["hi"], key
 
 
-@pytest.mark.parametrize("name", [f"line.{k}.{l}.mp3" for k in ("asking_priya", "receipt_done") for l in ("en", "es", "hi")])
+@pytest.mark.parametrize("name", [f"{k}.{l}.mp3" for k in ("line.asking_priya", "line.receipt_done", "line.refund_done",
+                                                           "refusal.refund_scam") for l in ("en", "es", "hi")])
 def test_line_clips_exist(name):
     assert (ROOT / "ai/warnings" / name).exists()
 
@@ -428,3 +431,114 @@ def test_small_card_purchases_and_everyday_numbers_are_not_refused(text):
 ])
 def test_large_card_amounts_and_otp_requests_still_refuse(text):
     assert action(text) == "refuse"
+
+
+# ---------------------------------------------------------------- refund, recovery and delivery scams
+
+REFUND_SCAMS = [
+    # (rule that must fire, line)
+    ("R_overpay_sendback", "They refunded me too much, I have to send the difference back in gift cards"),
+    ("R_overpay_sendback", "Me reembolsaron de más, tengo que devolver la diferencia en tarjetas de regalo"),
+    ("R_overpay_sendback", "मुझे ज़्यादा रिफंड हो गया, फर्क वापस गिफ्ट कार्ड में भेजना है"),
+    ("R_overpay_sendback", "Zyada refund ho gaya, difference wapas bhejo"),
+    ("R_fee_for_refund", "Pay a processing fee to release your refund"),
+    ("R_fee_for_refund", "Tiene que pagar un cargo de procesamiento"),
+    ("R_fee_for_refund", "रिफंड के लिए शुल्क देना होगा"),
+    ("R_fee_for_refund", "refund ke liye processing fee bhejo"),
+    ("R_recovery_for_fee", "We can recover your lost money for a small fee"),
+    ("R_recovery_for_fee", "Podemos recuperar su dinero si paga una cuota"),
+    ("R_recovery_for_fee", "aapka paisa recover kar denge, bas fees bhejo"),
+    ("R_remote_access", "Download AnyDesk so I can process your refund"),
+    ("R_remote_access", "Necesito acceso remoto a su computadora"),
+    ("R_remote_access", "स्क्रीन शेयर कीजिए"),
+    ("R_remote_access", "AnyDesk download karo"),
+    ("R_refund_rail", "Your refund will come as Zelle, just confirm"),
+    ("R_refund_rail", "Le damos el reembolso en efectivo si manda la diferencia"),
+    ("R_refund_rail", "refund UPI ID pe bhejna hai"),
+    ("R_customs_hold", "Your parcel is held in customs, pay the clearance fee"),
+    ("R_customs_hold", "Su paquete está retenido en la aduana"),
+    ("R_customs_hold", "कस्टम क्लियरेंस चार्ज भरना है"),
+    ("R_customs_hold", "parcel customs mein atka hai"),
+    ("R_redelivery_fee", "Redelivery fee pending, click the link to pay"),
+    ("R_redelivery_fee", "Franqueo impago, pague en el enlace"),
+    ("R_redelivery_fee", "redelivery charge pending hai, link pe payment karo"),
+    ("R_parcel_illegal", "Your package has drugs and was seized"),
+    ("R_parcel_illegal", "पार्सल में ड्रग्स मिले हैं"),
+    ("R_parcel_illegal", "Aap digital arrest mein ho"),
+    ("R_renewal_callback", "Norton auto-renewed your subscription for $399, call within 24 hours"),
+    ("R_renewal_callback", "Renovación automática de 399 dólares, llame dentro de 24 horas"),
+    ("R_renewal_callback", "subscription auto renew ho gaya, 24 ghante mein call karo"),
+    ("R_silence_request", "Don't tell your bank about this"),
+    ("R_silence_request", "No le avise al banco"),
+    ("R_silence_request", "bank ko mat batana"),
+    ("R_code_reading", "Read me the CVV on the back"),
+    ("R_code_reading", "Dígame el código de su tarjeta"),
+    ("R_code_reading", "CVV बताओ कार्ड का"),
+]
+
+
+@pytest.mark.parametrize("rule,text", REFUND_SCAMS)
+def test_refund_scams_refused(rule, text):
+    v = evaluate(text)
+    assert v.action == "refuse", v
+    assert rule in v.rules
+
+
+@pytest.mark.parametrize("text", [
+    "They refunded me too much, I have to send the difference back in gift cards",
+    "Me reembolsaron de más, tengo que devolver la diferencia en tarjetas de regalo",
+    "मुझे ज़्यादा रिफंड हो गया, फर्क वापस गिफ्ट कार्ड में भेजना है",
+])
+def test_refund_scam_speaks_the_refund_line(text):
+    out = screen(text, session_id="s_refund")
+    assert out["refusal"]["spoken_key"] == "refund_scam"
+    assert out["refusal"]["audio_url"].startswith("/audio/refusal.refund_scam.")
+    assert (ROOT / "ai/warnings" / Path(out["refusal"]["audio_url"]).name).exists()
+
+
+@pytest.mark.parametrize("text", [
+    "We can recover your lost money",  # recovery without a fee
+    "Redelivery fee pending",  # no link or payment
+    "Your subscription was auto renewed",  # no deadline
+    "I'm from the refund department",
+])
+def test_soft_refund_signals_do_not_refuse_alone(text):
+    assert action(text) != "refuse"
+
+
+@pytest.mark.parametrize("text", [
+    "I want to return the bread", "quiero devolver el pan", "bread wapas karni hai",
+    "refund my order to my card", "reembolsa mi pedido a mi tarjeta", "mera order refund karo",
+    "cancel my order", "cancela mi pedido", "order cancel karo",
+    "where is my delivery", "¿dónde está mi entrega?", "meri delivery kahan hai",
+    "renew my prescription", "renueva mi receta", "meri dawai renew karo",
+    "is there a restocking fee?", "Can I get my money back for the soup?",
+])
+def test_legitimate_returns_are_not_refused(text):
+    assert action(text) in ("proceed", "slow")
+
+
+def test_refund_rail_needs_a_refund():
+    assert "R_refund_rail" not in evaluate("I paid with Zelle last week").rules
+
+
+# ---------------------------------------------------------------- amounts written as digits
+
+@pytest.mark.parametrize("text", ["$500 worth of cards for my grandson", "$1,000 in Target cards"])
+def test_dollar_sign_amounts_refused(text):
+    assert action(text) == "refuse"
+
+
+def test_dollar_sign_becomes_a_word():
+    assert normalize("$500 worth") == "500 dollars vorth"
+    assert normalize("$1,000") == "1000 dollars"
+
+
+@pytest.mark.parametrize("text", ["my Amazon cards", "I have my Apple cards here"])
+def test_ones_own_cards_plural_proceed(text):
+    assert action(text) == "proceed"
+
+
+def test_repeat_triggers_cover_every_language():
+    triggers = json.loads((ROOT / "ai/prompts/repeat_triggers.json").read_text(encoding="utf-8"))
+    assert set(triggers) == {"en", "es", "hi"} and all(len(v) >= 5 for v in triggers.values())

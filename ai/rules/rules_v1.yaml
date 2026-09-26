@@ -19,17 +19,40 @@
 # only when another soft rule also fires ("my grandson needs it, it's urgent" goes to the judge).
 # faint_terms (son, hija, beta) follow the same rules but need another soft rule outside
 # faint_needs_other_than ("mi hija viene hoy mismo" stays slow).
-# R_code_reading turns hard when an instrument term is in the same utterance.
+# contexts are named word lists. A rule with `needs: [ctx]` fires only when that context is in
+# the utterance; `hard_with: [ctx]` makes a soft rule hard when it is. A rule's `spoken_key`
+# picks the refusal line (refund_scam beats code_reading beats blocked_category).
 
 version: 1
 soft_hits_for_judge: 2
 faint_needs_other_than: [R_urgency]
 
-instrument_terms:
-  en: ["re:cards?", "gift", "voucher", "recharge", "itunes", "google play", "steam", "bitcoin"]
-  es: ["re:tarjetas?", "re:regalo", "recarga", "itunes", "google play", "bitcoin"]
-  hi: ["कार्ड", "गिफ्ट", "रिचार्ज", "वाउचर", "card"]
-  hi_latn: ["re:cards?", "gift", "recharge", "voucher", "google play"]
+contexts:
+  instrument:
+    en: ["re:cards?", "gift", "voucher", "recharge", "itunes", "google play", "steam", "bitcoin", "cvv", "cvc", "security code", "re:(?:9|nine|16|sixteen) digit code"]
+    es: ["re:tarjetas?", "re:regalo", "recarga", "itunes", "google play", "bitcoin", "cvv", "re:codigo de seguridad"]
+    hi: ["कार्ड", "गिफ्ट", "रिचार्ज", "वाउचर", "card", "सीवीवी", "cvv"]
+    hi_latn: ["re:cards?", "gift", "recharge", "voucher", "google play", "cvv"]
+  refund:
+    en: ["re:refund(?:s|ed)?", "re:reimburse(?:d|ment)?", "re:money back", "re:over ?paid", "re:the difference"]
+    es: ["re:reembols(?:o|os|aron|ar|e)", "re:devolucion", "re:la diferencia", "re:dinero de vuelta"]
+    hi: ["रिफंड", "re:पैसे वापस", "re:(?:फर्क|अंतर)"]
+    hi_latn: ["re:refund", "re:paise vapas", "re:fark|difference"]
+  fee:
+    en: ["re:fees?", "re:charges?", "retainer", "re:deposit", "re:pay(?:ment)? (?:first|upfront|up front)"]
+    es: ["re:cargos?", "re:tarifas?", "re:cuotas?", "re:comision(?:es)?", "anticipo", "re:honorarios"]
+    hi: ["शुल्क", "फीस", "चार्ज"]
+    hi_latn: ["re:fees?", "re:charges?", "shulk"]
+  pay:
+    en: ["re:links?", "re:click", "re:pay(?:ment)?", "re:card number"]
+    es: ["re:enlace", "re:pag(?:ar|ue|o)", "re:haga clic"]
+    hi: ["लिंक", "re:भुगतान", "re:पेमेंट"]
+    hi_latn: ["re:link", "re:pay kar", "re:payment"]
+  deadline:
+    en: ["re:within (?:24|48|twenty four|forty eight) hours", "today", "tonight", "re:call (?:us |them |back )?(?:now|immediately|right away)"]
+    es: ["re:(?:en|dentro de) (?:24|48|veinticuatro) horas", "hoy mismo", "re:llame (?:ahora|de inmediato)"]
+    hi: ["re:24 घंटे", "आज ही", "re:तुरंत (?:कॉल|फोन)"]
+    hi_latn: ["re:24 ghante", "aaj hi", "re:turant (?:call|fone)"]
 
 rules:
   R1_blocked_category:
@@ -41,7 +64,7 @@ rules:
         - "re:gift ?cards?"
         - "re:(?:prepaid|reloadable|recharge) (?:\\S+ )?(?:debit )?cards?"
         - "re:(?:google ?play|play store|itunes|steam|razer gold) (?:gift )?cards?"
-        - "re:(?:apple|amazon|target|walmart|ebay|google ?play|itunes|steam) cards"
+        - "re:(?<!my )(?:apple|amazon|target|walmart|ebay|google ?play|itunes|steam) cards"
         - "re:(?:hundred|thousand|\\d{3,}) dollars? (?:worth )?(?:of|in) (?:\\S+ )?cards?"
         - "re:(?:google ?play|play store|itunes|steam) (?:recharge|balance|credit|codes?|vouchers?|wallet)"
         - "re:(?:buy|get|purchase|send) (?:\\S+ )?(?:itunes|google ?play|razer gold)"
@@ -98,7 +121,7 @@ rules:
 
   R_code_reading:
     severity: soft
-    hard_with_instrument: true
+    hard_with: [instrument, refund]
     pattern: code_reading
     detail: Someone wants card numbers, codes, a PIN or an OTP read out to them.
     terms:
@@ -109,21 +132,26 @@ rules:
         - "re:(?:give|tell|send) (?:him|her|them|the man|the caller) (?:the )?(?:numbers?|codes?|pin|otp)"
         - "re:scratch (?:off )?(?:the )?(?:back|silver)"
         - "upi pin"
+        - "re:(?:read|give|tell|say|send) (?:me |him |her |them |us )?(?:the |your |my )?(?:cvv|cvc|security code)"
+        - "re:(?:9|nine|16|sixteen) digit code"
       es:
         - "re:(?:leame|leale|leerle|leer|dicteme|dictele|dictarle) (?:los|el) (?:numeros?|codigos?)"
         - "re:(?:dele|darle|deme|mandele|mandarle) (?:los|el) (?:numeros?|codigos?|pin)"
         - "re:(?:el )?codigo de (?:la )?tarjeta"
         - "re:raspe? (?:la parte de )?atras"
         - "re:raspar (?:la parte de )?atras"
+        - "re:(?:digame|dime|deme|dele|digale) (?:el )?(?:codigo|cvv)"
       hi:
         - "re:(?:ओटीपी|otp|कोड|नंबर|पिन) (?:बताओ|बताइए|बताना|बता दो|बता दीजिए|बता देना|बताएं|बोलो|बोलिए|बोल दो|बोल दीजिए|भेजो|भेज दो|शेयर करो|शेयर कर दो|पढ़ो|पढो|पढ़कर)"
         - "re:(?:ओटीपी|otp|पिन) (?:दे दो|दीजिए)"
         - "पीछे का नंबर"
         - "यूपीआई पिन"
+        - "re:(?:सीवीवी|cvv) (?:बताओ|बताइए|बता दो|बोलो|बोल दो|दे दो)"
       hi_latn:
         - "re:(?:otp|code|number|pin) (?:batao|bataiye|batana|bata do|bata dijiye|bata dena|bolo|boliye|bol do|bhejo|bhej do|padho|padh kar|share karo|share kar do)"
         - "re:(?:otp|pin) (?:de do|dijiye)"
         - "re:(?:piche|pichhe|peeche|peechhe|pichey) (?:ka|ke|ki) (?:number|numbar|code)"
+        - "re:cvv (?:batao|bata do|bolo|bol do|de do)"
         - "upi pin"
 
   R_family_emergency:
@@ -174,14 +202,13 @@ rules:
   R_purpose:
     severity: soft
     pattern: purpose
-    detail: The money is for bail, a fine, taxes, a refund, an unlock, customs or a parcel.
+    detail: The money is for bail, a fine, taxes, an unlock, customs or a parcel (refund scams have their own rules).
     terms:
       en:
         - "bail"
         - "re:(?:pay|owe|a|the) fines?"
         - "re:(?:back |unpaid )?taxes"
         - "re:owe (?:the )?(?:irs|tax)"
-        - "refund"
         - "re:unlock (?:my |the )?(?:account|computer)"
         - "customs"
         - "re:(?:held|stuck) parcel|parcel (?:is )?(?:held|stuck)"
@@ -192,7 +219,6 @@ rules:
         - "fianza"
         - "re:multas?"
         - "impuestos"
-        - "reembolso"
         - "re:desbloquear"
         - "aduana"
         - "re:paquete (?:retenido|detenido)"
@@ -202,7 +228,6 @@ rules:
         - "जुर्माना"
         - "चालान"
         - "टैक्स"
-        - "रिफंड"
         - "केवाईसी"
         - "पार्सल"
         - "कस्टम"
@@ -212,7 +237,6 @@ rules:
         - "re:jamanat"
         - "jurmana"
         - "challan"
-        - "refund"
         - "kyc"
         - "parcel"
         - "customs"
@@ -358,3 +382,245 @@ rules:
         - "re:(?:usne|unhone|unhonne) (?:kaha|bola)"
         - "re:(?:fone|phone|call) (?:pe|par) (?:kaha|bola|bataya)"
         - "re:(?:naye|dusre) pate (?:pe|par)"
+
+  # ------------------------------------------------------------------ refund, recovery, delivery
+  # The same guardrails in reverse: scams that start after a purchase. Hard forms refuse with
+  # the refund_scam line and alert Priyank.
+
+  R_overpay_sendback:
+    severity: hard
+    pattern: refund_overpay
+    spoken_key: refund_scam
+    detail: '"We refunded you too much, send back the difference" is always a scam.'
+    terms:
+      en:
+        - "re:refunded (?:you |me )?(?:too much|extra|by mistake)"
+        - "re:(?:over ?refund(?:ed)?|over ?paid you|overpayment)"
+        - "re:send (?:back )?the (?:difference|extra)"
+        - "re:(?:return|pay) (?:back )?the (?:extra|difference)"
+        - "re:(?:put|added|deposited|sent) (?:too much|extra) (?:money )?(?:in|into|to) (?:my|your) account"
+      es:
+        - "re:(?:me|le|te|nos) reembolsaron de mas"
+        - "re:reembolso de mas"
+        - "re:devuelv[ae] la diferencia"
+        - "re:devolver la diferencia"
+        - "re:depositaron de mas"
+      hi:
+        - "re:(?:ज़्यादा|ज्यादा) (?:रिफंड|पैसे)"
+        - "re:(?:फर्क|अंतर) वापस"
+      hi_latn:
+        - "re:(?:zyada|jyada|jada) (?:refund|paise)"
+        - "re:(?:fark|difference) vapas"
+
+  R_fee_for_refund:
+    severity: hard
+    pattern: refund_fee
+    spoken_key: refund_scam
+    detail: A fee to release a refund; real refunds never cost money.
+    terms:
+      en:
+        - "re:(?:processing |release |handling |service )?fee (?:to|for) (?:release |get |process |receive )?(?:your |my |the )?refund"
+        - "re:(?:pay|send) (?:a |the )?(?:fee|retainer|charge) (?:to|for|before) (?:\\S+ )?(?:refund|recover\\S*)"
+        - "re:refund (?:processing )?(?:fee|charge)"
+        - "retainer"
+      es:
+        - "re:cargo de procesamiento"
+        - "re:anticipo de honorarios"
+        - "re:(?:pagar|pague) (?:un |una |el |la )?(?:cargo|tarifa|cuota|comision) (?:para|por) (?:el |su |mi )?reembolso"
+      hi:
+        - "re:रिफंड के लिए (?:शुल्क|फीस|चार्ज)"
+        - "re:रिफंड (?:शुल्क|फीस)"
+      hi_latn:
+        - "re:refund ke liye (?:processing )?(?:fee|fees|charge|shulk)"
+        - "re:refund (?:fee|charge)"
+
+  R_recovery_for_fee:
+    severity: soft
+    hard_with: [fee]
+    pattern: recovery_fee
+    spoken_key: refund_scam
+    detail: '"We can recover your lost money"; with a fee it is a recovery scam.'
+    terms:
+      en:
+        - "re:recover (?:your|my|the) (?:lost )?(?:money|funds|savings)"
+        - "re:recovery (?:service|agency|firm|company|team)"
+        - "re:get (?:your|my) lost money back"
+      es:
+        - "re:recuperar (?:su|mi|el) dinero"
+        - "re:recuperacion de (?:dinero|fondos)"
+      hi:
+        - "re:पैसा वापस (?:दिला|दिलवा)"
+        - "re:पैसे रिकवर"
+      hi_latn:
+        - "re:(?:paisa|paise) recover"
+        - "re:paisa vapas dila"
+
+  R_remote_access:
+    severity: hard
+    pattern: remote_access
+    spoken_key: refund_scam
+    detail: Remote-access apps and screen sharing hand a stranger the computer.
+    terms:
+      en:
+        - "re:any ?desk"
+        - "re:team ?viewer"
+        - "re:share (?:your|my) screen"
+        - "re:screen ?shar(?:e|ing)"
+        - "re:remote (?:access|desktop|control)"
+      es:
+        - "re:acceso remoto"
+        - "re:compartir (?:su |mi |la )?pantalla"
+        - "re:any ?desk"
+        - "re:team ?viewer"
+      hi:
+        - "re:स्क्रीन शेयर"
+        - "एनीडेस्क"
+      hi_latn:
+        - "re:any ?desk"
+        - "re:screen share"
+
+  R_refund_rail:
+    severity: hard
+    needs: [refund]
+    pattern: refund_rail
+    spoken_key: refund_scam
+    detail: A refund paid out or sent back through gift cards, wires, crypto, cash, Zelle or UPI.
+    terms:
+      en:
+        - "re:gift ?cards?"
+        - "re:wire"
+        - "re:bitcoin|crypto"
+        - "re:(?:send|pay|give|mail|hand|withdraw) (?:\\S+ )?cash"
+        - "zelle"
+        - "re:venmo|cash ?app|paypal"
+      es:
+        - "re:tarjetas? (?:de )?regalo"
+        - "re:(?:en )?efectivo"
+        - "zelle"
+        - "re:transferencia"
+      hi:
+        - "re:(?:गिफ्ट|gift) ?(?:कार्ड|card)"
+        - "re:नकद|कैश"
+        - "re:यूपीआई"
+      hi_latn:
+        - "re:gift ?cards?"
+        - "re:upi(?: id)?"
+        - "paytm"
+        - "re:cash (?:bhejo|do|de do)"
+
+  R_customs_hold:
+    severity: hard
+    pattern: customs_hold
+    spoken_key: refund_scam
+    detail: A parcel "held in customs" until a fee is paid.
+    terms:
+      en:
+        - "re:(?:held|stuck|detained|seized) (?:in|at|by) customs"
+        - "re:customs (?:clearance )?(?:fee|charge|duty)"
+        - "re:clearance (?:fee|charge)"
+        - "re:pay (?:the |a )?(?:tariff|customs duty|import duty)"
+      es:
+        - "re:retenid[oa] en (?:la )?aduana"
+        - "re:arancel(?:es)?"
+        - "re:cargo de aduana"
+      hi:
+        - "re:कस्टम (?:क्लियरेंस )?(?:चार्ज|शुल्क|फीस)"
+        - "re:कस्टम में (?:अटका|फंसा|रुका)"
+      hi_latn:
+        - "re:customs (?:me|mein) (?:atka|fansa|ruka)"
+        - "re:customs (?:clearance )?(?:charge|fee)"
+
+  R_redelivery_fee:
+    severity: soft
+    hard_with: [pay]
+    pattern: redelivery_fee
+    spoken_key: refund_scam
+    detail: A "redelivery fee" text; with a link or payment it is the top text scam.
+    terms:
+      en:
+        - "re:redelivery (?:fee|charge)"
+        - "re:(?:unpaid|insufficient) postage"
+        - "re:(?:failed|missed) delivery (?:attempt|fee)"
+      es:
+        - "re:franqueo (?:impago|insuficiente)"
+        - "re:entrega fallida"
+      hi:
+        - "re:री ?डिलीवरी (?:चार्ज|शुल्क)"
+      hi_latn:
+        - "re:redelivery (?:charge|fee)"
+        - "re:delivery fail (?:ho gayi|hui)"
+
+  R_parcel_illegal:
+    severity: hard
+    pattern: parcel_illegal
+    spoken_key: refund_scam
+    detail: '"Your parcel has drugs" or "digital arrest": an impersonation shakedown.'
+    terms:
+      en:
+        - "re:(?:package|parcel|box) (?:has|had|contains|contained|with) (?:illegal )?(?:drugs|narcotics|weapons|contraband)"
+        - "re:(?:package|parcel) (?:was |has been |is )?seized"
+        - "digital arrest"
+      es:
+        - "re:paquete (?:con|tiene|contiene) (?:drogas|armas)"
+        - "arresto digital"
+      hi:
+        - "re:पार्सल में (?:ड्रग्स|ड्रग|नशीले)"
+        - "डिजिटल अरेस्ट"
+      hi_latn:
+        - "re:parcel (?:me|mein) (?:drugs|drug)"
+        - "digital arrest"
+
+  R_renewal_callback:
+    severity: soft
+    hard_with: [deadline]
+    pattern: renewal_callback
+    spoken_key: refund_scam
+    detail: A fake auto-renewal charge with a number to call for a "refund".
+    terms:
+      en:
+        - "re:(?:auto ?renew(?:ed|al)?|renewed) (?:your |my |the )?(?:\\S+ )?(?:subscription|membership|plan|protection)"
+        - "re:(?:norton|mcafee|geek squad) (?:\\S+ )?(?:auto ?)?renew(?:ed|al)?"
+        - "re:charged (?:\\S+ ){0,3}for (?:a |the )?renewal"
+      es:
+        - "re:renovacion automatica"
+        - "re:se renovo (?:su |mi )?(?:suscripcion|membresia)"
+      hi:
+        - "re:(?:सब्सक्रिप्शन|मेंबरशिप) (?:ऑटो )?रिन्यू"
+      hi_latn:
+        - "re:subscription (?:auto ?)?renew (?:ho gaya|ho gayi|hua)"
+        - "re:auto ?renew"
+
+  R_silence_request:
+    severity: hard
+    pattern: silence_request
+    spoken_key: refund_scam
+    detail: Told not to tell the bank or the police.
+    terms:
+      en:
+        - "re:(?:dont|do not|never) (?:tell|call|contact|inform) (?:your |the |my )?(?:bank|police|cops|fraud department|branch)"
+      es:
+        - "re:no (?:le )?(?:avise|diga|cuente|llame) (?:nada )?(?:al|a la) (?:banco|policia)"
+      hi:
+        - "re:(?:बैंक|पुलिस) को (?:मत|ना|नहीं) (?:बताना|बताओ|बताइए)"
+      hi_latn:
+        - "re:(?:bank|police) ko (?:mat|na|nahi) (?:batana|batao|bataiye)"
+
+  R_refund_authority:
+    severity: soft
+    pattern: refund_authority
+    spoken_key: refund_scam
+    detail: A caller from a "refund department", the FTC or a law firm.
+    terms:
+      en:
+        - "re:refund (?:department|team|desk)"
+        - "re:(?:from|with) the ftc"
+        - "re:law firm"
+      es:
+        - "re:departamento de reembolsos"
+        - "re:(?:bufete|firma) de abogados"
+      hi:
+        - "re:साइबर सेल"
+        - "re:रिफंड विभाग"
+      hi_latn:
+        - "re:cyber cell"
+        - "re:refund department"

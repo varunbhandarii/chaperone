@@ -15,5 +15,18 @@
   "budget_left": "You have {left} left this month.",
   "blocked_category": "Ruth, I can't buy gift cards, money transfers or crypto on this account. When someone asks for these in a hurry, it is very often a scam, and it happens to smart people every day. You did nothing wrong. I have told Priyank, and he will call you. Shall we get your medicine and bread now?",
   "scam_pattern": "Ruth, I'm going to pause this order. When someone rushes you, or asks you to keep a purchase secret, it is a sign of a scam, and it happens to smart people every day. You did nothing wrong. I have told Priyank, and he will call you. Can I help you with your usual groceries instead?",
-  "code_reading": "Ruth, please don't read card numbers or codes to anyone on the phone. Real companies and real family never ask for that. You did nothing wrong. I have told Priyank, and he will call you. It's safe to hang up now. Would you like your medicine and bread?"
+  "code_reading": "Ruth, please don't read card numbers or codes to anyone on the phone. Real companies and real family never ask for that. You did nothing wrong. I have told Priyank, and he will call you. It's safe to hang up now. Would you like your medicine and bread?",
+  "order_status": "Your order is being prepared. It will be ready for pickup after 3 pm. Your pickup code is {pickup_code}.",
+  "order_ready": "Your order is ready for pickup at Corner Market. Your pickup code is {pickup_code}.",
+  "order_cancelled": "I cancelled your order. Nothing was charged, and your budget is back where it was.",
+  "cancel_too_late": "That order is already paid, so I can't cancel it. I can return items to your card instead. Would you like that?",
+  "refund_preview": "{amount} back to your card ending {card_last4}. Shall I?",
+  "refund_done": "Done. {amount} is going back to your card ending {card_last4}. It can take a few days to show.",
+  "refund_done_clip": "Done. The money is going back to your card. It can take a few days to show.",
+  "refund_not_allowed_rx": "I can't return prescription medicine, for your safety. The pharmacist can help if something is wrong with it. Is there anything else?",
+  "refund_scam": "Ruth, a real store never asks you to pay to get a refund, and never asks for gift cards. When someone asks for that, it is almost always a scam, and it happens to smart people every day. You did nothing wrong. I have told Priyank, and he will call you. Can I help you with anything else?",
+  "agent_paused": "Priyank has paused shopping for now, so I can't place orders. He can turn it back on from his phone.",
+  "you_saved": "You saved {saved}.",
+  "rewards_points": "You earned {points} Corner Market Rewards points.",
+  "repeat_nothing": "I haven't said anything yet. What would you like?"
 }
