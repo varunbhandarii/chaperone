@@ -1,5 +1,9 @@
+import { requireSession } from "@/lib/session";
+
 // Approval codes live in policy, bound to one approval; this route only forwards the caregiver's entry.
 export async function POST(request) {
+  const denied = await requireSession();
+  if (denied) return denied;
   const { approval_id: approvalId, code } = await request.json().catch(() => ({}));
   if (!approvalId || !code) {
     return Response.json({ verified: false, error: "approval_id and code are required" }, { status: 400 });

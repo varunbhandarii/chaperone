@@ -3,20 +3,21 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import ipaddress
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from policy.approvals import code_mac, find_approval, forget_host_code, host_code, public_approval, public_decision, state_of
+from policy.approvals import code_mac, find_approval, forget_host_code, host_code, marker_matches, public_approval, public_decision, state_of
 from policy.checkout import CartRejected, ReadBackRequired, UnsignedMandate, checkout as run_checkout
 from policy.checkout import send_signed_order
 from policy.engine import dollars, to_cents
 from policy.events import post_event
 from policy.mandate import DEFAULT_MANDATE
 from policy.pricing import UnknownSku
-from policy.store import add_spent_cents, load_caregiver_credential, load_mandate, load_spent_cents, reset as reset_store, save_caregiver_credential, save_decision, save_mandate
-from policy.verify_mandate import verify_mandate_assertion
+from policy.store import add_spent_cents, hold_decisions, load_caregiver_credential, load_mandate, load_spent_cents, reset as reset_store, save_caregiver_credential, save_decision, save_mandate
+from policy.verify_mandate import relying_party, verify_mandate_assertion
 
 app = FastAPI(title="Chaperone policy")
 
@@ -90,7 +91,9 @@ def put_mandate(mandate: dict):
 def get_mandate():
     stored = load_mandate()
     if stored:
-        return {"signed": True, "mandate": stored}
+        public = {key: value for key, value in stored.items() if key != "passkey"}
+        credential_id = (stored.get("passkey") or {}).get("credential_id")
+        return {"signed": True, "credential_id": credential_id, "mandate": public}
     return {"signed": False, "mandate": DEFAULT_MANDATE, "detail": "unsigned mandate"}
 
 
@@ -130,8 +133,34 @@ def _finish_approval(document: dict, method: str) -> dict:
         },
     }
     save_decision(document)
-    merchant_order = send_signed_order(body)
-    merchant_order.pop("_signature", None)
+    try:
+        merchant_order = send_signed_order(body)
+    except Exception as exc:  # noqa: BLE001 - the station speaks checkout_unavailable from order_error
+        document["order_error"] = str(exc)
+        approval["used"] = True
+        save_decision(document)
+        post_event(
+            "approval_result",
+            document["session_id"],
+            document["mandate_id"],
+            approval_id=approval["approval_id"],
+            approved=True,
+            method=method,
+            error=document["order_error"],
+        )
+        view = public_approval(document)
+        view["order_error"] = document["order_error"]
+        return view
+    signature = merchant_order.pop("_signature", {}) or {}
+    post_event(
+        "request_signed",
+        document["session_id"],
+        document["mandate_id"],
+        decision_id=document["decision_id"],
+        keyid=signature.get("keyid"),
+        nonce=signature.get("nonce"),
+        expires=signature.get("expires"),
+    )
     add_spent_cents(to_cents(float(document["cart"]["total"])))
     link = merchant_order.get("payment_link") or {}
     document["order"] = {
@@ -197,8 +226,33 @@ def approval_status(approval_id: str):
     return view
 
 
+def _close_rejected(document: dict, approval_id: str, message: str) -> dict:
+    approval = document["approval"]
+    approval["approved"] = False
+    approval["used"] = True
+    if message:
+        approval["message"] = message[:140]
+    forget_host_code(approval_id)
+    post_event(
+        "approval_result",
+        document["session_id"],
+        document["mandate_id"],
+        approval_id=approval_id,
+        approved=False,
+        method="passkey",
+        **({"message": approval["message"]} if approval.get("message") else {}),
+    )
+    save_decision(document)
+    return public_approval(document)
+
+
 @app.post("/approvals/{approval_id}/decide")
-def decide(approval_id: str, payload: dict):
+def decide(approval_id: str, payload: dict, request: Request):
+    with hold_decisions():
+        return _decide(approval_id, payload, request)
+
+
+def _decide(approval_id: str, payload: dict, request: Request):
     document = find_approval(approval_id)
     if not document:
         raise HTTPException(404, "unknown approval")
@@ -206,19 +260,13 @@ def decide(approval_id: str, payload: dict):
     if approval.get("used") or state_of(approval) != "pending":
         raise HTTPException(400, "approval is closed")
     if payload.get("approved") is False:
-        approval["approved"] = False
-        approval["used"] = True
-        forget_host_code(approval_id)
-        post_event(
-            "approval_result",
-            document["session_id"],
-            document["mandate_id"],
-            approval_id=approval_id,
-            approved=False,
-            method="passkey",
-        )
-        save_decision(document)
-        return public_approval(document)
+        message = str(payload.get("message") or "")
+        if marker_matches(approval_id, request.headers.get("x-chaperone-marker", "")):
+            return _close_rejected(document, approval_id, message)
+        if not payload.get("response"):
+            return JSONResponse({"error": "passkey assertion required"}, status_code=400)
+        _verify_assertion(document, payload)
+        return _close_rejected(document, approval_id, message)
     pinned = load_caregiver_credential()
     if not pinned:
         stored = load_mandate() or {}
@@ -228,16 +276,24 @@ def decide(approval_id: str, payload: dict):
             save_caregiver_credential(pinned)
     if not pinned or not payload.get("response"):
         return JSONResponse({"error": "passkey assertion required"}, status_code=400)
+    _verify_assertion(document, payload)
+    approval["approved"] = True
+    return _finish_approval(document, "passkey")
+
+
+def _verify_assertion(document: dict, payload: dict) -> None:
     from policy.approvals import challenge_bytes
     from webauthn import verify_authentication_response
     from webauthn.helpers import base64url_to_bytes
 
-    host = __import__("os").environ.get("TUNNEL_HOST") or "localhost"
-    origin = __import__("os").environ.get("ORIGIN") or f"https://{host}"
+    pinned = load_caregiver_credential()
+    if not pinned:
+        raise HTTPException(400, "passkey assertion required")
+    host, origin = relying_party()
     try:
         verified = verify_authentication_response(
             credential=payload["response"],
-            expected_challenge=challenge_bytes(approval),
+            expected_challenge=challenge_bytes(document["approval"]),
             expected_rp_id=host,
             expected_origin=origin,
             credential_public_key=base64url_to_bytes(pinned["public_key"]),
@@ -245,19 +301,15 @@ def decide(approval_id: str, payload: dict):
             require_user_verification=True,
         )
     except Exception as exc:  # noqa: BLE001
-        return JSONResponse({"error": str(exc)}, status_code=400)
+        raise HTTPException(400, str(exc)) from exc
     pinned["sign_count"] = verified.new_sign_count
     save_caregiver_credential(pinned)
-    approval["approved"] = True
-    return _finish_approval(document, "passkey")
 
 
 PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-real-ip", "forwarded", "ngrok-trace-id", "x-original-url")
 
 
-@app.get("/approvals/{approval_id}/host_code")
-def approval_host_code(approval_id: str, request: Request):
-    """The fallback code for the relay's LAN-only Host page. Refused for proxied or non-LAN callers."""
+def _lan_only(request: Request) -> None:
     client = request.client.host if request.client else ""
     try:
         on_lan = client == "testclient" or ipaddress.ip_address(client).is_private or ipaddress.ip_address(client).is_loopback
@@ -265,6 +317,37 @@ def approval_host_code(approval_id: str, request: Request):
         on_lan = False
     if not on_lan or any(header in request.headers for header in PROXY_HEADERS):
         raise HTTPException(403, "LAN only")
+
+
+@app.post("/approvals/{approval_id}/cancel")
+def cancel_approval(approval_id: str, request: Request):
+    _lan_only(request)
+    with hold_decisions():
+        document = find_approval(approval_id)
+        if not document:
+            raise HTTPException(404, "unknown approval")
+        approval = document["approval"]
+        if approval.get("used") or state_of(approval) != "pending":
+            raise HTTPException(400, "approval is closed")
+        approval["cancelled"] = True
+        approval["used"] = True
+        forget_host_code(approval_id)
+        post_event(
+            "approval_result",
+            document["session_id"],
+            document["mandate_id"],
+            approval_id=approval_id,
+            approved=False,
+            method="cancelled",
+        )
+        save_decision(document)
+        return public_approval(document)
+
+
+@app.get("/approvals/{approval_id}/host_code")
+def approval_host_code(approval_id: str, request: Request):
+    """The fallback code for the relay's LAN-only Host page. Refused for proxied or non-LAN callers."""
+    _lan_only(request)
     entry = host_code(approval_id)
     if not entry:
         raise HTTPException(404, "no open code for this approval")
@@ -273,23 +356,27 @@ def approval_host_code(approval_id: str, request: Request):
 
 @app.post("/approvals/{approval_id}/code")
 def submit_code(approval_id: str, payload: dict):
-    document = find_approval(approval_id)
-    if not document:
-        raise HTTPException(404, "unknown approval")
-    approval = document["approval"]
-    if approval.get("used") or state_of(approval) != "pending":
-        raise HTTPException(400, "approval is closed")
-    if approval.get("attempts", 0) >= 5:
-        approval["used"] = True
-        forget_host_code(approval_id)
-        save_decision(document)
-        raise HTTPException(400, "too many attempts")
-    if code_mac(str(payload.get("code", "")), approval_id) != approval.get("code_hash"):
-        approval["attempts"] = approval.get("attempts", 0) + 1
-        if approval["attempts"] >= 5:
+    with hold_decisions():
+        document = find_approval(approval_id)
+        if not document:
+            raise HTTPException(404, "unknown approval")
+        approval = document["approval"]
+        if approval.get("used") or state_of(approval) != "pending":
+            raise HTTPException(400, "approval is closed")
+        if approval.get("attempts", 0) >= 5:
             approval["used"] = True
             forget_host_code(approval_id)
-        save_decision(document)
-        raise HTTPException(400, "code rejected")
-    approval["approved"] = True
-    return _finish_approval(document, "code")
+            save_decision(document)
+            raise HTTPException(400, "too many attempts")
+        expected = approval.get("code_hash") or ""
+        presented = code_mac(str(payload.get("code", "")), approval_id)
+        if not expected or not hmac.compare_digest(presented, expected):
+            approval["attempts"] = approval.get("attempts", 0) + 1
+            if approval["attempts"] >= 5:
+                approval["used"] = True
+                approval["approved"] = False
+                forget_host_code(approval_id)
+            save_decision(document)
+            raise HTTPException(400, "code rejected")
+        approval["approved"] = True
+        return _finish_approval(document, "code")

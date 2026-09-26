@@ -77,6 +77,7 @@ export default function Page() {
   const [setupCode, setSetupCode] = useState("");
   const [approval, setApproval] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [fallbackCode, setFallbackCode] = useState("");
 
   useEffect(() => {
     fetch("/api/config", { headers: { "ngrok-skip-browser-warning": "1" } })
@@ -103,10 +104,25 @@ export default function Page() {
   }
 
   async function register() {
-    const optionsJSON = await post("/api/passkeys/generate-registration-options", { setup_code: setupCode });
+    let optionsJSON;
+    try {
+      optionsJSON = await post("/api/passkeys/generate-registration-options", { setup_code: setupCode });
+    } catch (error) {
+      if (!String(error.message).includes("registration is closed")) throw error;
+      const auth = await post("/api/passkeys/generate-authentication-options", { register: true });
+      const assertion = await startAuthentication({ optionsJSON: auth });
+      optionsJSON = await post("/api/passkeys/generate-registration-options", { setup_code: setupCode, assertion });
+    }
     const attestation = await startRegistration({ optionsJSON });
     const verified = await post("/api/passkeys/verify-registration", attestation);
     note("registration verified=" + verified.verified);
+  }
+
+  async function signIn() {
+    const optionsJSON = await post("/api/passkeys/generate-authentication-options", { session: true });
+    const assertion = await startAuthentication({ optionsJSON });
+    await post("/api/passkeys/verify-authentication", { response: assertion, purpose: "session" });
+    note("signed in");
   }
 
   async function assertMandate() {
@@ -178,6 +194,12 @@ export default function Page() {
     setApproval(null);
   }
 
+  async function submitCode() {
+    const result = await post("/api/code/verify", { approval_id: approval.approval_id, code: fallbackCode });
+    note(result.verified ? "code accepted" : "code rejected");
+    if (result.verified) setApproval(null);
+  }
+
   async function armAlerts() {
     if (armAlerts.started) return;
     armAlerts.started = true;
@@ -201,7 +223,13 @@ export default function Page() {
     const decoder = new TextDecoder();
     while (true) {
       try {
-        const response = await fetch("/api/alerts/stream", { headers: { "ngrok-skip-browser-warning": "1" } });
+        const headers = { "ngrok-skip-browser-warning": "1" };
+        if (armAlerts.lastEventId) headers["Last-Event-ID"] = armAlerts.lastEventId;
+        const response = await fetch("/api/alerts/stream", { headers });
+        if (response.status === 401) {
+          armAlerts.started = false;
+          throw new Error("sign in required");
+        }
         if (!response.ok || !response.body) throw new Error("stream down");
         delay = 1000;
         const reader = response.body.getReader();
@@ -209,6 +237,8 @@ export default function Page() {
           const { done, value } = await reader.read();
           if (done) break;
           const text = decoder.decode(value, { stream: true });
+          const eventId = text.match(/^id: (\d+)/m);
+          if (eventId) armAlerts.lastEventId = eventId[1];
           if (text.includes("refusal") || text.includes("approval_requested") || text.includes("caregiver_alerted")) {
             refreshApprovals().catch(() => {});
             if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
@@ -228,7 +258,7 @@ export default function Page() {
   return (
     <main style={{ maxWidth: "36rem" }}>
       <h1>Caregiver</h1>
-      <p>Priyank signs Ruth&apos;s mandate. Relying party: {config ? config.rpID : "..."} · v6</p>
+      <p>Priyank signs Ruth&apos;s mandate. Relying party: {config ? config.rpID : "..."}</p>
       <pre style={{ whiteSpace: "pre-wrap", background: "white", padding: "1rem" }}>{JSON.stringify(MANDATE, null, 2)}</pre>
       {approval ? (
         <section style={{ background: "#8c2f2f", color: "white", padding: "1rem" }}>
@@ -240,13 +270,20 @@ export default function Page() {
           <button style={btn} onClick={() => approve().catch((error) => note(String(error)))}>Approve with passkey</button>
           <button style={btn} onClick={() => reject().catch((error) => note(String(error)))}>Reject</button>
           <a href="tel:">Call Ruth</a>
+          <p>
+            <input value={fallbackCode} onChange={(event) => setFallbackCode(event.target.value)} inputMode="numeric" maxLength={6} placeholder="approval code" style={{ fontSize: "1.2rem", padding: "0.4rem" }} />
+            <button style={btn} onClick={() => submitCode().catch((error) => note(String(error)))}>Submit code</button>
+          </p>
         </section>
       ) : null}
       <p>
         <input value={setupCode} onChange={(event) => setSetupCode(event.target.value)} inputMode="numeric" placeholder="setup code" style={{ fontSize: "1.2rem", padding: "0.4rem" }} />
         <button style={btn} onClick={() => register().catch((error) => note(String(error)))}>Register passkey</button>
       </p>
-      <p><button style={btn} onClick={() => armAlerts().catch((error) => note(String(error)))}>Arm alerts</button></p>
+      <p>
+        <button style={btn} onClick={() => signIn().catch((error) => note(String(error)))}>Sign in</button>
+        <button style={btn} onClick={() => armAlerts().catch((error) => note(String(error)))}>Arm alerts</button>
+      </p>
       <p>
         <button style={btn} onClick={() => assertMandate().catch((error) => note(String(error)))}>Sign mandate</button>
       </p>

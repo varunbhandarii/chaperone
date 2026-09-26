@@ -13,7 +13,7 @@ import jcs
 
 from policy.store import load_decisions, save_decision
 
-PUBLIC_FIELDS = ("approval_id", "expires_at", "amount", "merchant", "excerpt", "rule", "decision_id")
+PUBLIC_FIELDS = ("approval_id", "expires_at", "amount", "merchant", "excerpt", "rule", "decision_id", "message")
 
 
 def code_key() -> bytes:
@@ -25,6 +25,19 @@ def code_key() -> bytes:
 
 def code_mac(code: str, approval_id: str) -> str:
     return hmac.new(code_key(), f"{code}{approval_id}".encode(), hashlib.sha256).hexdigest()
+
+
+def reject_marker(approval_id: str) -> str:
+    return hmac.new(code_key(), f"reject:{approval_id}".encode(), hashlib.sha256).hexdigest()
+
+
+def marker_matches(approval_id: str, presented: str) -> bool:
+    if not presented:
+        return False
+    try:
+        return hmac.compare_digest(reject_marker(approval_id), presented)
+    except (TypeError, ValueError):
+        return False
 
 
 # The plain six-digit fallback code lives only in this process's memory, for the relay's LAN-only Host page.
@@ -74,6 +87,8 @@ def _expires(approval: dict) -> datetime:
 
 
 def state_of(approval: dict, now: datetime | None = None) -> str:
+    if approval.get("cancelled"):
+        return "cancelled"
     if approval.get("approved") is True:
         return "approved"
     if approval.get("approved") is False:
@@ -94,7 +109,7 @@ def find_approval(approval_id: str) -> dict | None:
 
 def public_approval(document: dict) -> dict:
     approval = document.get("approval") or {}
-    view = {key: approval.get(key) for key in PUBLIC_FIELDS}
+    view = {key: approval.get(key) for key in PUBLIC_FIELDS if key != "message" or approval.get("message")}
     view["state"] = state_of(approval)
     view["order"] = document.get("order")
     view["decision_id"] = document.get("decision_id")

@@ -8,7 +8,7 @@ import threading
 
 from common.config import decisions_path
 
-_lock = threading.Lock()
+_lock = threading.RLock()
 from policy.mandate import MONTHLY_BASELINE
 
 
@@ -60,6 +60,10 @@ def add_spent_cents(delta: int) -> int:
 
 def load_decisions() -> dict:
     return _read(decisions_path(), {})
+
+
+def hold_decisions():
+    return _lock
 
 
 def save_decision(document: dict) -> None:

@@ -1,8 +1,17 @@
+import { requireSession } from "@/lib/session";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request) {
+  const denied = await requireSession();
+  if (denied) return denied;
   const relay = (process.env.RELAY_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
-  const upstream = await fetch(`${relay}/events/stream?types=refusal,approval_requested,caregiver_alerted`, {
+  const lastId = request.headers.get("last-event-id");
+  const streamUrl = new URL(`${relay}/events/stream`);
+  streamUrl.searchParams.set("types", "refusal,approval_requested,caregiver_alerted");
+  if (lastId) streamUrl.searchParams.set("last_event_id", lastId);
+  else streamUrl.searchParams.set("since", String(Date.now()));
+  const upstream = await fetch(streamUrl, {
     cache: "no-store",
     signal: request.signal,
   }).catch(() => null);

@@ -160,6 +160,11 @@ def test_r0_fails_outside_the_validity_window():
     assert result["rules"][0]["passed"] is False
 
 
+def test_blocked_category_wins_over_the_monthly_cap():
+    result = run([item(50, category="gift_card")], spent=29000, judge=proceed())
+    assert result["say_key"] == "blocked_category"
+
+
 def test_monthly_cap_denial_names_the_say_key():
     result = run([item(11.49)], spent=29000, judge=proceed())
     assert result["say_key"] == "over_monthly_cap"

@@ -12,7 +12,7 @@ export async function POST(request) {
     return Response.json({ error: "setup code required" }, { status: 401 });
   }
   if (existing.length > 0) {
-    const expectedChallenge = takeChallenge((await cookies()).get("sid")?.value, "mandate");
+    const expectedChallenge = takeChallenge((await cookies()).get("sid")?.value, "register");
     const match = existing.find((item) => item.id === body.assertion?.id);
     if (!expectedChallenge || !match) {
       return Response.json({ error: "registration is closed" }, { status: 403 });

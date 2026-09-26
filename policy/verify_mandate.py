@@ -17,6 +17,12 @@ _SCHEMA = json.loads((ROOT / "contracts" / "mandate.schema.json").read_text(enco
 _VALIDATOR = Draft202012Validator(_SCHEMA, resolver=RefResolver(base_uri=(ROOT / "contracts").as_uri() + "/", referrer=_SCHEMA))
 
 
+def relying_party() -> tuple[str, str]:
+    host = env("TUNNEL_HOST") or "localhost"
+    origin = env("ORIGIN") or (f"http://{host}:5175" if host in {"localhost", "127.0.0.1"} else f"https://{host}")
+    return host, origin
+
+
 def verify_mandate_assertion(mandate: dict) -> None:
     _VALIDATOR.validate(mandate)
     passkey = mandate.get("passkey") or {}
@@ -29,8 +35,7 @@ def verify_mandate_assertion(mandate: dict) -> None:
     if pinned and pinned["credential_id"] != credential_id:
         raise ValueError("credential is not the pinned caregiver")
     key = pinned["public_key"] if pinned else public_key
-    host = env("TUNNEL_HOST") or "localhost"
-    origin = env("ORIGIN") or (f"http://{host}:5175" if host in {"localhost", "127.0.0.1"} else f"https://{host}")
+    host, origin = relying_party()
     verified = verify_authentication_response(
         credential=response,
         expected_challenge=mandate_hash(mandate),

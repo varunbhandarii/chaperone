@@ -1,14 +1,22 @@
+import { createHmac } from "crypto";
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { cookies } from "next/headers";
 import { saveChallenge } from "@/lib/challenges";
 import { loadCredentials, origin, rpID } from "@/lib/passkeys";
+import { requireSession } from "@/lib/session";
+import { APPROVAL_ID } from "@/lib/ids";
 
 const policy = () => (process.env.POLICY_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
-// Only real approval ids reach policy: Next decodes the path segment, so an unchecked id could carry "../".
-const APPROVAL_ID = /^a_[0-9a-f]{12}$/;
+
+function rejectMarker(id) {
+  const key = process.env.POLICY_CODE_KEY || "chaperone-dev-code-key";
+  return createHmac("sha256", key).update(`reject:${id}`).digest("hex");
+}
 
 export async function POST(request, { params }) {
+  const denied = await requireSession();
+  if (denied) return denied;
   const { id: rawId } = await params;
   if (!APPROVAL_ID.test(rawId)) return Response.json({ error: "unknown approval" }, { status: 404 });
   const id = encodeURIComponent(rawId);
@@ -37,9 +45,11 @@ export async function POST(request, { params }) {
     });
     return Response.json({ optionsJSON: options, approval: view });
   }
+  const headers = { "Content-Type": "application/json" };
+  if (body.approved === false) headers["X-Chaperone-Marker"] = rejectMarker(rawId);
   const response = await fetch(`${policy()}/approvals/${id}/decide`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   return new Response(await response.text(), { status: response.status, headers: { "Content-Type": "application/json" } });

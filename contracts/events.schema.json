@@ -278,8 +278,16 @@
             "enum": [
               "passkey",
               "code",
-              "timeout"
+              "timeout",
+              "cancelled"
             ]
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 140
+          },
+          "error": {
+            "type": "string"
           }
         }
       },

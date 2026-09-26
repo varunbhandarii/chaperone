@@ -4,17 +4,18 @@ import { saveChallenge } from "@/lib/challenges";
 import { loadCredentials, mandateHash, origin, rpID } from "@/lib/passkeys";
 
 export async function POST(request) {
-  const { mandate } = await request.json();
+  const body = await request.json().catch(() => ({}));
   const credentials = loadCredentials();
   if (!credentials.length) return Response.json({ error: "register a passkey first" }, { status: 400 });
-  const hash = mandateHash(mandate);
+  const purpose = body.session ? "session" : body.register ? "register" : "mandate";
+  const challenge = purpose === "mandate" ? mandateHash(body.mandate) : undefined;
   const options = await generateAuthenticationOptions({
     rpID: rpID(),
-    challenge: hash,
+    challenge,
     allowCredentials: credentials.map((credential) => ({ id: credential.id, transports: credential.transports })),
   });
   const jar = await cookies();
-  jar.set("sid", saveChallenge("mandate", options.challenge), {
+  jar.set("sid", saveChallenge(purpose, options.challenge), {
     httpOnly: true,
     sameSite: "lax",
     secure: origin().startsWith("https"),
