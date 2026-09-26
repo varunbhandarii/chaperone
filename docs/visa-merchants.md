@@ -43,3 +43,17 @@ read back from Visa as 49.95 ACTIVE:
 | Parkside Pharmacy | `…7937` | `PHARM6AB83E9BF072C3` | ✅ $49.95, 1 × $49.95, max qty 1 (header "Chaperone, Stony Brook NY": the account's company name) |
 | Main Street Home | `…8309` | `HOME6AB83E9E2E5221` | ✅ $49.95, 1 × $49.95, max qty 1 (header "Main Street") |
 
+
+## Sat Sep 26, ~6:45pm: Peachtree Power on its own account; every store has its own
+
+Peachtree Power's keys (`…2505`) are in `.env` as `CYBS_PEACHTREE_*`. A check: signed
+`GET /ipl/v2/payment-links?offset=0&limit=1` → 404 "No payment links found" on the empty account, **200** once it had
+a link. Five Ensure at $49.95 read back from Visa as 49.95 ACTIVE (`POWER6AB84AEDC74188`), and the real bill link
+"Peachtree Power bill PP-...0098" at $86.40 (`POWER6AB84AF0D296B9`). Hosted page to confirm by eye.
+
+| Store | Account | Mode |
+|---|---|---|
+| Corner Market | `…6462` | own account |
+| Parkside Pharmacy | `…7937` | own account |
+| Main Street Home | `…8309` | own account |
+| Peachtree Power | `…2505` | own account |
