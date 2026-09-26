@@ -27,15 +27,23 @@ def code_mac(code: str, approval_id: str) -> str:
     return hmac.new(code_key(), f"{code}{approval_id}".encode(), hashlib.sha256).hexdigest()
 
 
+def action_marker(approval_id: str, action: str) -> str:
+    return hmac.new(code_key(), f"{action}:{approval_id}".encode(), hashlib.sha256).hexdigest()
+
+
 def reject_marker(approval_id: str) -> str:
-    return hmac.new(code_key(), f"reject:{approval_id}".encode(), hashlib.sha256).hexdigest()
+    return action_marker(approval_id, "reject")
 
 
-def marker_matches(approval_id: str, presented: str) -> bool:
+def approve_marker(approval_id: str) -> str:
+    return action_marker(approval_id, "approve")
+
+
+def marker_matches(approval_id: str, presented: str, action: str = "reject") -> bool:
     if not presented:
         return False
     try:
-        return hmac.compare_digest(reject_marker(approval_id), presented)
+        return hmac.compare_digest(action_marker(approval_id, action), presented)
     except (TypeError, ValueError):
         return False
 

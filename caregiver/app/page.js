@@ -78,6 +78,7 @@ export default function Page() {
   const [approval, setApproval] = useState(null);
   const [now, setNow] = useState(Date.now());
   const [fallbackCode, setFallbackCode] = useState("");
+  const [prepared, setPrepared] = useState(null);
 
   useEffect(() => {
     fetch("/api/config", { headers: { "ngrok-skip-browser-warning": "1" } })
@@ -98,6 +99,23 @@ export default function Page() {
       clearInterval(clock);
     };
   }, []);
+
+  const approvalId = approval && approval.approval_id;
+  useEffect(() => {
+    if (!approvalId) {
+      setPrepared(null);
+      return undefined;
+    }
+    let cancel = false;
+    post(`/api/approvals/${approvalId}/decide`, { prepare: true })
+      .then((next) => {
+        if (!cancel) setPrepared(next);
+      })
+      .catch(() => {});
+    return () => {
+      cancel = true;
+    };
+  }, [approvalId]);
 
   function note(line) {
     setLog((prev) => prev + line + "\n");
@@ -143,9 +161,74 @@ export default function Page() {
     setApproval(Array.isArray(rows) && rows.length ? rows[0] : null);
   }
 
+  function asBytes(value) {
+    if (typeof value === "string") return null;
+    if (value instanceof ArrayBuffer) return new Uint8Array(value);
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+
+  function packField(value) {
+    return typeof value === "string" ? value : bytesToB64url(asBytes(value));
+  }
+
+  function packAssertion(credential) {
+    return {
+      id: credential.id,
+      rawId: packField(credential.rawId),
+      type: credential.type,
+      response: {
+        authenticatorData: packField(credential.response.authenticatorData),
+        clientDataJSON: packField(credential.response.clientDataJSON),
+        signature: packField(credential.response.signature),
+        userHandle: credential.response.userHandle ? packField(credential.response.userHandle) : undefined,
+      },
+      clientExtensionResults: credential.getClientExtensionResults ? credential.getClientExtensionResults() : {},
+      authenticatorAttachment: credential.authenticatorAttachment,
+    };
+  }
+
+  async function secureConfirmation(options) {
+    if (!window.PaymentRequest || !PaymentRequest.securePaymentConfirmationAvailability) return null;
+    if ((await PaymentRequest.securePaymentConfirmationAvailability()) !== "available") return null;
+    const request = new PaymentRequest(
+      [{
+        supportedMethods: "secure-payment-confirmation",
+        data: {
+          credentialIds: (options.allowCredentials || []).map((item) => b64urlToBuffer(item.id)),
+          challenge: b64urlToBuffer(options.challenge),
+          rpId: options.rpId,
+          instrument: {
+            displayName: "Ruth's Visa (sandbox)",
+            icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%238c2f2f'/%3E%3C/svg%3E",
+            iconMustBeShown: false,
+          },
+          payeeName: "Corner Market",
+          payeeOrigin: window.location.origin,
+          timeout: 90000,
+        },
+      }],
+      { total: { label: "Total", amount: { currency: "USD", value: Number(approval.amount).toFixed(2) } } },
+    );
+    const payment = await request.show();
+    const assertion = packAssertion(payment.details);
+    await payment.complete("success");
+    return assertion;
+  }
+
   async function approve() {
-    const prepared = await post(`/api/approvals/${approval.approval_id}/decide`, { prepare: true });
-    const options = prepared.optionsJSON;
+    const ready = prepared || (await post(`/api/approvals/${approval.approval_id}/decide`, { prepare: true }));
+    const options = ready.optionsJSON;
+    try {
+      const assertion = await secureConfirmation(options);
+      if (assertion) {
+        const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: true, spc: true, response: assertion });
+        note("approval " + result.state);
+        setApproval(null);
+        return;
+      }
+    } catch (error) {
+      if (error && error.name !== "NotAllowedError") note("payment dialog " + (error.message || error.name));
+    }
     const challenge = b64urlToBuffer(options.challenge);
     const request = {
       challenge,
@@ -168,21 +251,7 @@ export default function Page() {
       if (!String(error.message || error).includes("expected pattern")) throw error;
       credential = await navigator.credentials.get({ publicKey: request });
     }
-    const assertion = {
-      id: credential.id,
-      rawId: bytesToB64url(new Uint8Array(credential.rawId)),
-      type: credential.type,
-      response: {
-        authenticatorData: bytesToB64url(new Uint8Array(credential.response.authenticatorData)),
-        clientDataJSON: bytesToB64url(new Uint8Array(credential.response.clientDataJSON)),
-        signature: bytesToB64url(new Uint8Array(credential.response.signature)),
-        userHandle: credential.response.userHandle
-          ? bytesToB64url(new Uint8Array(credential.response.userHandle))
-          : undefined,
-      },
-      clientExtensionResults: credential.getClientExtensionResults(),
-      authenticatorAttachment: credential.authenticatorAttachment,
-    };
+    const assertion = packAssertion(credential);
     const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: true, response: assertion });
     note("approval " + result.state);
     setApproval(null);

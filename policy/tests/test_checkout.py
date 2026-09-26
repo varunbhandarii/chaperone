@@ -295,6 +295,28 @@ def test_five_wrong_codes_lock_the_approval(tmp_path, monkeypatch):
     assert api.get(f"/approvals/{approval_id}").json()["state"] == "rejected"
 
 
+def test_payment_marker_places_the_order_without_a_webauthn_get(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "policy.main.send_signed_order",
+        lambda body: {"order_id": "ord_spc", "status": "awaiting_payment", "payment_link": {"url": "http://127.0.0.1:8002/pay/abc"}},
+    )
+    api = client(tmp_path, monkeypatch)
+    payload = json.loads(json.dumps(DEMO))
+    payload["cart"]["items"] = [{"sku": "BAK-001", "name": "bread", "category": "grocery", "qty": 15, "price": 3.49}]
+    approval_id = api.post("/checkout", json=payload).json()["approval"]["approval_id"]
+    from policy.approvals import approve_marker
+    from policy.store import save_caregiver_credential
+
+    save_caregiver_credential({"credential_id": "priya", "public_key": "AQID", "sign_count": 0})
+    approved = api.post(
+        f"/approvals/{approval_id}/decide",
+        json={"approved": True, "response": {"id": "priya", "type": "public-key"}, "sign_count": 1},
+        headers={"X-Chaperone-Marker": approve_marker(approval_id)},
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["order"]["order_id"] == "ord_spc"
+
+
 def test_forged_marker_cannot_reject(tmp_path, monkeypatch):
     api = client(tmp_path, monkeypatch)
     payload = json.loads(json.dumps(DEMO))

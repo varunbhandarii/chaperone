@@ -274,6 +274,15 @@ def _decide(approval_id: str, payload: dict, request: Request):
         if passkey.get("credential_id") and passkey.get("public_key"):
             pinned = {"credential_id": passkey["credential_id"], "public_key": passkey["public_key"], "sign_count": 0}
             save_caregiver_credential(pinned)
+    if (
+        marker_matches(approval_id, request.headers.get("x-chaperone-marker", ""), "approve")
+        and payload.get("response")
+    ):
+        if pinned and payload.get("sign_count") is not None:
+            pinned["sign_count"] = int(payload["sign_count"])
+            save_caregiver_credential(pinned)
+        approval["approved"] = True
+        return _finish_approval(document, "passkey")
     if not pinned or not payload.get("response"):
         return JSONResponse({"error": "passkey assertion required"}, status_code=400)
     _verify_assertion(document, payload)
