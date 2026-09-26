@@ -44,7 +44,14 @@
         "mandate_paused",
         "mandate_resumed",
         "explanation_requested",
-        "reset"
+        "reset",
+        "scam_checked",
+        "caution",
+        "risk_changed",
+        "card_decision",
+        "card_hold_released",
+        "bill_checked",
+        "line_call"
       ]
     },
     "session_id": {
@@ -69,7 +76,8 @@
         "policy",
         "merchant",
         "caregiver",
-        "relay"
+        "relay",
+        "line"
       ]
     },
     "rt": {
@@ -487,6 +495,199 @@
             "type": "string"
           }
         }
+      },
+      "scam_checked": {
+        "type": "object",
+        "properties": {
+          "check_id": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array"
+          },
+          "ms": {
+            "type": "number"
+          },
+          "channel": {
+            "type": "string"
+          }
+        }
+      },
+      "caution": {
+        "type": "object",
+        "properties": {
+          "rule_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "action": {
+            "enum": [
+              "slow",
+              "judge"
+            ]
+          },
+          "words": {
+            "type": [
+              "string",
+              "array"
+            ]
+          }
+        }
+      },
+      "risk_changed": {
+        "type": "object",
+        "properties": {
+          "cooldown_until": {
+            "type": [
+              "string",
+              "number",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_event": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "card_decision": {
+        "type": "object",
+        "properties": {
+          "card_last4": {
+            "type": "string"
+          },
+          "store": {
+            "type": "string"
+          },
+          "mcc": {
+            "type": "string"
+          },
+          "amount": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "result": {
+            "enum": [
+              "approved",
+              "declined"
+            ]
+          },
+          "reason_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hold_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cooldown": {
+            "type": [
+              "boolean",
+              "object",
+              "null"
+            ]
+          },
+          "network": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "card_hold_released": {
+        "type": "object",
+        "properties": {
+          "hold_id": {
+            "type": "string"
+          },
+          "store": {
+            "type": "string"
+          },
+          "max_amount": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "allowed_until": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        }
+      },
+      "bill_checked": {
+        "type": "object",
+        "properties": {
+          "biller": {
+            "type": "string"
+          },
+          "account_ref": {
+            "type": "string"
+          },
+          "balance_due": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "due_date": {
+            "type": "string"
+          },
+          "past_due": {
+            "type": "boolean"
+          }
+        }
+      },
+      "line_call": {
+        "type": "object",
+        "properties": {
+          "call_id": {
+            "type": "string"
+          },
+          "phase": {
+            "enum": [
+              "started",
+              "ended"
+            ]
+          },
+          "from_last4": {
+            "type": "string"
+          },
+          "seconds": {
+            "type": "number"
+          }
+        }
       }
     }
   },
@@ -759,6 +960,111 @@
       },
       "then": {
         "$ref": "#/$defs/payloads/explanation_requested"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "scam_checked"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/scam_checked"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "caution"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/caution"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "risk_changed"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/risk_changed"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "card_decision"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/card_decision"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "card_hold_released"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/card_hold_released"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "bill_checked"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/bill_checked"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "line_call"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/line_call"
       }
     }
   ]
