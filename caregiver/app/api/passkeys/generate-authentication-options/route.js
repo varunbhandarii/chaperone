@@ -1,5 +1,6 @@
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
 import { cookies } from "next/headers";
+import { saveChallenge } from "@/lib/challenges";
 import { loadCredentials, mandateHash, origin, rpID } from "@/lib/passkeys";
 
 export async function POST(request) {
@@ -13,7 +14,7 @@ export async function POST(request) {
     allowCredentials: credentials.map((credential) => ({ id: credential.id, transports: credential.transports })),
   });
   const jar = await cookies();
-  jar.set("wa_challenge", options.challenge, {
+  jar.set("sid", saveChallenge("mandate", options.challenge), {
     httpOnly: true,
     sameSite: "lax",
     secure: origin().startsWith("https"),

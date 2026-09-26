@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 
 import httpx
@@ -21,7 +22,11 @@ def post_event(event_type: str, session_id: str, mandate_id: str, **fields) -> N
     relay = env("RELAY_URL")
     if not relay:
         return
-    try:
-        httpx.post(f"{relay.rstrip('/')}/events", json=event, timeout=0.3)
-    except httpx.HTTPError:
-        return
+
+    def send() -> None:
+        try:
+            httpx.post(f"{relay.rstrip('/')}/events", json=event, timeout=0.3)
+        except httpx.HTTPError:
+            return
+
+    threading.Thread(target=send, daemon=True).start()

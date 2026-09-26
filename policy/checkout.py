@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 import secrets
 import uuid
@@ -10,12 +9,13 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-from common.config import merchant_public_url
-from policy.engine import dollars, evaluate, to_cents
+from common.config import KEY_ID, merchant_public_url
+from policy.approvals import code_mac, new_nonce
+from policy.engine import dollars, evaluate, mandate_category, to_cents
 from policy.events import post_event
 from policy.mandate import DEFAULT_MANDATE
 from policy.pricing import UnknownSku, reprice
-from policy.store import get_decision, load_mandate, load_spent_cents, save_decision, store_spent_cents
+from policy.store import add_spent_cents, get_decision, load_mandate, load_spent_cents, save_decision
 from signer.sign import sign_request
 
 JUDGE_THRESHOLD = float(os.environ.get("JUDGE_THRESHOLD", "0.6"))
@@ -62,6 +62,14 @@ class UnsignedMandate(Exception):
     pass
 
 
+class CartRejected(Exception):
+    pass
+
+
+class ReadBackRequired(Exception):
+    pass
+
+
 def active_mandate() -> tuple[dict, bool]:
     stored = load_mandate()
     if stored:
@@ -96,11 +104,30 @@ def _order_body(mandate_id: str, decision_id: str, session_id: str, cart: dict, 
 
 def send_signed_order(body: dict) -> dict:
     url = f"{merchant_public_url()}/orders"
-    prepared = sign_request(url, body)
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(minutes=8)
+    nonce = secrets.token_urlsafe(32)
+    prepared = sign_request(url, body, created=now, expires=expires, nonce=nonce)
     response = requests.Session().send(prepared, timeout=5)
     if response.status_code >= 400:
         raise RuntimeError(f"merchant answered {response.status_code}: {response.text[:300]}")
-    return response.json()
+    payload = response.json()
+    payload["_signature"] = {"keyid": KEY_ID, "nonce": nonce, "expires": int(expires.timestamp())}
+    return payload
+
+
+def _check_cart(payload: dict, mandate: dict) -> None:
+    if payload.get("read_back") is not True:
+        raise ReadBackRequired()
+    if payload.get("mandate_id") and payload["mandate_id"] != mandate["mandate_id"]:
+        raise CartRejected("mandate_id does not match the active mandate")
+    items = (payload.get("cart") or {}).get("items") or []
+    if not items:
+        raise CartRejected("cart is empty")
+    for line in items:
+        qty = int(line.get("qty") or 0)
+        if qty < 1 or qty > 24:
+            raise CartRejected("qty must be from 1 to 24")
 
 
 def checkout(payload: dict) -> dict:
@@ -108,25 +135,31 @@ def checkout(payload: dict) -> dict:
     transcript = payload.get("transcript") or ""
     lang = payload.get("lang") or "en"
     mandate, unsigned = active_mandate()
-    if payload.get("mandate_id"):
-        mandate = {**mandate, "mandate_id": payload["mandate_id"]}
+    _check_cart(payload, mandate)
     priced = reprice(payload.get("cart") or {})
     screen = call_screen(transcript, lang, session_id)
+    blocked = set(mandate.get("blocked_categories") or [])
+    category_blocked = any(mandate_category(item) in blocked for item in priced["items"])
     judgment, judge_error = (None, None)
-    if screen.get("action") != "refuse":
+    if screen.get("action") != "refuse" and not category_blocked:
         judgment, judge_error = call_judge(transcript, priced, mandate, session_id)
     decision = evaluate(
         priced,
         mandate,
         load_spent_cents(),
         judge=judgment,
+        today=datetime.now(timezone.utc).date(),
         screen_action=screen.get("action"),
         judge_error=judge_error,
         signed=True if unsigned else None,
+        unsigned_demo=unsigned,
     )
     if screen.get("action") == "refuse":
         decision["decision"] = "deny"
-        decision["say_key"] = (screen.get("refusal") or {}).get("spoken_key") or "blocked_category"
+        spoken = (screen.get("refusal") or {}).get("spoken_key") or "blocked_category"
+        decision["say_key"] = spoken
+        rule_id = (screen.get("refusal") or {}).get("rule_id") or "screen"
+        decision["rules"].append({"id": f"S_screen_{rule_id}", "passed": False, "detail": spoken})
         decision["monthly_total_after"] = dollars(load_spent_cents())
     decision_id = "d_" + uuid.uuid4().hex[:12]
     approval = None
@@ -150,36 +183,63 @@ def checkout(payload: dict) -> dict:
         body = _order_body(mandate["mandate_id"], decision_id, session_id, priced, None)
         try:
             merchant_order = send_signed_order(body)
+            signature = merchant_order.pop("_signature", {})
             link = merchant_order.get("payment_link") or {}
             order = {
                 "order_id": merchant_order.get("order_id"),
                 "payment_link": link.get("url") or link,
                 "status": merchant_order.get("status"),
             }
-            post_event("request_signed", session_id, mandate["mandate_id"], decision_id=decision_id)
-            store_spent_cents(to_cents(decision["monthly_total_after"]))
+            post_event(
+                "request_signed",
+                session_id,
+                mandate["mandate_id"],
+                decision_id=decision_id,
+                keyid=signature.get("keyid"),
+                nonce=signature.get("nonce"),
+                expires=signature.get("expires"),
+            )
+            add_spent_cents(to_cents(priced["total"]))
         except Exception as exc:  # noqa: BLE001 - the decision still stands if the merchant is down
             order_error = str(exc)
     elif decision["decision"] == "approve":
         approval_id = "a_" + uuid.uuid4().hex[:12]
-        nonce = secrets.token_hex(8)
         expires = datetime.now(timezone.utc) + timedelta(seconds=90)
         code = f"{secrets.randbelow(1_000_000):06d}"
         approval = {
             "approval_id": approval_id,
             "session_id": session_id,
             "amount": priced["total"],
+            "merchant": priced["merchant"],
             "excerpt": transcript[:240],
             "rule": "R6_approval_threshold",
             "expires_at": expires.isoformat(),
-            "nonce": nonce,
-            "code_hash": hashlib.sha256(f"{code}{approval_id}".encode()).hexdigest(),
+            "nonce": new_nonce(),
+            "code_hash": code_mac(code, approval_id),
             "attempts": 0,
         }
         print(f"approval code for {approval_id}: {code}")
-        post_event("approval_requested", session_id, mandate["mandate_id"], approval_id=approval_id)
+        post_event(
+            "approval_requested",
+            session_id,
+            mandate["mandate_id"],
+            approval_id=approval_id,
+            amount=priced["total"],
+            rule=approval["rule"],
+            expires_at=approval["expires_at"],
+        )
     else:
-        post_event("refusal", session_id, mandate["mandate_id"], decision_id=decision_id, say_key=decision["say_key"])
+        failed = [rule["id"] for rule in decision["rules"] if not rule["passed"]]
+        post_event(
+            "refusal",
+            session_id,
+            mandate["mandate_id"],
+            decision_id=decision_id,
+            rule_id=failed[0] if failed else decision["say_key"],
+            rule_ids=failed,
+            spoken_key=decision["say_key"],
+            lang=lang,
+        )
         post_event("caregiver_alerted", session_id, mandate["mandate_id"], decision_id=decision_id)
 
     public_approval = None
@@ -188,7 +248,16 @@ def checkout(payload: dict) -> dict:
     document["order"] = order
     document["approval"] = approval
     save_decision(document)
-    post_event("policy_decision", session_id, mandate["mandate_id"], decision_id=decision_id, decision=decision["decision"])
+    failed = [rule["id"] for rule in decision["rules"] if not rule["passed"]]
+    post_event(
+        "policy_decision",
+        session_id,
+        mandate["mandate_id"],
+        decision_id=decision_id,
+        decision=decision["decision"],
+        rules_failed=failed,
+        total=priced["total"],
+    )
     response = {
         "decision": decision["decision"],
         "rules": decision["rules"],

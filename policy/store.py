@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
 
 from common.config import decisions_path
+
+_lock = threading.Lock()
 from policy.mandate import MONTHLY_BASELINE
 
 
@@ -30,7 +34,9 @@ def _read(path, fallback):
 
 def _write(path, value) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value), encoding="utf-8")
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(value), encoding="utf-8")
+    os.replace(temporary, path)
 
 
 def load_spent_cents() -> int:
@@ -41,7 +47,15 @@ def load_spent_cents() -> int:
 
 
 def store_spent_cents(cents: int) -> None:
-    _write(monthly_path(), {"spent_cents": cents, "total": round(cents / 100, 2)})
+    with _lock:
+        _write(monthly_path(), {"spent_cents": cents, "total": round(cents / 100, 2)})
+
+
+def add_spent_cents(delta: int) -> int:
+    with _lock:
+        updated = load_spent_cents() + delta
+        _write(monthly_path(), {"spent_cents": updated, "total": round(updated / 100, 2)})
+        return updated
 
 
 def load_decisions() -> dict:
@@ -49,9 +63,10 @@ def load_decisions() -> dict:
 
 
 def save_decision(document: dict) -> None:
-    current = load_decisions()
-    current[document["decision_id"]] = document
-    _write(decisions_path(), current)
+    with _lock:
+        current = load_decisions()
+        current[document["decision_id"]] = document
+        _write(decisions_path(), current)
 
 
 def get_decision(decision_id: str) -> dict | None:
@@ -69,8 +84,32 @@ def load_mandate() -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def credential_path():
+    from common.config import env
+    from pathlib import Path
+
+    return Path(env("CAREGIVER_CREDENTIAL_PATH", str(decisions_path().parent / "caregiver_credential.json")))
+
+
+def load_caregiver_credential() -> dict | None:
+    path = credential_path()
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def save_caregiver_credential(document: dict) -> None:
+    with _lock:
+        _write(credential_path(), document)
+
+
 def reset() -> None:
     store_spent_cents(int(round(MONTHLY_BASELINE * 100)))
     path = decisions_path()
     if path.exists():
         path.unlink()
+    try:
+        from policy.screen import reset_sessions
+    except ImportError:
+        return
+    reset_sessions()
