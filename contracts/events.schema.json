@@ -37,6 +37,13 @@
         "mandate_signed",
         "judge_scored",
         "replay_armed",
+        "order_status",
+        "order_cancelled",
+        "refund_requested",
+        "refund_result",
+        "mandate_paused",
+        "mandate_resumed",
+        "explanation_requested",
         "reset"
       ]
     },
@@ -321,6 +328,165 @@
             "type": "string"
           }
         }
+      },
+      "order_status": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "awaiting_payment",
+              "paid",
+              "preparing",
+              "ready_for_pickup",
+              "picked_up",
+              "cancelled",
+              "partially_refunded",
+              "refunded"
+            ]
+          },
+          "pickup_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "order_cancelled": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "link_status": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cybersource v-c-correlation-id of the PATCH (real links)"
+          },
+          "backend": {
+            "enum": [
+              "visa",
+              "mock"
+            ]
+          }
+        }
+      },
+      "refund_requested": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "integer"
+          },
+          "amount": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "refund_result": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "refund_id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "TRANSMITTED",
+              "FAILED",
+              "REFUSED"
+            ]
+          },
+          "amount": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "sku": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "integer"
+          },
+          "reconciliation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "card_last4": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "description": "The merchant posts one per refund state (PENDING, then TRANSMITTED). The label is always \"Refund to the original card · sandbox processor stub\"."
+      },
+      "mandate_paused": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "mandate_resumed": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string"
+          }
+        }
+      },
+      "explanation_requested": {
+        "type": "object",
+        "properties": {
+          "decision_id": {
+            "type": "string"
+          }
+        }
       }
     }
   },
@@ -488,6 +654,111 @@
       },
       "then": {
         "$ref": "#/$defs/payloads/paid"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "order_status"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/order_status"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "order_cancelled"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/order_cancelled"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "refund_requested"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/refund_requested"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "refund_result"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/refund_result"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "mandate_paused"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/mandate_paused"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "mandate_resumed"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/mandate_resumed"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "explanation_requested"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/explanation_requested"
       }
     }
   ]

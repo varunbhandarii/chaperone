@@ -89,8 +89,12 @@ async def fetch_decision(decision_id: str) -> dict | None:
         raise DecisionError("policy answered with something other than JSON") from exc
 
 
-async def check_decision(body: bytes, fetch=None) -> str:
-    """Contract step 6. Returns the passing detail or raises DecisionError. fetch may be sync or async."""
+async def check_decision(body: bytes, fetch=None, existing_order: dict | None = None) -> str:
+    """Contract step 6. Returns the passing detail or raises DecisionError. fetch may be sync or async.
+
+    existing_order is set for a post-purchase request (cancel, refund) on that order: the decision must be the
+    order's own, or a policy decision made for that order (its order_id), and there is no cart to compare.
+    """
     fetch = fetch or fetch_decision  # looked up at call time so tests can patch the module
     try:
         order = json.loads(body)
@@ -111,6 +115,13 @@ async def check_decision(body: bytes, fetch=None) -> str:
             raise DecisionError(f"decision {decision_id} awaits caregiver approval")
     elif outcome != "allow":
         raise DecisionError(f"decision {decision_id} is {outcome}")
+    if existing_order is not None:
+        order_id = existing_order.get("order_id")
+        if decision_id != existing_order.get("decision_id") and decision.get("order_id") != order_id:
+            raise DecisionError(f"decision {decision_id} is not for order {order_id}")
+        if order.get("mandate_id") != existing_order.get("mandate_id"):
+            raise DecisionError(f"order {order_id} belongs to another mandate")
+        return f"{decision_id} is {outcome}, for order {order_id}"
     decided = _cart_counts(decision.get("cart") or decision.get("priced_cart"))
     if decided != _cart_counts(order.get("cart")):
         raise DecisionError(f"cart differs from decision {decision_id}")
@@ -185,6 +196,7 @@ async def verify_request(
     public_key=None,
     nonce_store: NonceStore | None = None,
     fetch_decision=None,
+    existing_order: dict | None = None,
 ) -> Verification:
     mode = os.environ.get("MERCHANT_VERIFY", "off")
     has_sig = "signature" in headers and "signature-input" in headers
@@ -199,7 +211,7 @@ async def verify_request(
     request = prepared_from_parts(method, f"http://{authority}{path}", headers, body)
     try:
         result = verify_prepared(request, nonce_store or NONCES, public_key=public_key)
-        decision_detail = await check_decision(body, fetch_decision)
+        decision_detail = await check_decision(body, fetch_decision, existing_order)
     except Exception as exc:  # every failure becomes a red check on the wall, never a 500
         if isinstance(exc, DigestMismatch):
             failed = "content_digest"

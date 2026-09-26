@@ -1,5 +1,8 @@
 """Payment links: Visa Acceptance Agent Toolkit MCP (Cybersource sandbox) or a mock with the same shape.
 
+deactivate() cancels a link: the toolkit's update_payment_link has no status field, so the real backend calls
+REST directly (PATCH /ipl/v2/payment-links/{id} with status INACTIVE, then GET to confirm).
+
 get_payment_links() picks the backend:
   MOCK_VISA=1, or any VISA_ACCEPTANCE_* credential missing -> MockPaymentLinks
   otherwise -> VisaMcpPaymentLinks, falling back to the mock on error unless VISA_FALLBACK_TO_MOCK=0
@@ -42,6 +45,7 @@ class PaymentLink:
     purchase_number: str
     backend: str  # "visa" | "mock"
     raw: dict = field(default_factory=dict)
+    line_item: dict = field(default_factory=dict)  # the one line sent at creation; a PATCH repeats it exactly
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -109,9 +113,17 @@ class MockPaymentLinks:
             purchase_number=purchase_number,
             backend=self.backend,
             raw={"lineItems": [asdict(li) for li in line_items]},
+            line_item=one_line(amount, line_items),
         )
         self.links[link_id] = link
         return link
+
+    async def deactivate(self, link_id: str, amount: str, line_item: dict) -> dict:
+        link = self.links.get(link_id)
+        if link is None:
+            raise VisaMcpError(f"unknown mock link {link_id}")
+        link.status = "INACTIVE"
+        return {"link_status": "INACTIVE", "request_id": None, "backend": self.backend}
 
     async def get(self, link_id: str) -> PaymentLink | None:
         return self.links.get(link_id)
@@ -206,7 +218,9 @@ class VisaMcpPaymentLinks:
         }
         data = await self._call("create_payment_link", args)
         link = self._to_link(data, purchase_number, amount, currency)
+        link.line_item = args["lineItems"][0]
         if not same_amount(link.amount, amount):
+            await self._retire(link, amount)
             raise VisaMcpError(f"Visa set the link total to {link.amount}, expected {amount}")
         # Read the stored link back (the create answer echoes our request more than it shows the link), but
         # briefly: policy gives the whole signed order 5 s, and a stalled read must not use up the decision.
@@ -219,8 +233,44 @@ class VisaMcpPaymentLinks:
             return link
         stored_total = ((stored or {}).get("orderInformation") or {}).get("amountDetails", {}).get("totalAmount")
         if stored_total and not same_amount(stored_total, amount):
+            await self._retire(link, amount)
             raise VisaMcpError(f"Visa stored the link total as {stored_total}, expected {amount}")
         return link
+
+    async def _retire(self, link: PaymentLink, amount: str) -> None:
+        """A link at the wrong amount must not stay payable after the order falls back to the mock."""
+        try:
+            await self.deactivate(link.id, amount, link.line_item)
+        except Exception as e:  # noqa: BLE001 - the error that follows matters more; log this one
+            print(f"[visa] could not deactivate wrong-amount link {link.id}: {type(e).__name__}: {e}")
+
+    def _rest_creds(self):
+        from merchant.cybs_rest import Creds
+
+        return Creds(self.env["VISA_ACCEPTANCE_MERCHANT_ID"], self.env["VISA_ACCEPTANCE_API_KEY_ID"],
+                     self.env["VISA_ACCEPTANCE_SECRET_KEY"])
+
+    async def deactivate(self, link_id: str, amount: str, line_item: dict) -> dict:
+        """PATCH the link to INACTIVE, repeating its amount and line, then GET it to confirm."""
+        from merchant.cybs_rest import signed_request
+
+        creds = self._rest_creds()
+        body = json.dumps({
+            "status": "INACTIVE",
+            "processingInformation": {"linkType": "PURCHASE"},
+            "orderInformation": {"amountDetails": {"currency": "USD", "totalAmount": amount},
+                                 "lineItems": [line_item] if line_item else []},
+        })
+        path = f"/ipl/v2/payment-links/{link_id}"
+        patched = await asyncio.to_thread(signed_request, creds, "PATCH", path, body, 10)
+        request_id = patched.headers.get("v-c-correlation-id")
+        if patched.status_code >= 400:
+            raise VisaMcpError(f"PATCH {path}: HTTP {patched.status_code} {patched.text[:200]}")
+        confirmed = await asyncio.to_thread(signed_request, creds, "GET", path, None, 10)
+        status = confirmed.json().get("status") if confirmed.status_code == 200 else None
+        if status != "INACTIVE":
+            raise VisaMcpError(f"link {link_id} still {status or 'unreadable'} after the PATCH")
+        return {"link_status": status, "request_id": request_id, "backend": self.backend}
 
     async def get(self, link_id: str) -> PaymentLink | None:
         data = await self._call("get_payment_link", {"id": link_id})
@@ -289,6 +339,10 @@ class FallbackPaymentLinks:
         if link_id.startswith("mock_"):
             return await self.fallback.get(link_id)
         return await self.primary.get(link_id)
+
+    async def deactivate(self, link_id: str, amount: str, line_item: dict) -> dict:
+        backend = self.fallback if link_id.startswith("mock_") else self.primary
+        return await backend.deactivate(link_id, amount, line_item)
 
     async def close(self):
         await self.primary.close()

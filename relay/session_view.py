@@ -1,4 +1,5 @@
-"""The read-only session page behind the receipt's QR code: GET /sessions/{id}?format=html.
+"""The read-only session page behind the receipt's QR code: GET /sessions/{id}?format=html, and its
+dispute-ready record, GET /sessions/{id}/record.json.
 
 The caregiver app serves it publicly at https://<tunnel-host>/s/<id>, so the page is self-contained: no
 scripts, no links back into the relay, and every value is escaped. It reads only that session's ledger
@@ -23,7 +24,19 @@ TITLES = {
     "payment_link_created": "Payment link",
     "paid": "Paid",
     "receipt_printed": "Receipt",
+    "order_status": "Order",
+    "order_cancelled": "Cancelled",
+    "refund_requested": "Return asked",
+    "refund_result": "Refund",
+    "mandate_paused": "Agent paused",
+    "mandate_resumed": "Agent resumed",
 }
+STEP_NAMES = {"awaiting_payment": "ordered", "paid": "paid", "preparing": "preparing",
+              "ready_for_pickup": "ready for pickup", "picked_up": "picked up", "cancelled": "cancelled",
+              "partially_refunded": "partly refunded", "refunded": "refunded"}
+# Order fields that stay off the public page and record: the pickup code works at the counter, and the
+# payment link is payable.
+PRIVATE_ORDER_FIELDS = {"pickup_code", "checkout_url", "card_auth"}
 
 
 def _money(value) -> str:
@@ -77,6 +90,14 @@ def _step_detail(e: dict) -> str:
         return f"{_money(e.get('total', e.get('amount')))} · {e.get('via', '')}"
     if kind == "receipt_printed":
         return "printed" if e.get("via") != "screen" else "shown on screen"
+    if kind == "order_status":
+        return STEP_NAMES.get(str(e.get("status")), str(e.get("status", "")))
+    if kind == "order_cancelled":
+        return f"{_money(e.get('amount'))} · payment link {e.get('link_status', '')}"
+    if kind == "refund_requested":
+        return f"{e.get('qty', 1)} × {e.get('sku', '')} · {_money(e.get('amount'))}"
+    if kind == "refund_result":
+        return f"{_money(e.get('amount'))} {e.get('status', '')} · card ending {e.get('card_last4', '')} · sandbox processor stub"
     return ""
 
 
@@ -109,7 +130,80 @@ def _receipt(receipt: dict) -> str:
         f'{escape(str(receipt.get("decision_id", "")))}</p></section>')
 
 
-def render(session_id: str, events: list[dict], receipts: list[dict] | dict | None = None) -> str:
+def _timeline(order: dict) -> str:
+    steps = "".join(f'<li>{escape(STEP_NAMES.get(t.get("status"), str(t.get("status", ""))))}'
+                    f' <span class="t">{escape(_clock(t.get("at")))}</span></li>' for t in order.get("timeline") or [])
+    refunds = "".join(
+        f'<li class="refund">Refund {_money(r.get("amount"))} · {escape(str(r.get("qty", 1)))} × {escape(str(r.get("name", "")))}'
+        f' · {escape(str(r.get("status", "")))} · card ending {escape(str(r.get("card_last4") or ""))}'
+        f' <span class="d">sandbox processor stub</span></li>' for r in order.get("refunds") or [])
+    return (f'<section><h2>Order {escape(str(order.get("order_id", "")))} · {_money(order.get("amount"))}</h2>'
+            f'<ol class="steps">{steps}</ol>{"<ul>" + refunds + "</ul>" if refunds else ""}</section>')
+
+
+def _clock(at) -> str:
+    try:
+        return datetime.datetime.fromisoformat(str(at)).astimezone().strftime("%H:%M:%S")
+    except ValueError:
+        return ""
+
+
+def dispute_record(session_id: str, events: list[dict], orders_: list[dict], mandate: dict | None) -> dict:
+    """Everything an issuer needs to settle a dispute: the shopper's words, the signed mandate, each policy
+    decision, the RFC 9421 signature and the merchant's checks, the payment and any refund."""
+    def pick(e: dict, *keys) -> dict:
+        return {"at_ms": e.get("rt") or e.get("t"), **{k: e.get(k) for k in keys if e.get(k) is not None}}
+
+    return {
+        "kind": "chaperone.dispute_record.v1",
+        "session_id": session_id,
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "merchant": "Corner Market (Visa sandbox, no real money)",
+        "shopper_words": [pick(e, "text", "lang") for e in transcript(events)
+                          if e.get("role") not in ("agent", "assistant")],
+        "mandate": mandate,
+        "decisions": [pick(e, "decision_id", "decision", "rules_failed", "total", "say_key")
+                      for e in events if e.get("type") == "policy_decision"],
+        "refusals": [pick(e, "rule_id", "rule_ids", "spoken_key", "lang")
+                     for e in events if e.get("type") == "refusal"],
+        "approvals": [pick(e, "type", "approval_id", "amount", "rule", "approved", "method")
+                      for e in events if e.get("type") in ("approval_requested", "approval_result")],
+        "signatures": [pick(e, "type", "action", "keyid", "nonce", "created", "expires", "decision_id", "order_id", "checks")
+                       for e in events if e.get("type") in ("request_signed", "signature_verified", "signature_rejected")],
+        "orders": [{k: v for k, v in o.items() if k not in PRIVATE_ORDER_FIELDS} | {
+                       "payment_link": {k: (o.get("payment_link") or {}).get(k) for k in ("id", "backend", "purchase_number")}}
+                   for o in orders_],
+        "payments": [pick(e, "order_id", "total", "via") for e in events if e.get("type") == "paid"],
+        "refunds": [pick(e, "order_id", "refund_id", "status", "amount", "sku", "qty", "reconciliation_id",
+                         "card_last4", "label") for e in events if e.get("type") == "refund_result"],
+    }
+
+
+def _record_section(record: dict, session_id: str) -> str:
+    mandate = record.get("mandate") or {}
+    signed = [s for s in record["signatures"] if s.get("type") == "signature_verified"]
+    rows = [
+        ("Ruth's words", f'{len(record["shopper_words"])} turns, verbatim'),
+        ("Mandate", f'{escape(str(mandate.get("mandate_id", "")))} · '
+                    + ("signed by passkey " + escape(str(mandate.get("credential_id") or ""))[:16]
+                       if mandate.get("signed") else "unsigned (demo flag)")
+                    + f'<br><span class="mono small">sha-256 {escape(str(mandate.get("hash_b64url") or ""))}</span>'),
+        ("Decisions", ", ".join(f'{escape(str(d.get("decision_id")))} {escape(str(d.get("decision", "")).upper())}'
+                                for d in record["decisions"]) or "none"),
+        ("Signatures", ", ".join(f'{escape(str(s.get("keyid", "")))} nonce {escape(str(s.get("nonce", ""))[:12])}… '
+                                 f'{sum(1 for c in s.get("checks") or [] if c.get("passed"))}/{len(s.get("checks") or [])}'
+                                 for s in signed) or "none"),
+        ("Payments", ", ".join(f'{escape(str(p.get("order_id")))} {_money(p.get("total"))}' for p in record["payments"]) or "none"),
+        ("Refunds", ", ".join(f'{_money(r.get("amount"))} {escape(str(r.get("status", "")))}' for r in record["refunds"]) or "none"),
+    ]
+    body = "".join(f'<dt>{k}</dt><dd>{v}</dd>' for k, v in rows)  # every value is escaped where it is built
+    return (f'<section><h2>Dispute-ready record</h2><p class="d">What an issuer needs to settle a dispute quickly, '
+            f'from the ledger.</p><dl>{body}</dl>'
+            f'<p><a href="{escape(session_id)}/record.json" download>Download the record (JSON)</a></p></section>')
+
+
+def render(session_id: str, events: list[dict], receipts: list[dict] | dict | None = None,
+           orders_: list[dict] | None = None, record: dict | None = None) -> str:
     if isinstance(receipts, dict):
         receipts = [receipts]
     turns = "".join(
@@ -153,6 +247,8 @@ def render(session_id: str, events: list[dict], receipts: list[dict] | dict | No
     status = status or '<p class="status muted">No order in this session</p>'
 
     receipt_html = "".join(_receipt(r) for r in receipts or [] if r)
+    orders_html = "".join(_timeline(o) for o in reversed(orders_ or []))  # oldest first
+    record_html = _record_section(record, session_id) if record else ""
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -175,9 +271,12 @@ ul{{list-style:none;margin:0;padding:0;display:grid;gap:8px}}
 .refusal b,.signature_rejected b{{color:var(--bad)}}.paid b{{color:var(--ok)}}
 table{{width:100%;border-collapse:collapse}}td{{padding:6px 0;border-bottom:1px solid var(--line)}}td:last-child{{text-align:right}}
 .total td{{font-weight:700;border:0}}
+ol.steps{{display:flex;flex-wrap:wrap;gap:6px;list-style:none;margin:0;padding:0}}ol.steps li{{background:var(--bg);border-radius:999px;padding:2px 12px;font-size:18px}}
+.refund{{color:var(--ok)}}dl{{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:8px 0}}dt{{color:var(--muted)}}dd{{margin:0;overflow-wrap:anywhere}}
+a{{color:inherit}}
 </style></head><body><main>
 <header><h1>Ruth's shopping session</h1><p class="mono small">{escape(session_id)} · Corner Market · Visa sandbox, no real money</p>{status}</header>
 <section><h2>What was said</h2><ul class="turns">{turns}</ul></section>
 <section><h2>What was checked</h2><ul>{steps}</ul></section>
-{checks}{receipt_html}
+{orders_html}{checks}{receipt_html}{record_html}
 </main></body></html>"""

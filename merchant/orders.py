@@ -4,13 +4,16 @@
 
 POST /orders             signed order from the checkout tool -> verify -> price from catalog -> payment link
                          (409 if the decision already has an order)
-GET  /orders[/{id}]      order state (wall)
+GET  /orders[/{id}]      order state with its timeline (wall, policy); ?session_id= filters the list
+POST /orders/{id}/cancel           signed (five checks): an unpaid order's Pay by Link goes INACTIVE, order cancelled
+POST /orders/{id}/refunds          signed (five checks): refund a line to the original card (sandbox processor stub)
+POST /orders/{id}/picked-up        the Host marks the pickup done (X-Chaperone-Host: 1)
 GET  /orders/{id}/receipt[?lang=]  what the station prints; session_url is the receipt's QR code
-POST /orders/{id}/paid   callback fallback: Visa webhook or the Host marks paid
+POST /orders/{id}/paid   the Host marks paid (X-Chaperone-Host: 1)
 GET  /pay/{link_id}      mock hosted payment page (MOCK_VISA=1 or fallback)
 GET  /checkout/{id}      CARD_AUTH=1: our checkout page with a real Cybersource sandbox card authorization
 GET  /panel              merchant verification panel data for the wall
-POST /reset              demo reset: clear orders and the panel's event buffer (nonces are kept)
+POST /reset              demo reset (X-Chaperone-Host: 1): clear orders and the panel's event buffer (nonces are kept)
 POST /webhooks/cybersource            signed Cybersource webhook -> order paid (see merchant.webhooks)
 """
 
@@ -32,7 +35,8 @@ from pydantic import BaseModel, Field, ValidationError
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from catalog.search import Catalog  # noqa: E402
-from merchant import card_auth, events, webhooks  # noqa: E402
+from common import host_header  # noqa: E402
+from merchant import aftercare, card_auth, events, webhooks  # noqa: E402
 from merchant.verify import verify_request  # noqa: E402
 from merchant.visa import LineItem, get_payment_links, money, new_purchase_number  # noqa: E402
 
@@ -51,6 +55,7 @@ PURCHASE_TO_ORDER: dict[str, str] = {}  # Cybersource purchaseNumber -> order, f
 # decision_id -> order_id ("" while the payment link is being made). Kept across /reset, like the nonces,
 # so one policy decision can never buy twice.
 DECISION_TO_ORDER: dict[str, str] = {}
+TIMERS: dict[str, set[asyncio.Task]] = {}  # order_id -> lifecycle and refund timers, cancelled on /reset
 
 
 @asynccontextmanager
@@ -71,6 +76,25 @@ class CartLine(BaseModel):
 
 class Cart(BaseModel):
     items: list[CartLine] = Field(min_length=1)
+
+
+class CancelRequest(BaseModel):
+    mandate_id: str
+    decision_id: str
+    order_id: str
+    session_id: str | None = None
+
+
+class RefundRequest(BaseModel):
+    """No destination: money only goes back to the card that paid. amount, if sent, must equal our own price."""
+    mandate_id: str
+    decision_id: str
+    order_id: str
+    sku: str
+    qty: int = Field(ge=1, le=MAX_QTY)
+    amount: str | None = None
+    reason: str | None = Field(None, max_length=200)
+    session_id: str | None = None
 
 
 class OrderRequest(BaseModel):
@@ -128,7 +152,9 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict) -> dict
             raise HTTPException(422, f"unknown sku {line.sku}")
         cents = round(item["price"] * 100)
         total_cents += cents * line.qty
+        regular = item.get("regular_price")
         lines.append({"sku": line.sku, "name": item["name"], "qty": line.qty, "unit_price": money(cents / 100),
+                      "regular_price": money(regular) if regular and regular > item["price"] else None,
                       "category": item["category"], "mandate_category": item.get("mandate_category")})
     amount = money(total_cents / 100)
 
@@ -152,13 +178,25 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict) -> dict
         "amount": amount,
         "currency": "USD",
         "status": "awaiting_payment",
-        "payment_link": {"id": link.id, "url": link.url, "backend": link.backend, "purchase_number": link.purchase_number},
+        "payment_link": {"id": link.id, "url": link.url, "backend": link.backend, "purchase_number": link.purchase_number,
+                         "line_item": link.line_item},
         "checkout_url": f"{PUBLIC_URL}/checkout/{order_id}" if CARD_AUTH else None,
         "card_auth": None,
         "verification": verification.checks,
         "created_at": time.time(),
         "paid_at": None,
+        "pickup_code": aftercare.new_pickup_code(),
+        "fulfilment": None,
+        "timeline": [],
+        "refunds": [],
+        "cancel": None,
+        "card_last4": None,
+        "savings": None,
+        "loyalty_points": aftercare.loyalty_points(amount),
     }
+    saved = aftercare.savings_cents(lines)
+    order["savings"] = money(saved / 100) if saved else None  # never shown when nothing was saved
+    aftercare.record(order, "awaiting_payment")
     ORDERS[order_id] = order
     DECISION_TO_ORDER[order_req.decision_id] = order_id
     LINK_TO_ORDER[link.id] = order_id
@@ -169,8 +207,9 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict) -> dict
 
 
 @app.get("/orders")
-def list_orders():
-    return sorted(ORDERS.values(), key=lambda o: o["created_at"], reverse=True)
+def list_orders(session_id: str | None = None):
+    found = [o for o in ORDERS.values() if session_id is None or o["session_id"] == session_id]
+    return sorted(found, key=lambda o: o["created_at"], reverse=True)
 
 
 @app.get("/orders/{order_id}")
@@ -212,21 +251,161 @@ def receipt(order_id: str, lang: str | None = None):
         "session_url": session_url(order["session_id"]),
         "lang": lang if lang in RECEIPT_LANGS else order.get("lang") or "en",
         "sandbox_note": "Paid in the Visa sandbox. No real money.",
+        "pickup_code": order["pickup_code"],
+        "savings": order["savings"],
+        "loyalty_points": order["loyalty_points"] if order["paid_at"] else None,
+        "loyalty_program": aftercare.LOYALTY_PROGRAM,
+        "card_last4": order["card_last4"],
+        "timeline": order["timeline"],
+        "refunds": [{k: r[k] for k in ("refund_id", "sku", "name", "qty", "amount", "status", "label")}
+                    for r in order["refunds"]],
     }
 
 
 async def mark_paid(order_id: str, via: str) -> dict:
+    """Only an order waiting for payment becomes paid: a repeat, a later step or a cancelled order stays as it is."""
     order = ORDERS[order_id]
-    if order["status"] != "paid":
-        order["status"], order["paid_at"], order["paid_via"] = "paid", time.time(), via
-        await events.emit("paid", order_id=order_id, total=order["amount"], amount=order["amount"], via=via,
-                          session_id=order["session_id"],
-                          mandate_id=order["mandate_id"], decision_id=order["decision_id"])
+    if order["status"] != "awaiting_payment":
+        return order
+    order["paid_at"], order["paid_via"] = time.time(), via
+    auth = order.get("card_auth") or {}
+    order["card_last4"] = auth.get("card_last4") or aftercare.SANDBOX_CARD_LAST4
+    aftercare.record(order, "paid", via=via)
+    await events.emit("paid", order_id=order_id, total=order["amount"], amount=order["amount"], via=via,
+                      session_id=order["session_id"],
+                      mandate_id=order["mandate_id"], decision_id=order["decision_id"])
+    _start(order_id, _fulfil(order_id), "fulfil")
+    return order
+
+
+def _start(order_id: str, coro, name: str) -> None:
+    task = asyncio.create_task(coro, name=name)
+    TIMERS.setdefault(order_id, set()).add(task)
+    task.add_done_callback(lambda t: TIMERS.get(order_id, set()).discard(t))
+
+
+def _ids(order: dict) -> dict:
+    return {"session_id": order["session_id"], "mandate_id": order["mandate_id"], "decision_id": order["decision_id"]}
+
+
+async def _advance(order_id: str, status: str) -> None:
+    order = ORDERS.get(order_id)
+    if order is None or order["status"] == "refunded":
+        return
+    aftercare.record(order, status)
+    await events.emit("order_status", order_id=order_id, status=status, pickup_code=order["pickup_code"],
+                      **_ids(order))
+
+
+async def _fulfil(order_id: str) -> None:
+    await asyncio.sleep(aftercare.preparing_after())
+    await _advance(order_id, "preparing")
+    await asyncio.sleep(max(0.0, aftercare.ready_after() - aftercare.preparing_after()))
+    await _advance(order_id, "ready_for_pickup")
+
+
+async def _verified_action(request: Request, order_id: str, model):
+    """Post-purchase requests carry the same RFC 9421 signature and five checks as an order."""
+    order = ORDERS.get(order_id)
+    body = await request.body()
+    headers = {k.lower(): v for k, v in request.headers.items()}
+    verification = await verify_request(request.method, request.url.netloc, request.url.path, headers, body,
+                                        existing_order=order)
+    if not verification.ok:
+        await events.emit("signature_rejected", checks=verification.checks, **(_ids(order) if order else {}))
+        raise HTTPException(401, {"error": "signature rejected", "checks": verification.checks})
+    try:
+        action = model.model_validate_json(body)
+    except ValidationError as e:
+        raise HTTPException(422, e.errors(include_url=False, include_context=False)) from e
+    if order is None:
+        raise HTTPException(404, "unknown order")
+    if action.order_id != order_id:
+        raise HTTPException(422, "order_id in the body differs from the path")
+    if action.mandate_id != order["mandate_id"]:
+        raise HTTPException(403, "order belongs to another mandate")
+    await events.emit("signature_verified", keyid=verification.keyid, checks=verification.checks,
+                      action=model.__name__.removesuffix("Request").lower(), order_id=order_id,
+                      **verification.params, **{**_ids(order), "decision_id": action.decision_id})
+    return order, action
+
+
+@app.post("/orders/{order_id}/cancel")
+async def cancel_order(order_id: str, request: Request):
+    order, action = await _verified_action(request, order_id, CancelRequest)
+    if order["status"] == "cancelled":
+        return {"status": "cancelled", "link_status": order["cancel"]["link_status"], "duplicate": True}
+    if order["status"] != "awaiting_payment":
+        raise HTTPException(409, {"error": "only an unpaid order can be cancelled; a paid one can be returned",
+                                  "status": order["status"]})
+    link = order["payment_link"]
+    try:
+        result = await payment_links.deactivate(link["id"], order["amount"], link.get("line_item") or {})
+    except Exception as e:  # noqa: BLE001 - the order stays payable and unchanged if the link could not be closed
+        raise HTTPException(502, f"could not deactivate the payment link: {e}") from e
+    if order["status"] != "awaiting_payment":  # paid while the PATCH was in flight
+        raise HTTPException(409, {"error": "the order was paid while cancelling", "status": order["status"]})
+    order["cancel"] = {**result, "at": aftercare.iso(time.time()), "decision_id": action.decision_id}
+    aftercare.record(order, "cancelled", link_status=result["link_status"])
+    await events.emit("order_cancelled", order_id=order_id, amount=order["amount"], link_status=result["link_status"],
+                      request_id=result.get("request_id"), backend=result.get("backend"), **_ids(order))
+    return {"status": "cancelled", "order_id": order_id, "amount": order["amount"], **result}
+
+
+@app.post("/orders/{order_id}/refunds")
+async def refund_order(order_id: str, request: Request):
+    order, action = await _verified_action(request, order_id, RefundRequest)
+    try:
+        line, amount_cents = aftercare.check_refund(order, action.sku, action.qty, action.amount)
+    except aftercare.RefundRefused as e:
+        raise HTTPException(e.http_status, {"error": e.error, **e.detail}) from e
+    answer = aftercare.refund_response(order, amount_cents)
+    refund = {"refund_id": answer["id"], "sku": line["sku"], "name": line["name"], "qty": action.qty,
+              "amount": aftercare.dollars(amount_cents), "status": "PENDING",
+              "reconciliation_id": answer["reconciliationId"], "decision_id": action.decision_id,
+              "reason": action.reason, "card_last4": order["card_last4"], "label": aftercare.STUB_LABEL,
+              "at": aftercare.iso(time.time())}
+    order["refunds"].append(refund)
+    left = aftercare.cents(order["amount"]) - aftercare.refunded_cents(order)
+    aftercare.record(order, "refunded" if left == 0 else "partially_refunded", refund_id=refund["refund_id"],
+                     amount=refund["amount"])
+    await _refund_event(order, refund)
+    _start(order_id, _transmit(order_id, refund["refund_id"]), "refund")
+    return answer
+
+
+async def _refund_event(order: dict, refund: dict) -> None:
+    await events.emit("refund_result", order_id=order["order_id"], refund_id=refund["refund_id"],
+                      status=refund["status"], amount=refund["amount"], sku=refund["sku"], qty=refund["qty"],
+                      reconciliation_id=refund["reconciliation_id"], card_last4=refund["card_last4"],
+                      label=refund["label"], **{**_ids(order), "decision_id": refund["decision_id"]})
+
+
+async def _transmit(order_id: str, refund_id: str) -> None:
+    await asyncio.sleep(aftercare.transmit_after())
+    order = ORDERS.get(order_id)
+    refund = next((r for r in (order or {}).get("refunds", []) if r["refund_id"] == refund_id), None)
+    if refund and refund["status"] == "PENDING":
+        refund["status"] = "TRANSMITTED"
+        await _refund_event(order, refund)
+
+
+@app.post("/orders/{order_id}/picked-up")
+async def picked_up(order_id: str, request: Request):
+    host_header.require(request)
+    order = get_order(order_id)
+    if order.get("fulfilment") not in ("paid", "preparing", "ready_for_pickup"):
+        raise HTTPException(409, {"error": "nothing to pick up", "status": order["status"]})
+    for task in list(TIMERS.get(order_id, set())):
+        if task.get_name() == "fulfil":
+            task.cancel()
+    await _advance(order_id, "picked_up")
     return order
 
 
 @app.post("/orders/{order_id}/paid")
-async def paid_callback(order_id: str, via: str = "callback"):
+async def paid_callback(order_id: str, request: Request, via: str = "callback"):
+    host_header.require(request)  # the Host's Confirm payment; Cybersource uses the signed webhook
     if order_id not in ORDERS:
         raise HTTPException(404, "unknown order")
     return await mark_paid(order_id, via)
@@ -264,7 +443,7 @@ def checkout_page(order_id: str):
 @app.post("/checkout/{order_id}", response_class=HTMLResponse)
 async def checkout_submit(order_id: str, request: Request):
     order = _checkout_order(order_id)
-    if order["status"] == "paid":  # a double click never authorizes twice
+    if order["paid_at"] or order["status"] == "cancelled":  # a double click never authorizes twice
         return HTMLResponse(render_checkout_page(order))
     form = {k: v[0] for k, v in parse_qs((await request.body()).decode()).items()}
     ids = {"session_id": order["session_id"], "mandate_id": order["mandate_id"], "decision_id": order["decision_id"]}
@@ -318,7 +497,7 @@ async def cybersource_webhook(request: Request):
     if not paid:
         return {"ok": True, "matched": True, "ignored": what}
     order = ORDERS[order_id]
-    duplicate = note.duplicate or order["status"] == "paid"
+    duplicate = note.duplicate or bool(order["paid_at"])
     if not duplicate:
         order = await mark_paid(order_id, via=f"cybersource_webhook ({note.variant})")
     return {"ok": True, "matched": True, "order_id": order_id, "status": order["status"], "duplicate": duplicate}
@@ -331,9 +510,14 @@ def cybersource_webhook_health():
 
 
 @app.post("/reset")
-def reset():
+def reset(request: Request):
     """Nonces stay: a reset must not let an old signed order replay."""
+    host_header.require(request)
     cleared = len(ORDERS)
+    for tasks in TIMERS.values():
+        for task in tasks:
+            task.cancel()
+    TIMERS.clear()
     ORDERS.clear()
     LINK_TO_ORDER.clear()
     PURCHASE_TO_ORDER.clear()
@@ -343,7 +527,7 @@ def reset():
 
 def render_checkout_page(order: dict) -> str:
     auth = order.get("card_auth") or {}
-    if order["status"] == "paid":
+    if order["paid_at"]:
         detail = ""
         if auth.get("ok"):
             detail = (f"<p class=\"note\">Authorized by the Cybersource sandbox · request {escape(auth['request_id'] or '')}"
@@ -378,8 +562,10 @@ def render_pay_page(order: dict) -> str:
     rows = "".join(
         f"<tr><td>{l['qty']} × {escape(l['name'])}</td><td>${l['unit_price']}</td></tr>" for l in order["lines"]
     )
-    if order["status"] == "paid":
+    if order["paid_at"]:
         action = '<p class="paid">Paid. Thank you.</p>'
+    elif order["status"] == "cancelled":
+        action = '<p class="note">This order was cancelled. Nothing to pay.</p>'
     else:
         action = ('<form method="post"><button>Pay $' + order["amount"] + ' with Visa •••• 1111</button></form>'
                   '<p class="note">Sandbox test card. No real money moves.</p>')

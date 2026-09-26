@@ -28,6 +28,8 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from common import host_header
+
 HOST_HTML = Path(__file__).with_name("host.html")
 PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-real-ip", "forwarded", "ngrok-trace-id", "x-original-url")
 NO_STORE = {"Cache-Control": "no-store"}
@@ -141,7 +143,8 @@ async def confirm_payment(request: Request):
                                   headers=headers_for(body, key_id, key))
             path = "signed webhook"
         else:
-            r = await client.post(f"{_merchant()}/orders/{order['order_id']}/paid", params={"via": "host_confirmed"})
+            r = await client.post(f"{_merchant()}/orders/{order['order_id']}/paid", params={"via": "host_confirmed"},
+                                  headers=host_header.HEADERS)
             path = "callback"
     if not r.is_success:
         raise HTTPException(502, f"merchant answered {r.status_code}: {r.text[:200]}")

@@ -9,6 +9,8 @@ import ipaddress
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from common import host_header
+
 from policy.approvals import code_mac, find_approval, forget_host_code, host_code, marker_matches, public_approval, public_decision, state_of
 from policy.checkout import CartRejected, ReadBackRequired, UnsignedMandate, checkout as run_checkout
 from policy.checkout import send_signed_order
@@ -70,7 +72,8 @@ def decision(decision_id: str):
 
 
 @app.post("/reset")
-def reset():
+def reset(request: Request):
+    host_header.require(request)  # only the relay's Host fan-out resets policy
     reset_store()
     forget_host_code()
     return {"ok": True, "spent": dollars(load_spent_cents())}

@@ -580,6 +580,7 @@
       "category": "pantry",
       "group": "beans",
       "price": 0.88,
+      "regular_price": 1.0,
       "size": "15.5 oz",
       "tags": [
         "store_brand"
@@ -595,6 +596,7 @@
       "category": "pantry",
       "group": "beans",
       "price": 0.88,
+      "regular_price": 1.0,
       "size": "15.5 oz",
       "tags": [
         "store_brand"
@@ -610,6 +612,7 @@
       "category": "pantry",
       "group": "beans",
       "price": 0.88,
+      "regular_price": 1.0,
       "size": "15.5 oz",
       "tags": [
         "store_brand"
@@ -625,6 +628,7 @@
       "category": "pantry",
       "group": "beans",
       "price": 0.88,
+      "regular_price": 1.0,
       "size": "15.5 oz",
       "tags": [
         "store_brand"
@@ -640,6 +644,7 @@
       "category": "pantry",
       "group": "beans",
       "price": 0.88,
+      "regular_price": 1.0,
       "size": "15.5 oz",
       "tags": [
         "store_brand"
@@ -655,6 +660,7 @@
       "category": "pantry",
       "group": "beans",
       "price": 0.88,
+      "regular_price": 1.0,
       "size": "15.5 oz",
       "tags": [
         "store_brand"
@@ -670,6 +676,7 @@
       "category": "pantry",
       "group": "beans",
       "price": 0.88,
+      "regular_price": 1.0,
       "size": "15.5 oz",
       "tags": [
         "store_brand"
@@ -685,6 +692,7 @@
       "category": "pantry",
       "group": "beans",
       "price": 0.88,
+      "regular_price": 1.0,
       "size": "15.5 oz",
       "tags": [
         "store_brand"
@@ -728,6 +736,7 @@
       "category": "pantry",
       "group": "beans",
       "price": 1.5,
+      "regular_price": 1.89,
       "size": "16 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -850,6 +859,7 @@
       "category": "bakery",
       "group": "bread",
       "price": 2.09,
+      "regular_price": 4.19,
       "size": "20 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -878,6 +888,7 @@
       "category": "bakery",
       "group": "bread",
       "price": 2.99,
+      "regular_price": 3.49,
       "size": "20 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -891,6 +902,7 @@
       "category": "bakery",
       "group": "bread",
       "price": 2.99,
+      "regular_price": 3.59,
       "size": "24 oz",
       "tags": [
         "store_brand"
@@ -906,6 +918,7 @@
       "category": "bakery",
       "group": "bread",
       "price": 2.99,
+      "regular_price": 3.59,
       "size": "24 oz",
       "tags": [
         "store_brand",
@@ -1060,6 +1073,7 @@
       "category": "pantry",
       "group": "cereal",
       "price": 2.49,
+      "regular_price": 3.99,
       "size": "11.7 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1073,6 +1087,7 @@
       "category": "pantry",
       "group": "cereal",
       "price": 2.49,
+      "regular_price": 3.99,
       "size": "13 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1216,6 +1231,7 @@
       "category": "pantry",
       "group": "cereal",
       "price": 6.99,
+      "regular_price": 8.29,
       "size": "27 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1229,6 +1245,7 @@
       "category": "pantry",
       "group": "cereal",
       "price": 6.99,
+      "regular_price": 8.29,
       "size": "27.2 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1386,6 +1403,21 @@
       "mandate_category": "grocery"
     },
     {
+      "sku": "KR-0001111058720",
+      "name": "Kroger Pepper Jack Sliced Cheese",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "cheese",
+      "price": 2.0,
+      "size": "8 slices / 6 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "kroger",
+      "mandate_category": "grocery"
+    },
+    {
       "sku": "KR-0001111009434",
       "name": "Kroger Singles American Sliced Cheese",
       "brand": "Kroger",
@@ -1396,19 +1428,6 @@
       "tags": [
         "store_brand"
       ],
-      "merchant": "corner_market",
-      "source": "kroger",
-      "mandate_category": "grocery"
-    },
-    {
-      "sku": "KR-0004610040092",
-      "name": "Sargento Off the Block Fine Cut 4 Cheese Mexican Blend Natural Cheese Shreds",
-      "brand": "Sargento",
-      "category": "dairy",
-      "group": "cheese",
-      "price": 3.5,
-      "size": "8 oz",
-      "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
       "mandate_category": "grocery"
@@ -1463,6 +1482,7 @@
       "category": "beverages",
       "group": "coffee",
       "price": 4.99,
+      "regular_price": 5.99,
       "size": "48 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1476,6 +1496,7 @@
       "category": "beverages",
       "group": "coffee",
       "price": 4.99,
+      "regular_price": 5.0,
       "size": "12 ct",
       "tags": [
         "store_brand"
@@ -1521,6 +1542,7 @@
       "category": "beverages",
       "group": "coffee",
       "price": 8.89,
+      "regular_price": 9.99,
       "size": "10 oz",
       "tags": [
         "organic"
@@ -1536,6 +1558,7 @@
       "category": "beverages",
       "group": "coffee",
       "price": 8.89,
+      "regular_price": 9.99,
       "size": "12 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1549,6 +1572,7 @@
       "category": "beverages",
       "group": "coffee",
       "price": 8.89,
+      "regular_price": 9.99,
       "size": "12 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1562,6 +1586,7 @@
       "category": "beverages",
       "group": "coffee",
       "price": 8.99,
+      "regular_price": 10.29,
       "size": "10 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1604,6 +1629,7 @@
       "category": "beverages",
       "group": "coffee",
       "price": 9.99,
+      "regular_price": 13.79,
       "size": "12 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1617,6 +1643,7 @@
       "category": "beverages",
       "group": "coffee",
       "price": 10.99,
+      "regular_price": 13.99,
       "size": "10 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1658,6 +1685,7 @@
       "category": "beverages",
       "group": "coffee",
       "price": 15.99,
+      "regular_price": 17.29,
       "size": "25.9 ounces",
       "tags": [],
       "merchant": "corner_market",
@@ -1699,6 +1727,7 @@
       "category": "pantry",
       "group": "crackers",
       "price": 2.0,
+      "regular_price": 2.19,
       "size": "16 oz",
       "tags": [
         "store_brand"
@@ -1714,6 +1743,7 @@
       "category": "pantry",
       "group": "crackers",
       "price": 2.0,
+      "regular_price": 2.19,
       "size": "16 oz",
       "tags": [
         "low_sodium",
@@ -1761,6 +1791,7 @@
       "category": "pantry",
       "group": "crackers",
       "price": 3.0,
+      "regular_price": 4.79,
       "size": "16 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1774,6 +1805,7 @@
       "category": "pantry",
       "group": "crackers",
       "price": 3.0,
+      "regular_price": 4.79,
       "size": "13.6 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1787,6 +1819,7 @@
       "category": "pantry",
       "group": "crackers",
       "price": 3.0,
+      "regular_price": 4.79,
       "size": "11 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1800,6 +1833,7 @@
       "category": "pantry",
       "group": "crackers",
       "price": 3.0,
+      "regular_price": 4.79,
       "size": "16 oz",
       "tags": [
         "low_sodium"
@@ -1815,6 +1849,7 @@
       "category": "pantry",
       "group": "crackers",
       "price": 3.0,
+      "regular_price": 4.79,
       "size": "16.96 oz",
       "tags": [
         "whole_grain"
@@ -1830,6 +1865,7 @@
       "category": "pantry",
       "group": "crackers",
       "price": 3.0,
+      "regular_price": 4.79,
       "size": "9 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1843,6 +1879,7 @@
       "category": "pantry",
       "group": "crackers",
       "price": 3.29,
+      "regular_price": 3.99,
       "size": "16 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -1856,6 +1893,7 @@
       "category": "pantry",
       "group": "crackers",
       "price": 3.5,
+      "regular_price": 4.39,
       "size": "2 ct / 7.3 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2075,6 +2113,7 @@
       "category": "dairy",
       "group": "eggs",
       "price": 6.0,
+      "regular_price": 6.49,
       "size": "12 ct",
       "tags": [
         "organic",
@@ -2297,6 +2336,7 @@
       "category": "beverages",
       "group": "juice",
       "price": 1.5,
+      "regular_price": 2.19,
       "size": "11.5 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2434,6 +2474,7 @@
       "category": "beverages",
       "group": "juice",
       "price": 6.99,
+      "regular_price": 8.29,
       "size": "89 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2447,6 +2488,7 @@
       "category": "beverages",
       "group": "juice",
       "price": 6.99,
+      "regular_price": 8.29,
       "size": "89 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2460,6 +2502,7 @@
       "category": "beverages",
       "group": "juice",
       "price": 7.0,
+      "regular_price": 8.79,
       "size": "1 gal",
       "tags": [
         "store_brand"
@@ -2679,22 +2722,6 @@
       "mandate_category": "grocery"
     },
     {
-      "sku": "KR-0001111016338",
-      "name": "Kroger CARBMaster Original Lactose Free Skim Milk",
-      "brand": "Kroger Carbmaster",
-      "category": "dairy",
-      "group": "milk",
-      "price": 4.79,
-      "size": "59 fl oz",
-      "tags": [
-        "lactose_free",
-        "store_brand"
-      ],
-      "merchant": "corner_market",
-      "source": "kroger",
-      "mandate_category": "grocery"
-    },
-    {
       "sku": "DAI-003",
       "name": "Lactaid 2% Reduced Fat Milk",
       "brand": "Lactaid",
@@ -2716,6 +2743,7 @@
       "category": "dairy",
       "group": "milk",
       "price": 5.49,
+      "regular_price": 6.29,
       "size": "64 fl oz",
       "tags": [
         "organic"
@@ -2804,6 +2832,7 @@
       "category": "nutrition",
       "group": "nutrition_shake",
       "price": 10.99,
+      "regular_price": 11.49,
       "size": "4 ct / 11 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2817,6 +2846,7 @@
       "category": "nutrition",
       "group": "nutrition_shake",
       "price": 10.99,
+      "regular_price": 11.49,
       "size": "4 ct / 11 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2830,6 +2860,7 @@
       "category": "nutrition",
       "group": "nutrition_shake",
       "price": 10.99,
+      "regular_price": 13.99,
       "size": "8 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2843,6 +2874,7 @@
       "category": "nutrition",
       "group": "nutrition_shake",
       "price": 10.99,
+      "regular_price": 13.99,
       "size": "8 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2856,6 +2888,7 @@
       "category": "nutrition",
       "group": "nutrition_shake",
       "price": 10.99,
+      "regular_price": 11.49,
       "size": "4 ct / 11 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2869,6 +2902,7 @@
       "category": "nutrition",
       "group": "nutrition_shake",
       "price": 10.99,
+      "regular_price": 11.49,
       "size": "4 pk / 11 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2913,6 +2947,7 @@
       "category": "nutrition",
       "group": "nutrition_shake",
       "price": 13.99,
+      "regular_price": 15.29,
       "size": "6 pk / 8 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2926,6 +2961,7 @@
       "category": "nutrition",
       "group": "nutrition_shake",
       "price": 13.99,
+      "regular_price": 15.29,
       "size": "6 pk / 8 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2939,6 +2975,7 @@
       "category": "nutrition",
       "group": "nutrition_shake",
       "price": 13.99,
+      "regular_price": 15.29,
       "size": "6 bottles / 8 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2952,6 +2989,7 @@
       "category": "nutrition",
       "group": "nutrition_shake",
       "price": 25.99,
+      "regular_price": 27.49,
       "size": "16 pk / 8 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -2965,6 +3003,7 @@
       "category": "nutrition",
       "group": "nutrition_shake",
       "price": 29.99,
+      "regular_price": 30.99,
       "size": "12 pk / 11 fl oz",
       "tags": [],
       "merchant": "corner_market",
@@ -3055,6 +3094,7 @@
       "category": "pantry",
       "group": "oatmeal",
       "price": 2.49,
+      "regular_price": 3.39,
       "size": "8 ct",
       "tags": [],
       "merchant": "corner_market",
@@ -3068,6 +3108,7 @@
       "category": "pantry",
       "group": "oatmeal",
       "price": 2.49,
+      "regular_price": 3.39,
       "size": "8 ct",
       "tags": [],
       "merchant": "corner_market",
@@ -3081,6 +3122,7 @@
       "category": "pantry",
       "group": "oatmeal",
       "price": 2.49,
+      "regular_price": 3.39,
       "size": "8 ct",
       "tags": [],
       "merchant": "corner_market",
@@ -3094,6 +3136,7 @@
       "category": "pantry",
       "group": "oatmeal",
       "price": 2.49,
+      "regular_price": 3.39,
       "size": "8 ct",
       "tags": [],
       "merchant": "corner_market",
@@ -3107,6 +3150,7 @@
       "category": "pantry",
       "group": "oatmeal",
       "price": 2.49,
+      "regular_price": 3.39,
       "size": "10 ct",
       "tags": [],
       "merchant": "corner_market",
@@ -3120,6 +3164,7 @@
       "category": "pantry",
       "group": "oatmeal",
       "price": 2.49,
+      "regular_price": 3.39,
       "size": "8 ct",
       "tags": [
         "reduced_sugar"
@@ -3216,6 +3261,7 @@
       "category": "pantry",
       "group": "oatmeal",
       "price": 6.99,
+      "regular_price": 7.79,
       "size": "20 ct",
       "tags": [],
       "merchant": "corner_market",
@@ -3229,6 +3275,7 @@
       "category": "pantry",
       "group": "oatmeal",
       "price": 6.99,
+      "regular_price": 7.79,
       "size": "20 ct",
       "tags": [],
       "merchant": "corner_market",
@@ -3657,6 +3704,7 @@
       "category": "pantry",
       "group": "peanut_butter",
       "price": 6.0,
+      "regular_price": 6.49,
       "size": "64 oz",
       "tags": [
         "store_brand"
@@ -3954,6 +4002,7 @@
       "category": "pantry",
       "group": "rice",
       "price": 8.99,
+      "regular_price": 10.29,
       "size": "5 lb",
       "tags": [],
       "merchant": "corner_market",
@@ -4101,6 +4150,7 @@
       "category": "pantry",
       "group": "soup",
       "price": 1.99,
+      "regular_price": 2.29,
       "size": "16.3 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -4204,6 +4254,7 @@
       "category": "pantry",
       "group": "soup",
       "price": 2.0,
+      "regular_price": 2.29,
       "size": "32 oz",
       "tags": [
         "low_sodium",
@@ -4221,6 +4272,7 @@
       "category": "pantry",
       "group": "soup",
       "price": 2.0,
+      "regular_price": 2.29,
       "size": "32 oz",
       "tags": [
         "low_sodium",
@@ -4505,6 +4557,7 @@
       "category": "beverages",
       "group": "tea",
       "price": 2.99,
+      "regular_price": 3.79,
       "size": "1.18 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -4518,6 +4571,7 @@
       "category": "beverages",
       "group": "tea",
       "price": 2.99,
+      "regular_price": 3.79,
       "size": "20 ct",
       "tags": [],
       "merchant": "corner_market",
@@ -4531,6 +4585,7 @@
       "category": "beverages",
       "group": "tea",
       "price": 2.99,
+      "regular_price": 3.79,
       "size": "20 ct / 1.73 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -4544,6 +4599,7 @@
       "category": "beverages",
       "group": "tea",
       "price": 2.99,
+      "regular_price": 3.79,
       "size": "20 ct",
       "tags": [],
       "merchant": "corner_market",
@@ -4557,6 +4613,7 @@
       "category": "beverages",
       "group": "tea",
       "price": 2.99,
+      "regular_price": 3.79,
       "size": "0.98 oz",
       "tags": [
         "caffeine_free"
@@ -4613,6 +4670,7 @@
       "category": "beverages",
       "group": "tea",
       "price": 3.59,
+      "regular_price": 3.99,
       "size": "24 ct / 6 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -4719,6 +4777,21 @@
       "category": "dairy",
       "group": "yogurt",
       "price": 1.67,
+      "regular_price": 1.89,
+      "size": "5.3 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "KR-0089824800111",
+      "name": "siggi’s Peach Icelandic-Style Nonfat Yogurt, 5.3 oz",
+      "brand": "Siggi's",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 1.67,
+      "regular_price": 1.89,
       "size": "5.3 oz",
       "tags": [],
       "merchant": "corner_market",
@@ -4739,6 +4812,19 @@
       "mandate_category": "grocery"
     },
     {
+      "sku": "KR-0081829001536",
+      "name": "Chobani 20g Protein Lowfat Greek Yogurt Mango",
+      "brand": "Chobani",
+      "category": "dairy",
+      "group": "yogurt",
+      "price": 2.19,
+      "size": "6.7 oz",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "kroger",
+      "mandate_category": "grocery"
+    },
+    {
       "sku": "KR-0003663202635",
       "name": "Activia Black Cherry Probiotic Low Fat Yogurt Cups",
       "brand": "Activia",
@@ -4752,8 +4838,8 @@
       "mandate_category": "grocery"
     },
     {
-      "sku": "KR-0085006540380",
-      "name": "Mixed Berry Vanilla Yogurt Parfait with Granola",
+      "sku": "KR-0085006540378",
+      "name": "Fresh Made In Store Parfait Strawberry",
       "brand": "",
       "category": "dairy",
       "group": "yogurt",
@@ -4765,8 +4851,8 @@
       "mandate_category": "grocery"
     },
     {
-      "sku": "KR-0085006540378",
-      "name": "Fresh Made In Store Parfait Strawberry",
+      "sku": "KR-0085006540380",
+      "name": "Mixed Berry Vanilla Yogurt Parfait with Granola",
       "brand": "",
       "category": "dairy",
       "group": "yogurt",
@@ -4830,19 +4916,6 @@
       "mandate_category": "grocery"
     },
     {
-      "sku": "KR-0089470001014",
-      "name": "Chobani Vanilla Nonfat Greek Yogurt Tub",
-      "brand": "Chobani",
-      "category": "dairy",
-      "group": "yogurt",
-      "price": 6.49,
-      "size": "32 oz",
-      "tags": [],
-      "merchant": "corner_market",
-      "source": "kroger",
-      "mandate_category": "grocery"
-    },
-    {
       "sku": "KR-0003663204264",
       "name": "Oikos Pro 20g Protein Vanilla Yogurt-Cultured Ultra-Filtered Milk Product Cup​s",
       "brand": "Oikos",
@@ -4863,19 +4936,6 @@
       "group": "yogurt",
       "price": 6.99,
       "size": "4 ct / 5.3 fl oz",
-      "tags": [],
-      "merchant": "corner_market",
-      "source": "kroger",
-      "mandate_category": "grocery"
-    },
-    {
-      "sku": "KR-0003663201944",
-      "name": "Oikos Triple Zero Vanilla High Protein Nonfat Greek Yogurt Tub",
-      "brand": "Oikos",
-      "category": "dairy",
-      "group": "yogurt",
-      "price": 7.99,
-      "size": "32 fl oz",
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
