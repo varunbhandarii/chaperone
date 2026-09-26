@@ -16,7 +16,6 @@
   "blocked_category": "Ruth, no puedo comprar tarjetas de regalo, transferencias de dinero ni criptomonedas con esta cuenta. Cuando alguien las pide con prisa, casi siempre es una estafa, y le pasa a gente muy inteligente todos los días. Usted no hizo nada malo. Ya le avisé a Priyank, y él la va a llamar. ¿Le traigo su medicina y su pan?",
   "scam_pattern": "Ruth, voy a detener este pedido. Cuando alguien la apura o le pide guardar un secreto, es señal de una estafa, y le pasa a gente muy inteligente todos los días. Usted no hizo nada malo. Ya le avisé a Priyank, y él la va a llamar. ¿Le ayudo con sus compras de siempre?",
   "code_reading": "Ruth, por favor no le lea números ni códigos de tarjetas a nadie por teléfono. Las empresas de verdad y la familia nunca piden eso. Usted no hizo nada malo. Ya le avisé a Priyank, y él la va a llamar. Puede colgar con tranquilidad. ¿Le traigo su medicina y su pan?",
-  "order_status": "Su pedido se está preparando. Estará listo para recoger después de las 3 de la tarde. Su código de recogida es {pickup_code}.",
   "order_ready": "Su pedido está listo para recoger en Corner Market. Su código de recogida es {pickup_code}.",
   "order_cancelled": "Cancelé su pedido. No se cobró nada y su presupuesto quedó como estaba.",
   "cancel_too_late": "Ese pedido ya está pagado, así que no puedo cancelarlo. Puedo devolver productos a su tarjeta. ¿Quiere hacerlo?",
@@ -27,6 +26,6 @@
   "refund_scam": "Ruth, una tienda de verdad nunca le pide pagar para recibir un reembolso, y nunca pide tarjetas de regalo. Cuando alguien pide eso, casi siempre es una estafa, y le pasa a gente muy inteligente todos los días. Usted no hizo nada malo. Ya le avisé a Priyank, y él la va a llamar. ¿Le ayudo con algo más?",
   "agent_paused": "Priyank pausó las compras por ahora, así que no puedo hacer pedidos. Él puede activarlas otra vez desde su teléfono.",
   "you_saved": "Ahorró {saved}.",
-  "rewards_points": "Ganó {points} puntos de Corner Market Rewards.",
+  "loyalty_points": "Ganó {points} puntos de Corner Market Rewards.",
   "repeat_nothing": "Todavía no he dicho nada. ¿Qué le gustaría?"
 }

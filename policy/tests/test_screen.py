@@ -342,8 +342,8 @@ def test_judge_route_accepts_cart_dict():
 LINE_KEYS = {"ordering_now", "asking_priya", "caregiver_approved", "caregiver_declined", "caregiver_timeout",
              "receipt_done", "checkout_unavailable", "over_monthly_cap", "read_back_required",
              "blocked_category", "scam_pattern", "code_reading", "receipt_on_screen",
-             "order_status", "order_ready", "order_cancelled", "cancel_too_late", "refund_preview", "refund_done",
-             "refund_not_allowed_rx", "refund_scam", "agent_paused", "you_saved", "repeat_nothing"}
+             "order_ready", "order_cancelled", "cancel_too_late", "refund_preview", "refund_done",
+             "refund_not_allowed_rx", "refund_scam", "agent_paused", "you_saved", "loyalty_points", "repeat_nothing"}
 
 
 def test_line_files_share_keys_and_placeholders():
@@ -453,7 +453,7 @@ REFUND_SCAMS = [
     ("R_remote_access", "स्क्रीन शेयर कीजिए"),
     ("R_remote_access", "AnyDesk download karo"),
     ("R_refund_rail", "Your refund will come as Zelle, just confirm"),
-    ("R_refund_rail", "Le damos el reembolso en efectivo si manda la diferencia"),
+    ("R_overpay_sendback", "Le damos el reembolso en efectivo si manda la diferencia"),
     ("R_refund_rail", "refund UPI ID pe bhejna hai"),
     ("R_customs_hold", "Your parcel is held in customs, pay the clearance fee"),
     ("R_customs_hold", "Su paquete está retenido en la aduana"),

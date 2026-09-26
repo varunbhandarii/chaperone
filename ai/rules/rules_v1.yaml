@@ -49,7 +49,7 @@ contexts:
     hi: ["लिंक", "re:भुगतान", "re:पेमेंट"]
     hi_latn: ["re:link", "re:pay kar", "re:payment"]
   deadline:
-    en: ["re:within (?:24|48|twenty four|forty eight) hours", "today", "tonight", "re:call (?:us |them |back )?(?:now|immediately|right away)"]
+    en: ["re:within (?:24|48|twenty four|forty eight) hours", "re:(?:by|before) (?:today|tonight|midnight|the end of (?:the )?day)", "re:call (?:us |them |back )?(?:now|immediately|right away)"]
     es: ["re:(?:en|dentro de) (?:24|48|veinticuatro) horas", "hoy mismo", "re:llame (?:ahora|de inmediato)"]
     hi: ["re:24 घंटे", "आज ही", "re:तुरंत (?:कॉल|फोन)"]
     hi_latn: ["re:24 ghante", "aaj hi", "re:turant (?:call|fone)"]
@@ -140,15 +140,15 @@ rules:
         - "re:(?:el )?codigo de (?:la )?tarjeta"
         - "re:raspe? (?:la parte de )?atras"
         - "re:raspar (?:la parte de )?atras"
-        - "re:(?:digame|dime|deme|dele|digale) (?:el )?(?:codigo|cvv)"
+        - "re:(?:digame|dime|deme|dele|digale) (?:el )?(?:codigo(?! de recogida| del pedido)|cvv)"
       hi:
-        - "re:(?:ओटीपी|otp|कोड|नंबर|पिन) (?:बताओ|बताइए|बताना|बता दो|बता दीजिए|बता देना|बताएं|बोलो|बोलिए|बोल दो|बोल दीजिए|भेजो|भेज दो|शेयर करो|शेयर कर दो|पढ़ो|पढो|पढ़कर)"
+        - "re:(?<!पिकअप )(?<!ऑर्डर )(?:ओटीपी|otp|कोड|नंबर|पिन) (?:बताओ|बताइए|बताना|बता दो|बता दीजिए|बता देना|बताएं|बोलो|बोलिए|बोल दो|बोल दीजिए|भेजो|भेज दो|शेयर करो|शेयर कर दो|पढ़ो|पढो|पढ़कर)"
         - "re:(?:ओटीपी|otp|पिन) (?:दे दो|दीजिए)"
         - "पीछे का नंबर"
         - "यूपीआई पिन"
         - "re:(?:सीवीवी|cvv) (?:बताओ|बताइए|बता दो|बोलो|बोल दो|दे दो)"
       hi_latn:
-        - "re:(?:otp|code|number|pin) (?:batao|bataiye|batana|bata do|bata dijiye|bata dena|bolo|boliye|bol do|bhejo|bhej do|padho|padh kar|share karo|share kar do)"
+        - "re:(?<!pickup )(?<!order )(?:otp|code|number|pin) (?:batao|bataiye|batana|bata do|bata dijiye|bata dena|bolo|boliye|bol do|bhejo|bhej do|padho|padh kar|share karo|share kar do)"
         - "re:(?:otp|pin) (?:de do|dijiye)"
         - "re:(?:piche|pichhe|peeche|peechhe|pichey) (?:ka|ke|ki) (?:number|numbar|code)"
         - "re:cvv (?:batao|bata do|bolo|bol do|de do)"
@@ -396,20 +396,35 @@ rules:
       en:
         - "re:refunded (?:you |me )?(?:too much|extra|by mistake)"
         - "re:(?:over ?refund(?:ed)?|over ?paid you|overpayment)"
-        - "re:send (?:back )?the (?:difference|extra)"
-        - "re:(?:return|pay) (?:back )?the (?:extra|difference)"
         - "re:(?:put|added|deposited|sent) (?:too much|extra) (?:money )?(?:in|into|to) (?:my|your) account"
       es:
         - "re:(?:me|le|te|nos) reembolsaron de mas"
         - "re:reembolso de mas"
+        - "re:depositaron de mas"
+        - "re:(?<!me )(?:manda|mande|envia|envie) la diferencia"
+      hi:
+        - "re:(?:ज़्यादा|ज्यादा) रिफंड"
+      hi_latn:
+        - "re:(?:zyada|jyada|jada) refund"
+
+  R_difference_back:
+    severity: soft
+    needs: [refund]
+    pattern: refund_overpay
+    spoken_key: refund_scam
+    detail: '"Send back the difference" is the overpayment scam, and also how an honest overcharge sounds.'
+    terms:
+      en:
+        - "re:send (?:back )?the (?:difference|extra)"
+        - "re:(?:return|pay) (?:back )?the (?:extra|difference)"
+      es:
         - "re:devuelv[ae] la diferencia"
         - "re:devolver la diferencia"
-        - "re:depositaron de mas"
       hi:
-        - "re:(?:ज़्यादा|ज्यादा) (?:रिफंड|पैसे)"
+        - "re:(?:ज़्यादा|ज्यादा) पैसे"
         - "re:(?:फर्क|अंतर) वापस"
       hi_latn:
-        - "re:(?:zyada|jyada|jada) (?:refund|paise)"
+        - "re:(?:zyada|jyada|jada) paise"
         - "re:(?:fark|difference) vapas"
 
   R_fee_for_refund:
@@ -419,10 +434,9 @@ rules:
     detail: A fee to release a refund; real refunds never cost money.
     terms:
       en:
-        - "re:(?:processing |release |handling |service )?fee (?:to|for) (?:release |get |process |receive )?(?:your |my |the )?refund"
+        - "re:(?:processing|release|handling|service) fee (?:to|for) (?:release |get |process |receive )?(?:your |my |the )?refund"
         - "re:(?:pay|send) (?:a |the )?(?:fee|retainer|charge) (?:to|for|before) (?:\\S+ )?(?:refund|recover\\S*)"
-        - "re:refund (?:processing )?(?:fee|charge)"
-        - "retainer"
+        - "re:refund processing (?:fee|charge)"
       es:
         - "re:cargo de procesamiento"
         - "re:anticipo de honorarios"
@@ -466,7 +480,7 @@ rules:
         - "re:team ?viewer"
         - "re:share (?:your|my) screen"
         - "re:screen ?shar(?:e|ing)"
-        - "re:remote (?:access|desktop|control)"
+        - "re:remote (?:access|desktop)"
       es:
         - "re:acceso remoto"
         - "re:compartir (?:su |mi |la )?pantalla"
@@ -490,22 +504,21 @@ rules:
         - "re:gift ?cards?"
         - "re:wire"
         - "re:bitcoin|crypto"
-        - "re:(?:send|pay|give|mail|hand|withdraw) (?:\\S+ )?cash"
+        - "re:(?:send|mail|withdraw) (?:\\S+ )?cash"
         - "zelle"
         - "re:venmo|cash ?app|paypal"
       es:
         - "re:tarjetas? (?:de )?regalo"
-        - "re:(?:en )?efectivo"
+        - "re:(?:mande|mandar|envie|enviar|retire|retirar|saque|sacar) (?:\\S+ )?efectivo"
         - "zelle"
         - "re:transferencia"
       hi:
         - "re:(?:गिफ्ट|gift) ?(?:कार्ड|card)"
-        - "re:नकद|कैश"
-        - "re:यूपीआई"
+        - "re:(?:नकद|कैश) (?:भेजो|भेजिए|भेज दो|निकालो|निकालिए|निकाल कर)"
       hi_latn:
         - "re:gift ?cards?"
-        - "re:upi(?: id)?"
-        - "paytm"
+        - "re:(?:upi|paytm) (?:se |pe |par )?(?:bhejo|bhej do|transfer karo|transfer kar do)"
+        - "re:upi id (?:pe |par |me |mein )?(?:bhej|dal)\\S*"
         - "re:cash (?:bhejo|do|de do)"
 
   R_customs_hold:
@@ -521,7 +534,7 @@ rules:
         - "re:pay (?:the |a )?(?:tariff|customs duty|import duty)"
       es:
         - "re:retenid[oa] en (?:la )?aduana"
-        - "re:arancel(?:es)?"
+        - "re:(?:pagar|pague|pago) (?:el |los |un |unos )?arancel(?:es)?"
         - "re:cargo de aduana"
       hi:
         - "re:कस्टम (?:क्लियरेंस )?(?:चार्ज|शुल्क|फीस)"
@@ -588,7 +601,7 @@ rules:
         - "re:(?:सब्सक्रिप्शन|मेंबरशिप) (?:ऑटो )?रिन्यू"
       hi_latn:
         - "re:subscription (?:auto ?)?renew (?:ho gaya|ho gayi|hua)"
-        - "re:auto ?renew"
+        - "re:auto ?renew (?:ho gaya|ho gayi|hua|kar diya)"
 
   R_silence_request:
     severity: hard
