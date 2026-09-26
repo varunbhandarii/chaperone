@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-design.mjs",
     "dev": "next dev --port 5175",
+    "prebuild": "node scripts/copy-design.mjs",
     "build": "next build",
     "start": "next start --port 5175"
   },

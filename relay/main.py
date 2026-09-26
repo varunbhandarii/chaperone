@@ -22,9 +22,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from relay import tokens
 
@@ -63,6 +63,20 @@ if ledger is not None:
     app.include_router(ledger.router)
 
 NO_STORE = {"Cache-Control": "no-store"}
+
+
+DESIGN_FILES = {"tokens.css": "text/css", "logo.svg": "image/svg+xml", "shield.svg": "image/svg+xml"}
+DESIGN_DIR = Path(__file__).resolve().parents[1] / "design"
+
+
+@app.get("/design/{name}")
+def design_asset(name: str):
+    if name not in DESIGN_FILES:
+        raise HTTPException(404, "unknown design file")
+    path = DESIGN_DIR / name
+    if not path.is_file():
+        raise HTTPException(404, "unknown design file")
+    return FileResponse(path, media_type=DESIGN_FILES[name])
 
 
 @app.get("/health")

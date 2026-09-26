@@ -20,6 +20,17 @@ def client(tmp_path, monkeypatch, *, unsigned="1"):
     return TestClient(app)
 
 
+def test_a_down_judge_asks_priya_and_says_why(tmp_path, monkeypatch):
+    monkeypatch.setattr("policy.checkout.call_screen", lambda *_a, **_k: {"action": "judge", "hits": [], "refusal": None})
+    monkeypatch.setattr("policy.checkout.call_judge", lambda *_a, **_k: (None, "timeout"))
+    response = client(tmp_path, monkeypatch).post("/checkout", json=DEMO)
+    assert response.status_code == 200, response.text
+    assert response.json()["decision"] == "approve"
+    listed = client(tmp_path, monkeypatch).get("/approvals").json()
+    assert listed[0]["reason"] == "the safety check was unavailable, so I asked Priyank"
+    assert listed[0]["items"]
+
+
 def test_demo_cart_allows_and_returns_the_merchant_link(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "policy.checkout.send_signed_order",

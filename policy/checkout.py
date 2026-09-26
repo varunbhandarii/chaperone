@@ -11,10 +11,10 @@ import requests
 
 from common.config import KEY_ID, merchant_public_url
 from policy.approvals import code_mac, new_nonce, state_of, remember_host_code
+from policy.bills import BillError, price_cart
 from policy.engine import dollars, evaluate, mandate_category, to_cents
 from policy.events import post_event
 from policy.mandate import DEFAULT_MANDATE
-from policy.pricing import UnknownSku, reprice
 from policy.store import add_spent_cents, get_decision, load_decisions, load_mandate, load_paused, load_spent_cents, save_decision
 from signer.sign import sign_request
 
@@ -140,7 +140,10 @@ def checkout(payload: dict) -> dict:
     lang = payload.get("lang") or "en"
     mandate, unsigned = active_mandate()
     _check_cart(payload, mandate)
-    priced = reprice(payload.get("cart") or {})
+    try:
+        priced = price_cart(payload.get("cart") or {}, mandate)
+    except BillError as exc:
+        raise CartRejected(str(exc)) from exc
     screen = call_screen(transcript, lang, session_id)
     blocked = set(mandate.get("blocked_categories") or [])
     category_blocked = any(mandate_category(item) in blocked for item in priced["items"])
@@ -222,13 +225,16 @@ def checkout(payload: dict) -> dict:
             approval_id = "a_" + uuid.uuid4().hex[:12]
             expires = datetime.now(timezone.utc) + timedelta(seconds=90)
             code = f"{secrets.randbelow(1_000_000):06d}"
+            judge_down = screen.get("action") == "judge" and judgment is None
             approval = {
                 "approval_id": approval_id,
                 "session_id": session_id,
                 "amount": priced["total"],
                 "merchant": priced["merchant"],
+                "items": [{"name": item["name"], "qty": item["qty"]} for item in priced["items"]],
                 "excerpt": transcript[:240],
-                "rule": "R6_approval_threshold",
+                "rule": "R7_scam_judge" if judge_down else "R6_approval_threshold",
+                "reason": "the safety check was unavailable, so I asked Priyank" if judge_down else None,
                 "expires_at": expires.isoformat(),
                 "nonce": new_nonce(),
                 "code_hash": code_mac(code, approval_id),

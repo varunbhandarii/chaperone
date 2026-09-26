@@ -33,6 +33,34 @@
     "languages": { "type": "array", "items": { "type": "string" } },
     "valid_from": { "type": "string" },
     "valid_to": { "type": "string" },
+    "billers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["merchant_id", "account_ref", "monthly_cap"],
+        "properties": {
+          "merchant_id": { "type": "string" },
+          "account_ref": { "type": "string" },
+          "monthly_cap": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "card": { "type": "object" },
+    "trusted_contacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "relation", "phone"],
+        "properties": {
+          "name": { "type": "string" },
+          "relation": { "type": "string" },
+          "phone": { "type": "string" }
+        }
+      }
+    },
+    "cosign": { "type": "object" },
     "passkey": {
       "type": "object",
       "additionalProperties": false,

@@ -29,6 +29,14 @@ export default function Rules({ mandate, onChange, onToggleBlocked, onSign, onHo
         </label>
       ))}
       <p style={{ fontSize: "1.2rem", background: "white", padding: "1rem" }}>{rulesSentence(mandate)}</p>
+      <h2>Stores</h2>
+      <p style={{ fontSize: "1.15rem" }}>{(mandate.allowed_merchants || []).map((id) => ({ corner_market: "Corner Market", parkside_pharmacy: "Parkside Pharmacy", main_street_home: "Main Street Home", peachtree_power: "Peachtree Power" }[id] || id)).join(", ")}</p>
+      <h2>Card</h2>
+      <p style={{ fontSize: "1.15rem" }}>
+        Gift cards, wires, crypto and lottery are blocked on the card.
+        A grocery swipe can be ${mandate.card && mandate.card.category_caps ? mandate.card.category_caps["5411"] : 150}.
+        After a scam check, risky spending drops for {mandate.card && mandate.card.cooldown ? mandate.card.cooldown.hours : 24} hours.
+      </p>
       <button style={btn} onClick={onSign}>Sign with passkey</button>
       <button style={btn} onClick={onHome}>Home</button>
     </section>

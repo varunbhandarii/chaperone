@@ -22,6 +22,9 @@ sessions/by-id/
 !sessions/sample.jsonl
 sessions/decisions.json
 sessions/monthly.json
+sessions/card.json
+sessions/card_state.json
+sessions/risk.json
 caregiver/data/
 .DS_Store
 Thumbs.db

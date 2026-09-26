@@ -16,12 +16,25 @@ const MANDATE = {
   per_purchase_cap: 60,
   monthly_cap: 300,
   approval_threshold: 40,
-  allowed_merchants: ["corner_market"],
-  allowed_categories: ["grocery", "pharmacy"],
+  allowed_merchants: ["corner_market", "parkside_pharmacy", "main_street_home", "peachtree_power"],
+  allowed_categories: ["grocery", "pharmacy", "household", "utility_bill"],
   blocked_categories: ["gift_card", "prepaid_card", "wire", "crypto", "lottery"],
   languages: ["es", "en", "hi"],
   valid_from: "2026-09-01",
   valid_to: "2026-12-31",
+  billers: [{ merchant_id: "peachtree_power", account_ref: "PP-2231-0098", monthly_cap: 200 }],
+  card: {
+    blocked_mccs: ["4829", "6051", "6540", "7995"],
+    category_caps: { 5411: 150, 5912: 80, 5310: 100, 5311: 100, 5251: 100 },
+    default_cap: 60,
+    atm_daily_cap: 100,
+    unusual_multiplier: 3,
+    cooldown: { hours: 24, caps: { 5912: 25, 5310: 25, 5311: 25, 6011: 0, default: 25 } },
+  },
+  trusted_contacts: [
+    { name: "Priyank", relation: "son", phone: "+1-404-555-0142" },
+    { name: "Alex", relation: "grandson", phone: "+1-404-555-0187" },
+  ],
 };
 
 function b64urlToBuffer(input) {
@@ -406,7 +419,7 @@ export default function Page() {
               try {
                 const event = JSON.parse(dataLine.slice(5).trim());
                 if (event.type === "refusal" || event.type === "caregiver_alerted") {
-                  setAlerts((prev) => [{ id: event.seq || Date.now(), text: event.type === "refusal" ? "Ruth was refused." : "Priyank was alerted.", decision_id: event.decision_id }, ...prev].slice(0, 12));
+                  setAlerts((prev) => [{ id: event.seq || Date.now(), text: event.type === "refusal" ? "Ruth was refused." : "Something was stopped. Open Why? for the reason.", decision_id: event.decision_id }, ...prev].slice(0, 12));
                 }
               } catch {
                 /* a heartbeat is not an alert */
@@ -460,7 +473,7 @@ export default function Page() {
       {screen === "history" ? <HistoryView history={history} onHome={() => setScreen("home")} onCancel={(id) => cancelOrder(id).catch((error) => note(String(error)))} /> : null}
       <Why explanation={explanation} onClose={() => setExplanation(null)} />
       <p style={{ fontSize: "1rem" }}>Approval codes are printed on the host screen, not on this phone.</p>
-      {log ? <pre style={{ whiteSpace: "pre-wrap", fontSize: "1rem" }}>{log}</pre> : null}
+      {log ? <p role="status" style={{ fontSize: "1rem" }}>{log.trim().split("\n").pop()}</p> : null}
     </main>
   );
 }

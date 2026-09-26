@@ -258,6 +258,7 @@ def render(session_id: str, events: list[dict], receipts: list[dict] | dict | No
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="5">
+<link rel="stylesheet" href="/design/tokens.css">
 <meta name="robots" content="noindex">
 <title>Chaperone session</title><style>
 :root{{--bg:#f6f7fb;--card:#fff;--text:#111;--muted:#667;--ok:#0a6b2b;--bad:#a3160c;--warn:#8a5a00;--line:#e4e6ee}}
