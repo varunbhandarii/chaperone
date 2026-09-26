@@ -10,6 +10,7 @@
     <header class="top">
       <h1>Chaperone</h1>
       <span id="state" class="pill state-off">Off</span>
+      <button id="view-toggle" class="view-toggle" type="button" aria-pressed="false">Shopper view</button>
       <button id="start" class="start" type="button">Start</button>
     </header>
 
@@ -17,7 +18,9 @@
       Press Start, then hold the big button (or the Space key) while you speak.
     </p>
 
-    <section class="metric" aria-label="Release to first audio">
+    <div id="strip" class="strip state-off" role="status" aria-live="polite">Press Start</div>
+
+    <section class="metric dev" aria-label="Release to first audio">
       <div class="metric-label">Release to first audio</div>
       <div id="latency" class="metric-value">&ndash;</div>
       <div id="latency-stats" class="metric-stats">min &ndash; &middot; median &ndash; &middot; n 0</div>
@@ -29,6 +32,14 @@
       <span id="ptt-label">Press Start first</span>
       <span id="ptt-hint" class="ptt-hint">hold to talk &middot; key: Space</span>
     </button>
+
+    <div id="outcome" class="outcome" role="status" aria-live="polite" hidden></div>
+
+    <section id="cart-panel" class="panel cart" aria-label="Your order">
+      <h2>Your order</h2>
+      <ul id="cart" class="items"><li class="empty">Nothing yet</li></ul>
+      <div class="cart-total"><span>Total</span> <span id="cart-total" class="price">$0.00</span></div>
+    </section>
 
     <section class="panel">
       <h2>Conversation</h2>
@@ -48,7 +59,7 @@
       </div>
     </form>
 
-    <details class="panel hardware" open>
+    <details class="panel hardware dev" open>
       <summary>Hardware</summary>
       <div class="hw-grid">
         <div>Push-to-talk key</div>

@@ -3,11 +3,15 @@
 It follows the documented event flow closely enough to exercise the station page and ws_probe.mjs:
 session.created -> session.update/updated (validated: PCM rate, manual turn detection, both tools)
 -> user turn (audio commit or input_text) -> response.create -> a short spoken preamble plus a
-search_catalog function call -> function_call_output -> response.create -> a spoken answer.
+search_catalog function call -> add_to_cart -> read_cart -> the read-back; "sí" -> checkout -> the outcome.
+With /mock/reset {"eager_checkout": true} the scripted model calls checkout right after add_to_cart, which the
+station's read-back gate must refuse (read_back_required) before the flow continues.
 It also supports response.cancel, input_audio_buffer.clear, conversation.item.truncate and
 force_message. Audio is a quiet sine tone at the session's output rate.
 
-HTTP stand-ins: POST /session/token, GET /search, POST /screen, POST /checkout, POST /events.
+HTTP stand-ins, in the agreed shapes: POST /session/token; catalog GET /search {"q","items"} and
+GET /resolve {"q","matches"}; policy POST /screen, POST /checkout (decision, decision_id, say_key, order,
+approval) and GET /budget; relay POST /events and GET /audio/<clip>.
 GET /mock/log returns every client event and HTTP call it saw.
 
 Run standalone (repo root):
@@ -31,17 +35,25 @@ app = FastAPI(title="mock realtime + services")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 LOG: list[dict] = []
+ACTIVE: set = set()  # open realtime sockets, so /mock/drop can simulate a dropped connection
 RATES = {8000, 11025, 16000, 22050, 24000, 32000, 44100, 48000}
 FIRST_AUDIO_DELAY_S = 0.15
 CHUNK_S = 0.04
 BLOCKED_WORDS = ("tarjeta", "tarjetas", "regalo", "gift card", "gift cards")
-MOCK = {"transcript": "necesito pan", "pace": 0.25, "clip": False}  # pace 1.0 streams audio in real time
+MOCK = {"transcript": "necesito pan", "pace": 0.25, "clip": False, "eager_checkout": False}  # pace 1.0 = real time
 
 BREAD = [
-    {"sku": "bread_white_20oz", "name": "White bread", "brand": "Corner", "category": "grocery", "price": 2.29, "size": "20 oz", "usual": False},
-    {"sku": "bread_ww_20oz", "name": "Whole wheat bread", "brand": "Corner", "category": "grocery", "price": 3.49, "size": "20 oz", "usual": True},
-    {"sku": "bread_sourdough", "name": "Sourdough loaf", "brand": "Bakehouse", "category": "grocery", "price": 4.99, "size": "24 oz", "usual": False},
+    {"sku": "BAK-002", "name": "Kroger Whole Wheat Bread", "brand": "Kroger", "category": "bakery", "mandate_category": "grocery", "price": 2.99, "size": "20 oz", "usual": False},
+    {"sku": "BAK-003", "name": "Kroger Low Sodium Whole Wheat Bread", "brand": "Kroger", "category": "bakery", "mandate_category": "grocery", "price": 3.19, "size": "16 oz", "usual": False},
+    {"sku": "BAK-001", "name": "Nature's Own Honey Wheat Bread", "brand": "Nature's Own", "category": "bakery", "mandate_category": "grocery", "price": 3.49, "size": "20 oz", "usual": True},
 ]
+RX = {"sku": "RX-001", "name": "Lisinopril 10 mg, 30 tablets (pharmacy pickup)", "brand": "Corner Market Pharmacy", "category": "pharmacy_pickup", "mandate_category": "pharmacy", "price": 8.0, "size": "30 tablets", "usual": True}
+GIFT = {"sku": "GFT-002", "name": "Apple Gift Card", "brand": "Apple", "category": "gift_card", "mandate_category": "gift_card", "price": 200.0, "size": "$200", "usual": False}
+PROFILE = [
+    (RX, "blood pressure medicine", "Pharmacy pickup, $8.00 copay", ("blood pressure", "presion", "presión", "mi medicina", "dawai", "दवाई")),
+    (BREAD[2], "bread", "Usual brand", ("bread", "pan", "ब्रेड")),
+]
+BUDGET = {"monthly_cap": 300.0, "spent": 142.10, "left": 157.90}
 
 
 def record(kind: str, **fields) -> None:
@@ -69,8 +81,26 @@ async def token() -> dict:
 async def search(q: str = "", limit: int = 3) -> dict:
     record("http", path="/search", q=q, limit=limit)
     ql = q.lower()
-    results = BREAD if ("bread" in ql or "pan" in ql) else []
-    return {"query": q, "results": results[:limit], "took_ms": 1}
+    items = BREAD if ("bread" in ql or "pan" in ql) else [RX] if ("pressure" in ql or "presi" in ql) else [GIFT] if "gift" in ql else []
+    return {"q": q, "items": items[:limit]}
+
+
+@app.get("/resolve")
+async def resolve(q: str = "") -> dict:
+    record("http", path="/resolve", q=q)
+    ql = q.lower()
+    matches = [
+        {"sku": item["sku"], "label": label, "matched": next(p for p in phrases if p in ql), "note": note, "confidence": 0.95, "item": item}
+        for item, label, note, phrases in PROFILE
+        if any(p in ql for p in phrases)
+    ]
+    return {"q": q, "matches": matches}
+
+
+@app.get("/budget")
+async def budget(mandate_id: str = "") -> dict:
+    record("http", path="/budget", mandate_id=mandate_id)
+    return BUDGET
 
 
 @app.post("/screen")
@@ -81,14 +111,14 @@ async def screen(request: Request) -> dict:
     if any(w in text for w in BLOCKED_WORDS):
         return {
             "action": "refuse",
-            "hits": [{"rule_id": "R1_blocked_category", "pattern": "gift_card"}],
+            "hits": [{"rule_id": "R1_blocked_category", "pattern": "gift_card", "lang": "es", "term": "tarjetas de regalo"}],
             "refusal": {
                 "rule_id": "R1_blocked_category",
                 "spoken_key": "blocked_gift_card",
                 "patterns": ["gift_card"],
-                "lang": "es-MX",
+                "lang": "es",
                 "text": "No puedo comprar tarjetas de regalo en esta cuenta. Ya le avisé a Priyank.",
-                "audio_url": "/warnings/refusal_es-MX.mp3",
+                "audio_url": "/audio/refusal.gift_card.es.mp3",
             },
         }
     return {"action": "proceed", "hits": [], "refusal": None}
@@ -96,16 +126,33 @@ async def screen(request: Request) -> dict:
 
 @app.post("/checkout")
 async def checkout(request: Request) -> dict:
+    """allow under $40, approve above it, deny a blocked category (the policy's C7 reply shape)."""
     body = await request.json()
     record("http", path="/checkout", body=body)
-    return {
-        "decision_id": "d_mock_0001",
+    cart = body.get("cart", {})
+    total = float(cart.get("total", 0))
+    blocked = any(i.get("category") in ("gift_card", "prepaid_card") for i in cart.get("items", []))
+    decision = "deny" if blocked else "approve" if total > 40 else "allow"
+    reply = {
+        "decision_id": new_id("d"),
         "session_id": body.get("session_id"),
         "mandate_id": body.get("mandate_id"),
-        "decision": "allow",
-        "rules": [{"id": "R4_per_purchase_cap", "passed": True}],
-        "monthly_total_after": 100.0,
+        "decision": decision,
+        "rules": [
+            {"id": "R1_blocked_category", "passed": not blocked},
+            {"id": "R6_approval_threshold", "passed": total <= 40, "detail": f"{total:.2f} vs 40.00"},
+        ],
+        "monthly_total_after": round(BUDGET["spent"] + (total if decision != "deny" else 0), 2),
+        "say_key": {"allow": "ordering_now", "approve": "asking_priya", "deny": "declined"}[decision],
+        "order": None,
+        "approval": None,
     }
+    if decision == "allow":
+        order_id = new_id("o")
+        reply["order"] = {"order_id": order_id, "payment_link": f"http://127.0.0.1:8002/pay/{order_id}", "status": "link_created"}
+    elif decision == "approve":
+        reply["approval"] = {"approval_id": new_id("a"), "expires_at": int(time.time() * 1000) + 90_000}
+    return reply
 
 
 @app.post("/events")
@@ -114,15 +161,26 @@ async def events(request: Request) -> dict:
     return {"ok": True}
 
 
+@app.get("/audio/{name}")
 @app.get("/warnings/{name}")
 async def warning_clip(name: str) -> Response:
     """A refusal clip (WAV tone) when enabled with /mock/reset {"clip": true}; 404 otherwise."""
-    record("http", path=f"/warnings/{name}", served=MOCK["clip"])
+    record("http", path=f"/audio/{name}", served=MOCK["clip"])
     if not MOCK["clip"]:
         return Response(status_code=404)
     pcm = tone(0.6, 24000)
     header = b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVEfmt " + struct.pack("<IHHIIHH", 16, 1, 1, 24000, 48000, 2, 16) + b"data" + struct.pack("<I", len(pcm))
     return Response(header + pcm, media_type="audio/wav")
+
+
+@app.post("/mock/drop")
+async def mock_drop() -> dict:
+    """Closes every open realtime socket (code 1011), as a network drop would."""
+    n = len(ACTIVE)
+    for ws in list(ACTIVE):
+        await ws.close(code=1011)
+    record("mock", note=f"dropped {n} socket(s)")
+    return {"dropped": n}
 
 
 @app.get("/mock/log")
@@ -144,6 +202,7 @@ async def mock_reset(request: Request) -> dict:
             MOCK["pace"] = float(body["pace"])
         if body.get("clip") is not None:
             MOCK["clip"] = bool(body["clip"])
+        MOCK["eager_checkout"] = bool(body.get("eager_checkout", False))
     return {"ok": True}
 
 
@@ -181,8 +240,9 @@ class Session:
         if not (td is None or (isinstance(td, dict) and td.get("type") is None)):
             return await self.error("mock expects manual turn detection", "session.turn_detection")
         names = [t.get("name") for t in session.get("tools", []) if t.get("type") == "function"]
-        if "search_catalog" not in names:
-            return await self.error("search_catalog tool missing", "session.tools")
+        missing = [n for n in ("search_catalog", "add_to_cart", "read_cart", "checkout") if n not in names]
+        if missing:
+            return await self.error(f"tools missing: {', '.join(missing)}", "session.tools")
         self.config = session
         self.rate = int(rout)
         await self.send({
@@ -260,19 +320,36 @@ class Session:
             text = instructions.split("nothing else:", 1)[-1].strip()
             return self.start(self.speak(text, 0.8))
         if self.tool_outputs:
+            # The scripted model: search -> add the usual -> read back (or, eager, checkout first) -> speak.
             outputs, self.tool_outputs = self.tool_outputs, []
             data = json.loads(outputs[-1].get("output") or "{}")
             if data.get("refused"):
                 return self.start(self.speak(data.get("say", ""), 1.0))
-            if "results" in data:
-                names = ", ".join(f"{r['name']} {r['price']}" for r in data["results"])
-                return self.start(self.speak(f"Tengo {names}. ¿Cuál quiere?", 1.2))
-            if "decision" in data:
-                return self.start(self.speak(f"Listo, decisión {data['decision']}.", 0.8))
+            if "items" in data:
+                items = data["items"]
+                if not items:
+                    return self.start(self.speak("No lo encontré.", 0.6))
+                pick = next((i for i in items if i.get("usual")), items[0])
+                names = ", ".join(f"{i['name']} {i['price']}" for i in items)
+                return self.start(self.speak(f"Tengo {names}. Le pongo el de siempre.", 1.2, {"name": "add_to_cart", "arguments": {"sku": pick["sku"], "qty": 1}}))
+            if data.get("ok") and "added" in data:
+                if MOCK["eager_checkout"]:
+                    return self.start(self.speak("Lo pido.", 0.4, {"name": "checkout", "arguments": {}}))
+                return self.start(self.speak("Muy bien.", 0.4, {"name": "read_cart", "arguments": {}}))
+            if data.get("error") == "read_back_required":
+                return self.start(self.speak("Primero se lo leo.", 0.4, {"name": "read_cart", "arguments": {}}))
+            if "lines" in data and "say" in data:
+                return self.start(self.speak(data["say"], 1.2))
+            if "status" in data and "say" in data:
+                return self.start(self.speak(data["say"], 0.8))
+            if "left" in data and "say" in data:
+                return self.start(self.speak(data["say"], 0.8))
             return self.start(self.speak("Lo siento, hubo un problema.", 0.8))
         words = set(self.last_user.lower().replace(",", " ").replace(".", " ").split())
         if words & {"sí", "si", "yes"}:
-            return self.start(self.speak("Un momento.", 0.4, {"name": "checkout", "arguments": {"items": [{"sku": "bread_ww_20oz", "qty": 1}]}}))
+            return self.start(self.speak("Un momento.", 0.4, {"name": "checkout", "arguments": {}}))
+        if words & {"cuánto", "cuanto", "queda", "left"}:
+            return self.start(self.speak("Un momento.", 0.4, {"name": "budget_left", "arguments": {}}))
         if "pan" in self.last_user.lower() or "bread" in self.last_user.lower():
             return self.start(self.speak("Un momento.", 0.4, {"name": "search_catalog", "arguments": {"query": "bread"}}))
         return self.start(self.speak("¿En qué le puedo ayudar?", 0.8))
@@ -291,9 +368,12 @@ async def realtime(ws: WebSocket) -> None:
         await ws.close(code=4401)
         return
     await ws.accept(subprotocol=secret)
+    ACTIVE.add(ws)
     s = Session(ws)
+    conversation_id = ws.query_params.get("conversation_id") or new_id("conv")
+    record("ws_connect_conversation", conversation_id=conversation_id, resumed=bool(ws.query_params.get("conversation_id")))
     await s.send({"type": "session.created", "session": {"id": new_id("sess"), "object": "realtime.session", "model": ws.query_params.get("model"), "voice": "ara", "turn_detection": {"type": "server_vad"}}})
-    await s.send({"type": "conversation.created", "conversation": {"id": new_id("conv"), "object": "realtime.conversation"}})
+    await s.send({"type": "conversation.created", "conversation": {"id": conversation_id, "object": "realtime.conversation"}})
     try:
         while True:
             ev = json.loads(await ws.receive_text())
@@ -328,6 +408,8 @@ async def realtime(ws: WebSocket) -> None:
                 await s.send({"type": "conversation.item.truncated", "item_id": ev.get("item_id"), "content_index": 0, "audio_end_ms": ev.get("audio_end_ms", 0)})
             else:
                 await s.error(f"unsupported event {et}", etype="invalid_event")
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
         record("ws_disconnect")
         await s.cancel()
+    finally:
+        ACTIVE.discard(ws)

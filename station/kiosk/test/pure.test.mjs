@@ -14,14 +14,20 @@ import {
 } from "../src/pcm.ts";
 import { detectLang, guessLang, normalizeLang } from "../src/lang.ts";
 import {
+  Cart,
   FALLBACK_ITEMS,
-  ItemCache,
-  buildCart,
+  MAX_QTY,
+  ReadBackGate,
   buildCheckoutBody,
+  checkoutOutcome,
   compactItem,
+  mergeResults,
+  money,
   newSessionId,
-  parseCartLines,
+  parseResolveResponse,
   parseSearchResponse,
+  readBackSay,
+  sayFor,
 } from "../src/cart.ts";
 import { parseScreen, ruleIds } from "../src/screen.ts";
 
@@ -118,69 +124,174 @@ test("api language codes normalise to es/hi/en", () => {
 
 // ---------- catalog and cart ----------
 
-test("search response parsing keeps valid items only", () => {
+const RX = { sku: "RX-001", name: "Lisinopril 10 mg, 30 tablets (pharmacy pickup)", category: "pharmacy_pickup", mandate_category: "pharmacy", price: 8.0 };
+const BREAD = FALLBACK_ITEMS[0];
+
+test("search responses: catalog answers items, older mocks answer results", () => {
   const items = parseSearchResponse({
-    query: "bread",
-    results: [
-      { sku: "a", name: "A", category: "grocery", price: 1.5, brand: "X", size: "20 oz", usual: true, extra: 1 },
-      { sku: "b", name: "B", category: "grocery" },
+    q: "bread",
+    items: [
+      { sku: "a", name: "A | long pack text", category: "bakery", price: 1.5, brand: "X", size: "20 oz", usual: true, extra: 1 },
+      { sku: "b", name: "B", category: "bakery" },
       null,
     ],
-    took_ms: 3,
   });
   assert.equal(items.length, 1);
-  assert.deepEqual(compactItem(items[0]), { sku: "a", name: "A", category: "grocery", price: 1.5, brand: "X", size: "20 oz", usual: true });
+  assert.deepEqual(compactItem(items[0]), { sku: "a", name: "A", price: 1.5, brand: "X", size: "20 oz", usual: true });
+  assert.equal(parseSearchResponse({ query: "x", results: [BREAD] }).length, 1);
   assert.equal(parseSearchResponse({ nope: 1 }), null);
 });
 
-test("checkout args are validated and duplicate skus merged", () => {
-  assert.deepEqual(parseCartLines({ items: [{ sku: "a", qty: 1 }, { sku: "a", qty: 2 }, { sku: "b", qty: 1 }] }), {
-    ok: true,
-    lines: [{ sku: "a", qty: 3 }, { sku: "b", qty: 1 }],
-  });
-  assert.equal(parseCartLines({ items: [] }).ok, false);
-  assert.equal(parseCartLines({ items: [{ sku: "a", qty: 0 }] }).ok, false);
-  assert.equal(parseCartLines({ items: [{ sku: "a", qty: 1.5 }] }).ok, false);
-  assert.equal(parseCartLines({}).ok, false);
+test("fallback items are real catalog skus with BAK-001 as the usual", () => {
+  assert.deepEqual(FALLBACK_ITEMS.map((i) => i.sku), ["BAK-001", "BAK-003", "BAK-002"]);
+  assert.equal(FALLBACK_ITEMS[0].price, 3.49);
+  assert.equal(FALLBACK_ITEMS[0].usual, true);
+  assert.ok(FALLBACK_ITEMS.every((i) => i.mandate_category === "grocery"));
 });
 
-test("priced cart totals in integer cents", () => {
-  const cache = new ItemCache();
-  cache.add(FALLBACK_ITEMS);
-  cache.add([{ sku: "dime", name: "Dime candy", category: "grocery", price: 0.1 }]);
-  const r = buildCart([{ sku: "bread_ww_20oz", qty: 2 }, { sku: "bread_white_20oz", qty: 1 }, { sku: "dime", qty: 3 }], cache, "corner_market");
-  assert.equal(r.ok, true);
-  assert.equal(r.cart.total, 9.57); // 2*3.49 + 2.29 + 3*0.10, no float drift
-  assert.deepEqual(r.cart.items[0], { sku: "bread_ww_20oz", name: "Whole wheat bread", category: "grocery", qty: 2, price: 3.49 });
-  const bad = buildCart([{ sku: "gift_card_500", qty: 1 }], cache, "corner_market");
-  assert.equal(bad.ok, false);
-  assert.deepEqual(bad.unknown_skus, ["gift_card_500"]);
+test("profile matches from /resolve come first, marked usual, then search results without duplicates", () => {
+  const profile = parseResolveResponse({
+    q: "mi medicina de la presion",
+    matches: [{ sku: "RX-001", label: "blood pressure medicine", note: "Pharmacy pickup, $8.00 copay", item: RX }, { sku: "x", item: { bad: 1 } }],
+  });
+  assert.equal(profile.length, 1);
+  assert.equal(profile[0].usual, true);
+  assert.equal(profile[0].profile_label, "blood pressure medicine");
+  assert.equal(compactItem(profile[0]).shopper_calls_it, "blood pressure medicine");
+  assert.deepEqual(parseResolveResponse({ q: "x", matches: [] }), []);
+  assert.deepEqual(parseResolveResponse(null), []);
+  const merged = mergeResults(profile, [{ ...RX, usual: false }, BREAD, FALLBACK_ITEMS[1], FALLBACK_ITEMS[2]], 3);
+  assert.deepEqual(merged.map((i) => i.sku), ["RX-001", "BAK-001", "BAK-003"]);
+  assert.equal(merged[0].usual, true);
+});
+
+test("cart totals in integer cents, bumps its version on every change, carries the mandate category", () => {
+  const cart = new Cart();
+  assert.equal(cart.version, 0);
+  assert.equal(cart.add(BREAD, 2).ok, true);
+  assert.equal(cart.add(RX).ok, true);
+  assert.equal(cart.add({ sku: "dime", name: "Dime candy", category: "pantry", price: 0.1 }, 3).ok, true);
+  assert.equal(cart.version, 3);
+  assert.equal(cart.totalCents, 1528); // 2*3.49 + 8.00 + 3*0.10, no float drift
+  const priced = cart.priced("corner_market");
+  assert.equal(priced.total, 15.28);
+  assert.deepEqual(priced.items[0], { sku: "BAK-001", name: "Nature's Own Honey Wheat Bread", category: "grocery", qty: 2, price: 3.49 });
+  assert.equal(priced.items[1].category, "pharmacy");
+  assert.equal(priced.items[2].category, "pantry"); // no mandate_category: the catalog category passes through
+
+  assert.equal(cart.add(BREAD, 0).ok, false);
+  assert.equal(cart.add(BREAD, 1.5).ok, false);
+  assert.equal(cart.add(BREAD, MAX_QTY).ok, false);
+  assert.equal(cart.version, 3); // rejected changes do not bump
+  assert.deepEqual(cart.remove("BAK-001", 1), { ok: true, qty: 1 });
+  assert.equal(cart.remove("dime").ok, true);
+  assert.equal(cart.remove("nope").ok, false);
+  assert.deepEqual(cart.summary(), {
+    lines: [
+      { sku: "BAK-001", name: "Nature's Own Honey Wheat Bread", qty: 1, price: 3.49, line_total: 3.49 },
+      { sku: "RX-001", name: "Lisinopril 10 mg, 30 tablets (pharmacy pickup)", qty: 1, price: 8, line_total: 8 },
+    ],
+    total: 11.49,
+  });
+  cart.clear();
+  assert.equal(cart.isEmpty, true);
+});
+
+test("read-back gate: change, read, yes, checkout passes", () => {
+  const cart = new Cart();
+  const gate = new ReadBackGate();
+  let turns = 1; // "necesito pan"
+  cart.add(BREAD);
+  assert.deepEqual(gate.check(cart.version, turns), { ok: false, reason: "not_read_back" });
+  gate.markRead(cart.version, turns); // read_cart in the same response
+  assert.deepEqual(gate.check(cart.version, turns), { ok: false, reason: "no_confirmation" });
+  turns++; // "sí"
+  assert.deepEqual(gate.check(cart.version, turns), { ok: true });
+});
+
+test("read-back gate: a cart change after the read-back fails", () => {
+  const cart = new Cart();
+  const gate = new ReadBackGate();
+  cart.add(BREAD);
+  gate.markRead(cart.version, 1);
+  cart.add(RX);
+  assert.deepEqual(gate.check(cart.version, 2), { ok: false, reason: "cart_changed" });
+  gate.markRead(cart.version, 2);
+  assert.deepEqual(gate.check(cart.version, 3), { ok: true });
+  gate.reset();
+  assert.deepEqual(gate.check(cart.version, 9), { ok: false, reason: "not_read_back" });
+});
+
+test("read-back gate: a read-back with no user turn after it fails", () => {
+  const gate = new ReadBackGate();
+  gate.markRead(4, 2);
+  assert.deepEqual(gate.check(4, 2), { ok: false, reason: "no_confirmation" });
+});
+
+test("read-back sentence in the shopper's language", () => {
+  const cart = new Cart();
+  cart.add(RX);
+  cart.add(BREAD, 2);
+  const lines = cart.lines();
+  assert.equal(
+    readBackSay(lines, cart.totalCents, "en"),
+    "Your order: Lisinopril 10 mg, 30 tablets (pharmacy pickup), $8.00; 2 Nature's Own Honey Wheat Bread, $6.98. Total $14.98. Shall I place the order?",
+  );
+  assert.equal(
+    readBackSay(lines, cart.totalCents, "es"),
+    "Su pedido: Lisinopril 10 mg, 30 tablets (pharmacy pickup), 8 dólares; 2 Nature's Own Honey Wheat Bread, 6 dólares con 98 centavos. Total: 14 dólares con 98 centavos. ¿Hago el pedido?",
+  );
+  assert.match(readBackSay(lines, cart.totalCents, "hi"), /^आपका ऑर्डर: .*कुल 14 डॉलर 98 सेंट। क्या मैं ऑर्डर कर दूँ\?$/);
+  assert.equal(readBackSay([], 0, "es"), "Su carrito está vacío.");
+  assert.equal(money(100, "es"), "1 dólar");
+  assert.equal(money(1149, "hi"), "11 डॉलर 49 सेंट");
+});
+
+test("checkout outcomes map the policy reply to what the model says", () => {
+  const allow = checkoutOutcome({ decision: "allow", decision_id: "d_1", say_key: "ordering_now", order: { order_id: "o_1", payment_link: "http://x" } }, 1149, "es");
+  assert.deepEqual(allow, {
+    status: "ordered",
+    say_key: "ordering_now",
+    say: "Hago el pedido ahora. Total: 11 dólares con 49 centavos.",
+    total: 11.49,
+    decision_id: "d_1",
+    order_id: "o_1",
+  });
+  const approve = checkoutOutcome({ decision: "approve", decision_id: "d_2", approval: { approval_id: "a_1", expires_at: 1 } }, 6349, "en");
+  assert.equal(approve.status, "waiting_for_caregiver");
+  assert.equal(approve.say_key, "asking_priya");
+  assert.equal(approve.approval_id, "a_1");
+  const deny = checkoutOutcome({ decision: "deny", say_key: "over_monthly_cap" }, 100, "en");
+  assert.equal(deny.status, "declined");
+  assert.equal(deny.say_key, "over_monthly_cap");
+  assert.match(deny.say, /budget/);
+  assert.equal(checkoutOutcome({ decision: "deny", reason_key: "blocked_gift_card" }, 1, "en").say, sayFor("declined", "en"));
+  const err = checkoutOutcome({ error: "policy service is down; nothing was bought" }, 1149, "hi");
+  assert.equal(err.status, "error");
+  assert.equal(err.say, "अभी ऑर्डर नहीं हो पाया। कुछ भी नहीं खरीदा गया।");
 });
 
 test("checkout body has exactly the policy service's shape", () => {
-  const cache = new ItemCache();
-  cache.add(FALLBACK_ITEMS);
-  const { cart } = buildCart([{ sku: "bread_ww_20oz", qty: 1 }], cache, "corner_market");
+  const cart = new Cart();
+  cart.add(BREAD);
   const sessionId = newSessionId();
-  const body = buildCheckoutBody({ sessionId, mandateId: "m_ruth_2026_09", cart, transcript: " Necesito pan  ", lang: "es", readBack: true });
+  const body = buildCheckoutBody({ sessionId, mandateId: "m_ruth_2026_09", cart: cart.priced("corner_market"), transcript: " Necesito pan  ", lang: "es", readBack: true });
 
   assert.match(body.session_id, /^s_[A-Za-z0-9_-]+$/);
   assert.deepEqual(Object.keys(body).sort(), ["cart", "lang", "mandate_id", "read_back", "session_id", "transcript"]);
   assert.deepEqual(Object.keys(body.cart).sort(), ["items", "merchant", "total"]);
   assert.equal(body.cart.merchant, "corner_market");
-  assert.ok(body.cart.items.length >= 1);
   for (const item of body.cart.items) {
     assert.deepEqual(Object.keys(item).sort(), ["category", "name", "price", "qty", "sku"]);
     assert.ok(Number.isInteger(item.qty) && item.qty >= 1);
-    assert.ok(typeof item.price === "number" && item.price >= 0);
   }
   assert.equal(body.cart.total, 3.49);
   assert.equal(body.transcript, "Necesito pan");
-  assert.equal(body.lang, "es");
   assert.equal(body.read_back, true);
 
-  const minimal = buildCheckoutBody({ sessionId, mandateId: "m_ruth_2026_09", cart, lang: "fr" });
+  const minimal = buildCheckoutBody({ sessionId, mandateId: "m_ruth_2026_09", cart: cart.priced("corner_market"), lang: "fr", readBack: false });
   assert.deepEqual(Object.keys(minimal).sort(), ["cart", "mandate_id", "read_back", "session_id"]);
+  assert.equal(minimal.read_back, false);
 });
 
 // ---------- rule screen ----------

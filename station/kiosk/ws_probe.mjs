@@ -22,9 +22,9 @@ const ROOT = resolve(HERE, "../..");
 const RATE = 24000;
 const CLIENT_SECRETS_URL = "https://api.x.ai/v1/realtime/client_secrets";
 const FALLBACK_ITEMS = [
-  { sku: "bread_ww_20oz", name: "Whole wheat bread", category: "grocery", price: 3.49, usual: true },
-  { sku: "bread_white_20oz", name: "White bread", category: "grocery", price: 2.29, usual: false },
-  { sku: "bread_sourdough", name: "Sourdough loaf", category: "grocery", price: 4.99, usual: false },
+  { sku: "BAK-001", name: "Nature's Own Honey Wheat Bread", price: 3.49, usual: true },
+  { sku: "BAK-003", name: "Kroger Low Sodium Whole Wheat Bread", price: 3.19, usual: false },
+  { sku: "BAK-002", name: "Kroger Whole Wheat Bread", price: 2.99, usual: false },
 ];
 
 const { values: args } = parseArgs({
@@ -117,12 +117,23 @@ async function searchCatalog(query) {
     try {
       const res = await fetch(`${catalogUrl}/search?q=${encodeURIComponent(query)}&limit=3`, { signal: AbortSignal.timeout(2500) });
       const body = await res.json();
-      if (res.ok && Array.isArray(body.results)) return { query, source: "catalog", results: body.results.slice(0, 3) };
+      const items = Array.isArray(body.items) ? body.items : body.results;
+      if (res.ok && Array.isArray(items)) return { query, source: "catalog", items: items.slice(0, 3) };
     } catch (err) {
       log(`catalog unavailable (${err.message}); using fallback items`);
     }
   }
-  return { query, source: "fallback", results: FALLBACK_ITEMS };
+  return { query, source: "fallback", items: FALLBACK_ITEMS };
+}
+
+// A minimal cart so the model can run its whole flow from the command line (nothing is bought here).
+const cart = new Map();
+const known = new Map(FALLBACK_ITEMS.map((i) => [i.sku, i]));
+
+function cartView() {
+  const lines = [...cart.entries()].map(([sku, qty]) => ({ sku, name: known.get(sku)?.name ?? sku, qty, price: known.get(sku)?.price ?? 0 }));
+  const total = Math.round(lines.reduce((t, l) => t + Math.round(l.price * 100) * l.qty, 0)) / 100;
+  return { lines, total };
 }
 
 async function runTool(name, argsJson) {
@@ -132,8 +143,26 @@ async function runTool(name, argsJson) {
   } catch {
     /* keep empty */
   }
-  if (name === "search_catalog") return searchCatalog(String(a.query ?? ""));
-  if (name === "checkout") return { error: "checkout is not wired in this probe; nothing was bought" };
+  if (name === "search_catalog") {
+    const out = await searchCatalog(String(a.query ?? ""));
+    for (const item of out.items) known.set(item.sku, item);
+    return out;
+  }
+  if (name === "add_to_cart") {
+    if (!known.has(a.sku)) return { error: `unknown sku ${a.sku}; call search_catalog first` };
+    cart.set(a.sku, (cart.get(a.sku) ?? 0) + (Number(a.qty) || 1));
+    return { ok: true, added: { sku: a.sku, qty: Number(a.qty) || 1 }, cart: cartView() };
+  }
+  if (name === "remove_from_cart") {
+    cart.delete(a.sku);
+    return { ok: true, removed: a.sku, cart: cartView() };
+  }
+  if (name === "read_cart") {
+    const v = cartView();
+    return { ...v, say: `Your order: ${v.lines.map((l) => `${l.name}, $${l.price.toFixed(2)}`).join("; ")}. Total $${v.total.toFixed(2)}. Shall I place the order?` };
+  }
+  if (name === "budget_left") return { monthly_cap: 300, spent: 142.1, left: 157.9, say: "You have $157.90 left this month." };
+  if (name === "checkout") return { status: "error", say_key: "checkout_unavailable", say: "This probe does not place orders; nothing was bought." };
   return { error: `unknown tool ${name}` };
 }
 
@@ -321,7 +350,7 @@ async function main() {
         if (outputs.length) {
           for (const p of outputs) {
             send({ type: "conversation.item.create", item: { type: "function_call_output", call_id: p.call_id, output: JSON.stringify(p.output) } });
-            log(`-> function_call_output ${p.call_id} (${p.output.source ?? "error"}, ${p.output.results?.length ?? 0} items)`);
+            log(`-> function_call_output ${p.call_id} (${p.output.source ?? p.output.error ?? "ok"}, ${p.output.items?.length ?? p.output.lines?.length ?? 0} items)`);
           }
           requestResponse("after tool output");
         } else {

@@ -113,18 +113,20 @@ def test_upstream_bad_body_is_502(client, xai):
     assert "missing value" in r.json()["error"]
 
 
-def test_cors_preflight_allows_the_station(client):
-    r = client.options(
-        "/session/token",
-        headers={"Origin": "http://192.168.8.11:5173", "Access-Control-Request-Method": "POST"},
-    )
-    assert r.status_code == 200
-    assert r.headers["access-control-allow-origin"] == "*"
-    r = client.get("/health", headers={"Origin": "http://localhost:5173"})
-    assert r.headers["access-control-allow-origin"] == "*"
+def test_cors_allows_only_the_station_origins(client):
+    for origin in ("http://localhost:5173", "http://127.0.0.1:5173"):
+        r = client.options("/session/token", headers={"Origin": origin, "Access-Control-Request-Method": "POST"})
+        assert r.status_code == 200
+        assert r.headers["access-control-allow-origin"] == origin
+    # any other page on the LAN cannot mint voice tokens from a browser
+    r = client.options("/session/token", headers={"Origin": "http://192.168.8.13:3000", "Access-Control-Request-Method": "POST"})
+    assert "access-control-allow-origin" not in r.headers
+    r = client.get("/health", headers={"Origin": "http://evil.example"})
+    assert "access-control-allow-origin" not in r.headers
 
 
-def test_relay_exposes_only_token_and_health(client):
+def test_relay_mounts_ledger_routes_only_when_present(client):
     paths = {route.path for route in main.app.routes}
     assert {"/session/token", "/health"} <= paths
-    assert not any(p.startswith(("/events", "/sessions", "/warnings", "/.well-known")) for p in paths)
+    ledger_routes = any(p.startswith(("/events", "/sessions", "/audio", "/.well-known")) for p in paths)
+    assert ledger_routes == (main.ledger is not None)

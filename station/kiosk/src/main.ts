@@ -70,6 +70,24 @@ function showKey(): void {
 }
 showKey();
 
+// ---------- shopper view: the companion screen without operator panels (?view=shopper) ----------
+
+const VIEW_STORAGE = "chaperone.view";
+const viewBtn = $<HTMLButtonElement>("view-toggle");
+
+function setShopperView(on: boolean): void {
+  document.body.classList.toggle("shopper", on);
+  viewBtn.textContent = on ? "Operator view" : "Shopper view";
+  viewBtn.setAttribute("aria-pressed", String(on));
+  save(VIEW_STORAGE, on ? "shopper" : "operator");
+}
+
+setShopperView(new URLSearchParams(location.search).get("view") === "shopper" || load(VIEW_STORAGE, "operator") === "shopper");
+viewBtn.addEventListener("click", () => {
+  setShopperView(!document.body.classList.contains("shopper"));
+  viewBtn.blur(); // keep Space for push-to-talk
+});
+
 // ---------- start / stop ----------
 
 startBtn.addEventListener("click", async () => {
