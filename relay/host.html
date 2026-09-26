@@ -83,7 +83,8 @@ function log(text, cls = "") {
 }
 
 async function call(method, path) {
-  const r = await fetch(path, { method, cache: "no-store" });
+  const headers = method === "POST" ? { "X-Chaperone-Host": "1" } : {};
+  const r = await fetch(path, { method, headers, cache: "no-store" });
   let body = null;
   try { body = await r.json(); } catch { /* empty */ }
   if (!r.ok) throw new Error((body && body.detail) || `HTTP ${r.status}`);
@@ -95,8 +96,9 @@ async function run(button, label, fn) {
   button.disabled = true;
   const started = performance.now();
   try {
-    const text = await fn();
-    log(`${label}: ${text} (${Math.round(performance.now() - started)} ms)`, "ok");
+    const out = await fn();
+    const text = typeof out === "string" ? out : out.text;
+    log(`${label}: ${text} (${Math.round(performance.now() - started)} ms)`, out.bad ? "bad" : "ok");
   } catch (err) {
     log(`${label} failed: ${err.message}`, "bad");
   } finally {
@@ -113,7 +115,9 @@ const actions = {
   reset: () => run($("reset"), "Reset", async () => {
     const r = await call("POST", "/host/api/reset");
     $("codeBox").hidden = true;
-    return `policy ${r.policy}, merchant ${r.merchant}, ${r.ms} ms`;
+    const failed = r.failed || [];
+    if (!failed.length) return `policy and merchant reset, ${r.ms} ms`;
+    return { bad: true, text: `NOT CLEAN: ${failed.map((name) => `${name} ${r[name]}`).join(", ")}. Fix it and reset again (${r.ms} ms)` };
   }),
   replay: () => run($("replay"), "Arm replay", async () => { await call("POST", "/host/api/arm-replay"); return "the station replays on the next press"; }),
   code: () => run($("showCode"), "Fallback code", async () => {

@@ -18,7 +18,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(ledger, "LEDGER", ledger.Ledger(tmp_path / "live.jsonl"))
     monkeypatch.setenv("POLICY_URL", "http://127.0.0.1:9")  # nothing listens: services "offline"
     monkeypatch.setenv("MERCHANT_URL", "http://127.0.0.1:9")
-    return TestClient(ledger.app)
+    return TestClient(ledger.app, headers={"X-Chaperone-Host": "1"})  # the Host page's header
 
 
 def stream_events(client, **params):
@@ -119,6 +119,7 @@ def test_reset_truncates_and_reports(client, tmp_path):
     client.post("/events", json=event())
     r = client.post("/reset").json()
     assert r["ok"] is False and r["policy"].startswith("unreachable") and r["merchant"].startswith("unreachable")
+    assert r["failed"] == ["policy", "merchant"]
     assert isinstance(r["ms"], int) and r["ms"] < 15000
     live = stream_events(client)
     assert [e["type"] for e in live] == ["reset"] and live[0]["seq"] == 2  # seq keeps counting

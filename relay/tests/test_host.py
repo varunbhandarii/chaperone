@@ -34,12 +34,22 @@ def client(tmp_path, monkeypatch, merchant):
     monkeypatch.setenv("POLICY_URL", "http://127.0.0.1:9")
     real = httpx.AsyncClient
 
+    class Routes(httpx.AsyncBaseTransport):
+        """http://merchant goes to the merchant app in-process; anything else (policy) is down."""
+
+        def __init__(self):
+            self.merchant = httpx.ASGITransport(app=merchant_app)
+
+        async def handle_async_request(self, request):
+            if request.url.host != "merchant":
+                raise httpx.ConnectError("nothing listens there", request=request)
+            return await self.merchant.handle_async_request(request)
+
     def routed(**kwargs):
         kwargs.pop("transport", None)
-        transport = httpx.ASGITransport(app=merchant_app)
-        return real(transport=transport, base_url="http://merchant", **kwargs)
+        return real(transport=Routes(), **kwargs)
     monkeypatch.setattr(host.httpx, "AsyncClient", routed)
-    return TestClient(ledger.app)
+    return TestClient(ledger.app, headers={"X-Chaperone-Host": "1"})  # the Host page's header
 
 
 def place(merchant):
@@ -112,3 +122,30 @@ def test_host_reset_runs_the_real_reset(client):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["merchant"] == "ok" and isinstance(body["ms"], int)
+
+
+@pytest.mark.parametrize("path", ["/host/api/confirm-payment", "/host/api/reset", "/host/api/arm-replay", "/reset"])
+def test_actions_need_the_host_header(client, path):
+    """A page open in another LAN browser can POST a form, but cannot add a custom header."""
+    bare = TestClient(ledger.app)
+    assert bare.post(path).status_code == 403
+    assert bare.post(path, headers={"X-Chaperone-Host": "0"}).status_code == 403
+    assert client.post(path).status_code in (200, 409)  # 409: no order waiting to be paid
+
+
+def test_reads_do_not_need_the_header(client):
+    bare = TestClient(ledger.app)
+    assert bare.get("/host").status_code == 200 and bare.get("/host/api/status").status_code == 200
+
+
+def test_partial_reset_is_reported_and_the_ledger_is_still_cleared(client):
+    client.post("/events", json={"type": "heard", "session_id": "s1", "mandate_id": "m", "t": 1, "source": "station"})
+    r = client.post("/host/api/reset").json()  # merchant answers in-process; policy is unreachable
+    assert r["ok"] is False and r["failed"] == ["policy"] and r["merchant"] == "ok"
+    live = ledger.LEDGER.read_live()
+    assert [e["type"] for e in live] == ["reset"] and live[0]["failed"] == ["policy"]
+
+
+def test_host_page_sends_the_header_and_reports_failures_in_red():
+    page = (host.HOST_HTML).read_text()
+    assert '"X-Chaperone-Host": "1"' in page and "NOT CLEAN" in page

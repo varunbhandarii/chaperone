@@ -14,8 +14,9 @@ GET  /sessions/{id}[?format=html]  that session's events, JSON; html is the read
 GET  /jwks.json, /.well-known/jwks.json
 GET  /audio/{name}                 refusal clips from ai/warnings/
 GET  /wall                         the wall page; /wall/data/{panel,mandate,budget} proxy merchant and policy
-POST /reset                        truncate live.jsonl, policy and merchant /reset in parallel, then a `reset`
-                                   event (the station answers with a new session); answers with the time taken
+POST /reset                        policy and merchant /reset in parallel, then truncate live.jsonl and post a
+                                   `reset` event (the station answers with a new session); answers
+                                   {ok, policy, merchant, failed, ms}. Needs X-Chaperone-Host: 1 (relay/host.py)
 /host, /host/api/*                 the Host's LAN-only controls (relay/host.py)
 """
 
@@ -293,20 +294,21 @@ async def reset(request: Request):
     Policy resets spend, decisions, approvals and the screen's session memory; the merchant its orders.
     LAN only, like /host/api/reset.
     """
-    from relay.host import lan_only  # host imports this module; import here to avoid a cycle
+    from relay.host import host_action  # host imports this module; import here to avoid a cycle
 
-    lan_only(request)
+    host_action(request)
     started = time.perf_counter()
-    LEDGER.truncate_live()
     services = {"policy": _service("POLICY_URL", "http://127.0.0.1:8001"),
                 "merchant": _service("MERCHANT_URL", "http://127.0.0.1:8002")}
     async with httpx.AsyncClient(timeout=RESET_TIMEOUT_S) as client:
         answers = await asyncio.gather(*(_reset_one(client, url) for url in services.values()))
     results = dict(zip(services, answers))
+    failed = [name for name, answer in results.items() if answer != "ok"]
+    LEDGER.truncate_live()  # after the fan-out, so nothing a service posted while resetting survives it
     ms = round((time.perf_counter() - started) * 1000)
     LEDGER.append({"type": "reset", "session_id": "none", "mandate_id": MANDATE_ID,
-                   "t": int(time.time() * 1000), "source": "relay", "results": results, "ms": ms})
-    return {"ok": all(v == "ok" for v in results.values()), **results, "ms": ms}
+                   "t": int(time.time() * 1000), "source": "relay", "results": results, "failed": failed, "ms": ms})
+    return {"ok": not failed, **results, "failed": failed, "ms": ms}
 
 
 from relay.host import router as host_router  # noqa: E402 - host.py uses this module's LEDGER and reset
