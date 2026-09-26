@@ -5,6 +5,11 @@ Demo-critical items are hand-set here so prices never drift between runs
 Anything the seeders cached in catalog/raw/*.json (Kroger, openFDA) is merged
 on top; a missing or broken raw file is skipped, so this always produces a catalog.
 
+Stores: every item's merchant comes from its category (STORE_BY_CATEGORY): pharmacy and
+over-the-counter items are Parkside Pharmacy's, household items Main Street Home's, groceries Corner Market's.
+Parkside also sells PARKSIDE_BASICS at its own prices, as PK-<sku> items; product_key ties the copies of one
+product together so search can say where else it's sold.
+
     python -m catalog.build_catalog
 """
 
@@ -16,6 +21,14 @@ HERE = Path(__file__).parent
 RAW = HERE / "raw"
 OUT = HERE / "catalog.json"
 MERCHANT = "corner_market"
+STORE_BY_CATEGORY = {"otc_medicine": "parkside_pharmacy", "pharmacy_pickup": "parkside_pharmacy",
+                     "household": "main_street_home"}
+# Name-brand grocery basics a drugstore stocks. Its own prices: groceries cost more there, nutrition shakes less.
+PARKSIDE_BASICS = ["BAK-001", "BAK-004", "BAK-005", "DAI-003", "DAI-004", "EGG-002", "PRO-001", "SOU-001",
+                   "SOU-002", "SOU-003", "PAN-001", "PAN-002", "BEV-001", "BEV-002", "BEV-003", "NUT-001",
+                   "NUT-003", "NUT-004"]
+PARKSIDE_MARKUP = {"nutrition": 0.92}
+PARKSIDE_DEFAULT_MARKUP = 1.10
 
 # Search groups -> words shoppers use for them (en / es / hi incl. Latin-transliterated Hindi).
 GROUP_ALIASES = {
@@ -46,6 +59,16 @@ GROUP_ALIASES = {
     "gift_card": ["gift card", "gift cards", "tarjeta de regalo", "tarjetas de regalo", "google play",
                   "itunes", "apple card", "steam card", "गिफ्ट कार्ड"],
     "prepaid_card": ["prepaid card", "reloadable card", "tarjeta prepagada", "prepaid"],
+    # Main Street Home (seed_kroger.py --household)
+    "paper_towels": ["paper towels", "paper towel", "toallas de papel", "papel de cocina", "kitchen towel"],
+    "toilet_paper": ["toilet paper", "bath tissue", "papel higienico", "papel de bano", "toilet roll"],
+    "batteries": ["batteries", "battery", "pilas", "baterias", "बैटरी"],
+    "light_bulbs": ["light bulb", "light bulbs", "bulb", "bulbs", "bombilla", "bombillo", "foco", "focos",
+                    "बल्ब"],
+    "dish_soap": ["dish soap", "dishwashing liquid", "jabon de platos", "lavaplatos", "bartan sabun"],
+    "laundry_detergent": ["laundry detergent", "detergent", "detergente", "jabon de ropa", "kapde dhone ka sabun",
+                          "washing powder"],
+    "trash_bags": ["trash bags", "garbage bags", "bolsas de basura", "kachre ki thaili", "bin bags"],
 }
 
 
@@ -108,13 +131,21 @@ SYNTHETIC = [
     item("OTC-003", "Tylenol Extra Strength 500 mg Caplets", "Tylenol", "otc_medicine", "pain_relief", 11.99, "100 ct", ["acetaminophen"], substitute_key="acetaminophen"),
     item("OTC-004", "Kroger Extra Strength Acetaminophen 500 mg", "Kroger", "otc_medicine", "pain_relief", 5.99, "100 ct", ["acetaminophen", "store_brand"], substitute_key="acetaminophen"),
     # pharmacy pickup (Ruth's "blood pressure medicine", see profile.json)
-    item("RX-001", "Lisinopril 10 mg, 30 tablets (pharmacy pickup)", "Corner Market Pharmacy", "pharmacy_pickup", "prescription", 8.00, "30 tablets",
+    item("RX-001", "Lisinopril 10 mg, 30 tablets (pharmacy pickup)", "Parkside Pharmacy", "pharmacy_pickup", "prescription", 8.00, "30 tablets",
          ["prescription", "pickup", "blood_pressure"], note="Ready for pickup, $8.00 copay"),
     # blocked by the default mandate (R1). Stocked on purpose so the refusal is a policy decision, not a missing item.
     item("GFT-001", "Google Play Gift Card", "Google Play", "gift_card", "gift_card", 100.00, "$100", ["gift_card"]),
     item("GFT-002", "Apple Gift Card", "Apple", "gift_card", "gift_card", 200.00, "$200", ["gift_card"]),
     item("GFT-003", "Target Gift Card", "Target", "gift_card", "gift_card", 50.00, "$50", ["gift_card"]),
     item("PPD-001", "Reloadable Prepaid Debit Card", "PrePaid Plus", "prepaid_card", "prepaid_card", 200.00, "$200 load", ["prepaid"]),
+    # Main Street Home basics, so household works without Kroger credentials too
+    item("HOM-001", "Bounty Select-A-Size Paper Towels, 6 Double Rolls", "Bounty", "household", "paper_towels", 15.29, "6 rolls"),
+    item("HOM-002", "Charmin Ultra Soft Toilet Paper, 6 Mega Rolls", "Charmin", "household", "toilet_paper", 9.29, "6 rolls", ["soft"]),
+    item("HOM-003", "Duracell Coppertop AA Batteries, 8 Pack", "Duracell", "household", "batteries", 11.99, "8 ct"),
+    item("HOM-004", "Philips 60-Watt A19 LED Light Bulb, Soft White", "Philips", "household", "light_bulbs", 9.99, "1 ct"),
+    item("HOM-005", "Dawn Ultra Original Dish Soap", "Dawn", "household", "dish_soap", 3.49, "19.4 fl oz"),
+    item("HOM-006", "Tide Original Liquid Laundry Detergent", "Tide", "household", "laundry_detergent", 15.99, "92 fl oz"),
+    item("HOM-007", "Glad Tall Kitchen Drawstring Trash Bags, 13 Gallon", "Glad", "household", "trash_bags", 11.99, "40 ct"),
 ]
 
 
@@ -143,7 +174,20 @@ MANDATE_CATEGORY = {
     "pantry": "grocery", "produce": "grocery",
     "otc_medicine": "pharmacy", "pharmacy_pickup": "pharmacy",
     "gift_card": "gift_card", "prepaid_card": "prepaid_card",
+    "household": "household",
 }
+
+
+def parkside_price(it: dict) -> float:
+    """Deterministic: the same catalog build always gives the same Parkside prices."""
+    raw = it["price"] * PARKSIDE_MARKUP.get(it["category"], PARKSIDE_DEFAULT_MARKUP)
+    return round(int(raw) + (0.49 if raw % 1 < 0.49 else 0.99), 2)
+
+
+def parkside_copy(it: dict) -> dict:
+    copy = {k: v for k, v in it.items() if k != "regular_price"}  # a promo at one store isn't one at the other
+    return {**copy, "sku": "PK-" + it["sku"], "price": parkside_price(it), "merchant": "parkside_pharmacy",
+            "product_key": it["sku"]}
 
 
 def build():
@@ -155,17 +199,26 @@ def build():
     for it in SYNTHETIC:
         by_sku[it["sku"]] = it
     for it in by_sku.values():
+        it["merchant"] = STORE_BY_CATEGORY.get(it["category"], MERCHANT)
+        it.setdefault("product_key", it["sku"])
+    for sku in PARKSIDE_BASICS:
+        copy = parkside_copy(by_sku[sku])
+        by_sku[copy["sku"]] = copy
+    for it in by_sku.values():
         if it["category"] not in MANDATE_CATEGORY:
             raise SystemExit(f"{it['sku']}: category {it['category']!r} has no mandate_category mapping")
         it["mandate_category"] = MANDATE_CATEGORY[it["category"]]
     catalog = {
-        "merchant": MERCHANT,
+        "merchant": MERCHANT,  # the default store; each item names its own
         "currency": "USD",
         "group_aliases": GROUP_ALIASES,
         "items": sorted(by_sku.values(), key=lambda it: (it["group"], it["price"])),
     }
     OUT.write_text(json.dumps(catalog, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"wrote {OUT.relative_to(HERE.parent)}: {len(catalog['items'])} items, {len(GROUP_ALIASES)} groups")
+    per_store = {}
+    for it in catalog["items"]:
+        per_store[it["merchant"]] = per_store.get(it["merchant"], 0) + 1
+    print(f"wrote {OUT.relative_to(HERE.parent)}: {len(catalog['items'])} items, {len(GROUP_ALIASES)} groups, {per_store}")
     return catalog
 
 
