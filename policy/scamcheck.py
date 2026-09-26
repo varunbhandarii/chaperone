@@ -1,9 +1,13 @@
 """The Ask guard's scam radar: POST /scam-check.
 
-    POST /scam-check {session_id, mandate_id, lang, channel, story, caller: {org, name, phone}}
+    POST /scam-check {session_id, mandate_id, lang, channel: station|line, story?, transcript?,
+                      caller: {org, name, phone}}      (story or transcript, or both)
       -> {check_id, verdict: scam|unsure|ok, pattern, say, actions[], facts_checked[], sources[],
           cooldown_until, ms, from_cache}
     GET  /scam-check/{check_id}     the stored check, for Priyank's app
+
+`story` is the voice model's summary; `transcript` is Ruth's exact words. The rules screen both, so a
+paraphrase can't hide a hard hit, and Grok sees both.
 
 Order of work:
 1. The rule screen. A hard hit answers at once (the say line from the cache or lines.<lang>.json);
@@ -235,7 +239,8 @@ def gather_facts(mandate_id: str, story: str, caller: dict) -> list[dict]:
 
 # ---------------------------------------------------------------- Grok radar
 
-def radar(story: str, lang: str, caller: dict, facts: list[dict], hints: list[str], timeout: float) -> dict:
+def radar(story: str, lang: str, caller: dict, facts: list[dict], hints: list[str], timeout: float,
+          transcript: str = "") -> dict:
     """One Grok Responses call with X and web search; raises RadarError."""
     if env("RADAR_FAKE", "0") == "1":
         raise RadarError("RADAR_FAKE=1")
@@ -243,7 +248,8 @@ def radar(story: str, lang: str, caller: dict, facts: list[dict], hints: list[st
     if not key:
         raise RadarError("XAI_API_KEY is not set")
     today = dt.date.today()
-    content = (f"Language: {LANG_NAMES.get(lang, 'English')}. Ruth said: {story}\n"
+    said = f"Ruth's exact words: {transcript}\nSummary: {story}" if transcript else f"Ruth said: {story}"
+    content = (f"Language: {LANG_NAMES.get(lang, 'English')}. {said}\n"
                f"Caller claimed: {json.dumps(caller, ensure_ascii=False)}\n"
                f"Facts from her accounts: {json.dumps(facts, ensure_ascii=False)}\n"
                f"Safety rule hints: {', '.join(hints) or 'none'}")
@@ -314,16 +320,17 @@ def _fallback(verdict: str, lang: str) -> str:
     return lines(lang)[f"scam_check_{verdict}"]
 
 
-def _enrich_in_background(doc: dict, story: str, caller: dict, facts: list[dict], hints: list[str]) -> None:
+def _enrich_in_background(doc: dict, story: str, caller: dict, facts: list[dict], hints: list[str],
+                          transcript: str = "") -> None:
     """After a hard-rule answer, fetch sources for Priyank's alert and warm the cache."""
     def run() -> None:
         try:
-            v = radar(story, doc["lang"], caller, facts, hints, float(env("RADAR_TIMEOUT_S", "12")))
+            v = radar(story, doc["lang"], caller, facts, hints, float(env("RADAR_TIMEOUT_S", "12")), transcript)
         except RadarError:
             v = None
         if v and v.get("verdict") == "scam":
             entry = {k: v[k] for k in ("verdict", "pattern", "say", "actions", "reported_recently", "sources")}
-            cache_put(entry, story_key(story, doc["lang"]), f"pattern:{doc['pattern']}:{doc['lang']}")
+            cache_put(entry, story_key(transcript or story, doc["lang"]), f"pattern:{doc['pattern']}:{doc['lang']}")
             doc["sources"] = v["sources"]
             doc["reported_recently"] = v.get("reported_recently")
             save_check(doc)
@@ -337,26 +344,30 @@ def _alert(doc: dict) -> None:
                pattern=doc["pattern"], say=doc["say"], sources=doc["sources"], cooldown_until=doc["cooldown_until"])
 
 
-def check(story: str, lang: str = "en", *, session_id: str | None = None, mandate_id: str | None = None,
-          channel: str = "station", caller: dict | None = None) -> dict:
+def check(story: str = "", lang: str = "en", *, session_id: str | None = None, mandate_id: str | None = None,
+          channel: str = "station", caller: dict | None = None, transcript: str = "") -> dict:
     start = time.perf_counter()
+    story, transcript = (story or "").strip(), (transcript or "").strip()
+    story = story or transcript
+    heard = " ".join(dict.fromkeys(t for t in (transcript, story) if t))  # what the rules screen
+    key_text = transcript or story
     lang = lang if lang in LANG_NAMES else "en"
     mandate_id = mandate_id or DEFAULT_MANDATE_ID
     session_id = session_id or "none"
     caller = {k: (caller or {}).get(k) for k in ("org", "name", "phone")}
     check_id = "sc_" + uuid.uuid4().hex[:10]
 
-    screened = screen(story, lang, session_id=session_id if session_id != "none" else None)
+    screened = screen(heard, lang, session_id=session_id if session_id != "none" else None)
     patterns = [h["pattern"] for h in screened["hits"]]
     hints = sorted(set(patterns))
     hard = screened["action"] == "refuse"
-    facts = gather_facts(mandate_id, story, caller)
+    facts = gather_facts(mandate_id, heard, caller)
     rule_pattern = _rule_pattern(patterns)
     from_cache, v = False, None
 
     if hard:
         pattern = rule_pattern or "gift_card_demand"
-        cached = cache_get(story_key(story, lang), f"pattern:{pattern}:{lang}")
+        cached = cache_get(story_key(key_text, lang), f"pattern:{pattern}:{lang}")
         verdict, from_cache = "scam", bool(cached)
         say = (cached or {}).get("say") or _fallback("scam", lang)
         raw_actions = (cached or {}).get("actions") or ["hang_up", "do_not_pay"]
@@ -364,9 +375,9 @@ def check(story: str, lang: str = "en", *, session_id: str | None = None, mandat
         reported = (cached or {}).get("reported_recently")
     else:
         try:
-            v = radar(story, lang, caller, facts, hints, float(env("RADAR_TIMEOUT_S", "12")))
+            v = radar(story, lang, caller, facts, hints, float(env("RADAR_TIMEOUT_S", "12")), transcript)
         except RadarError:
-            keys = [story_key(story, lang)] + ([f"pattern:{rule_pattern}:{lang}"] if rule_pattern else [])
+            keys = [story_key(key_text, lang)] + ([f"pattern:{rule_pattern}:{lang}"] if rule_pattern else [])
             v = cache_get(*keys)
             from_cache = bool(v)
         if v:
@@ -376,7 +387,7 @@ def check(story: str, lang: str = "en", *, session_id: str | None = None, mandat
             pattern = grok_pattern if grok_pattern not in ("none", "unknown") else (rule_pattern or grok_pattern)
             if not from_cache and verdict == "scam":
                 entry = {k: v.get(k) for k in ("verdict", "pattern", "say", "actions", "reported_recently", "sources")}
-                cache_put(entry, story_key(story, lang), f"pattern:{pattern}:{lang}")
+                cache_put(entry, story_key(key_text, lang), f"pattern:{pattern}:{lang}")
         else:
             # Rules only: two or more soft signals are treated as a scam, one as unsure.
             verdict = "scam" if screened["action"] == "judge" else "unsure"
@@ -393,7 +404,7 @@ def check(story: str, lang: str = "en", *, session_id: str | None = None, mandat
         "reported_recently": reported, "cooldown_until": cooldown_until,
         "ms": round((time.perf_counter() - start) * 1000), "from_cache": from_cache,
         "session_id": session_id, "mandate_id": mandate_id, "lang": lang, "channel": channel,
-        "story": story[:400], "rule_ids": sorted({h["rule_id"] for h in screened["hits"]}),
+        "story": story[:400], "transcript": transcript[:1000], "rule_ids": sorted({h["rule_id"] for h in screened["hits"]}),
         "at": dt.datetime.now(dt.timezone.utc).isoformat(),
     }
     save_check(doc)
@@ -401,7 +412,7 @@ def check(story: str, lang: str = "en", *, session_id: str | None = None, mandat
                sources=sources, ms=doc["ms"], channel=channel)
     if verdict == "scam":
         if hard and not sources:
-            _enrich_in_background(doc, story, caller, facts, hints)
+            _enrich_in_background(doc, story, caller, facts, hints, transcript)
         else:
             _alert(doc)
     return public(doc)
@@ -422,7 +433,8 @@ class Caller(BaseModel):
 
 
 class CheckBody(BaseModel):
-    story: str = Field(min_length=1, max_length=2000)
+    story: str = Field(default="", max_length=2000)
+    transcript: str = Field(default="", max_length=4000)
     lang: str = "en"
     session_id: str | None = None
     mandate_id: str | None = None
@@ -435,8 +447,10 @@ router = APIRouter()
 
 @router.post("/scam-check")
 def scam_check_route(body: CheckBody) -> dict:
+    if not (body.story.strip() or body.transcript.strip()):
+        raise HTTPException(422, "story or transcript is required")
     return check(body.story, body.lang, session_id=body.session_id, mandate_id=body.mandate_id,
-                 channel=body.channel, caller=body.caller.model_dump())
+                 channel=body.channel, caller=body.caller.model_dump(), transcript=body.transcript)
 
 
 @router.get("/scam-check/{check_id}")
@@ -445,4 +459,4 @@ def get_check_route(check_id: str) -> dict:
     if not doc:
         raise HTTPException(404, "unknown check")
     return {**public(doc), "facts_checked": doc.get("facts_checked"), "reported_recently": doc.get("reported_recently"),
-            "story": doc.get("story"), "at": doc.get("at"), "channel": doc.get("channel"), "lang": doc.get("lang")}
+            "story": doc.get("story"), "transcript": doc.get("transcript"), "at": doc.get("at"), "channel": doc.get("channel"), "lang": doc.get("lang")}

@@ -154,3 +154,32 @@ def test_reset_clears_risk_and_checks():
 def test_every_language_has_the_fallback_lines():
     for lang in ("en", "es", "hi"):
         assert {"scam_check_scam", "scam_check_unsure", "scam_check_ok"} <= set(scamcheck.lines(lang))
+
+
+# ---------------------------------------------------------------- transcript and the phone line
+
+def test_transcript_is_screened_even_when_the_summary_hides_it():
+    out = client().post("/scam-check", json={
+        "story": "Ruth got a call from someone saying they are family and need help.",
+        "transcript": "He said he's my grandson Alex, he's in jail, needs $2,000 bail and don't tell his mom.",
+        "lang": "en", "channel": "line"}).json()
+    assert out["verdict"] == "scam" and out["pattern"] == "grandparent_emergency"
+    stored = client().get(f"/scam-check/{out['check_id']}").json()
+    assert stored["channel"] == "line" and stored["transcript"].startswith("He said he's my grandson")
+
+
+def test_transcript_alone_is_enough_and_an_empty_body_is_refused():
+    assert client().post("/scam-check", json={"transcript": GRANDPARENT}).json()["verdict"] == "scam"
+    assert client().post("/scam-check", json={"lang": "en"}).status_code == 422
+
+
+def test_grok_gets_the_exact_words(monkeypatch):
+    seen = {}
+
+    def fake_radar(story, lang, caller, facts, hints, timeout, transcript=""):
+        seen.update(story=story, transcript=transcript)
+        return verdict_from_grok(verdict="ok", pattern="none", actions=["none"])
+
+    monkeypatch.setattr(scamcheck, "radar", fake_radar)
+    scamcheck.check("A caller asked about the power bill.", "en", transcript="They said the power bill is fine.")
+    assert seen == {"story": "A caller asked about the power bill.", "transcript": "They said the power bill is fine."}

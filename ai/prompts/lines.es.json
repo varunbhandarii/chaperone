@@ -1,6 +1,6 @@
 {
   "ordering_now": "Hago el pedido ahora. Total: {total}.",
-  "asking_priya": "Eso pasa de su límite para una compra, así que le pregunté a Priyank. Un momento, por favor.",
+  "asking_priya": "Eso pasa de su límite para una compra, así que se lo mandé a Priyank. Él suele contestar en un minuto.",
   "caregiver_approved": "Priyank dijo que sí. Hago el pedido ahora.",
   "caregiver_declined": "Priyank dijo que no a esta compra, así que no la hice. ¿Quiere otra cosa?",
   "caregiver_timeout": "Priyank todavía no ha respondido, así que dejo este pedido en espera. No se compró nada.",
