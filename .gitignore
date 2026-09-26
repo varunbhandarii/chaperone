@@ -1,0 +1,24 @@
+# secrets and keys
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+keys/
+
+# dependencies and build output
+node_modules/
+.next/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# local data and editor noise
+sessions/*.jsonl
+!sessions/sample.jsonl
+.DS_Store
+Thumbs.db
+.vscode/
