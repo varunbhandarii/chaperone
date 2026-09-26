@@ -1,18 +1,13 @@
-import { createHmac } from "crypto";
 import { generateAuthenticationOptions, verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { cookies } from "next/headers";
 import { saveChallenge } from "@/lib/challenges";
 import { loadCredentials, origin, rpID, saveCredentials } from "@/lib/passkeys";
+import { actionMarker } from "@/lib/marker";
 import { requireSession } from "@/lib/session";
 import { APPROVAL_ID } from "@/lib/ids";
 
 const policy = () => (process.env.POLICY_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
-
-function actionMarker(id, action) {
-  const key = process.env.POLICY_CODE_KEY || "chaperone-dev-code-key";
-  return createHmac("sha256", key).update(`${action}:${id}`).digest("hex");
-}
 
 async function verifyPayment(response, approval) {
   const credentials = loadCredentials();

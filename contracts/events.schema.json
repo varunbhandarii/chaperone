@@ -35,6 +35,13 @@
         "receipt_printed",
         "caregiver_alerted",
         "mandate_signed",
+        "order_status",
+        "order_cancelled",
+        "refund_requested",
+        "refund_result",
+        "mandate_paused",
+        "mandate_resumed",
+        "explanation_requested",
         "judge_scored",
         "replay_armed",
         "reset"
