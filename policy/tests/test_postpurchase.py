@@ -109,9 +109,11 @@ def test_pause_blocks_checkout_words_and_explain_is_cached(tmp_path, monkeypatch
     listed = api.get("/history", params={"mandate_id": "m_ruth_2026_09", "days": 30}).json()
     assert listed["orders"][0]["order_id"] == "ord_hist"
     save_decision({"decision_id": "d_why", "mandate_id": "m_ruth_2026_09", "session_id": "s", "decision": "deny", "say_key": "blocked_category", "rules": [{"id": "R1_blocked_category", "passed": False, "detail": "gift cards are blocked on this account"}]})
-    explained = api.get("/decisions/d_why/explain").json()
+    explained = api.get("/decisions/d_why/explain", headers={"X-Chaperone-Marker": action_marker("d_why", "explain")}).json()
     assert explained == FAKE and not problems(explained)
-    assert api.get("/decisions/d_why/explain").json() == explained
+    assert api.get("/decisions/d_why/explain", headers={"X-Chaperone-Marker": action_marker("d_why", "explain")}).json() == explained
+    assert api.get("/decisions/d_why/explain", headers={"x-forwarded-for": "8.8.8.8"}).status_code == 403
+    assert api.get("/history", headers={"x-forwarded-for": "8.8.8.8"}).status_code == 403
 
 
 def test_old_refund_is_outside_the_window(tmp_path, monkeypatch):

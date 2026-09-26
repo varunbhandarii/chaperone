@@ -15,6 +15,7 @@ if (existsSync(envPath)) {
 }
 
 const merchant = process.env.MERCHANT_PUBLIC_URL || "http://127.0.0.1:8002";
+const policy = (process.env.POLICY_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -24,7 +25,10 @@ const nextConfig = {
     return [
       { source: "/merchant/webhooks/cybersource", destination: `${merchant.replace(/\/$/, "")}/webhooks/cybersource` },
       { source: "/merchant/webhooks/cybersource/:path*", destination: `${merchant.replace(/\/$/, "")}/webhooks/cybersource/:path*` },
+      { source: "/card/asa", destination: `${policy}/card/asa` },
+      { source: "/line/:path*", destination: "http://127.0.0.1:8005/:path*" },
     ];
   },
 };
+
 export default nextConfig;

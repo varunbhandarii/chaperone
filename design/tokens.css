@@ -1,0 +1,28 @@
+/* Chaperone. A 20px base. Ruth's surfaces use --font-ruth (28–40px). Declined is never alarm red. */
+
+:root {
+  --ch-text: #1b2a4a;
+  --ch-bg: #f6f1e7;
+  --ch-surface: #fffdf8;
+  --ch-font: Georgia, "Iowan Old Style", serif;
+  --font-base: 20px;
+  --font-ruth: 32px;
+  --space: 16px;
+  --radius: 12px;
+  --protected: #1f7a4d;
+  --caution: #a15c07;
+  --declined: #6b4c3b;
+  --ok: #1f7a4d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ch-text: #f3efe6;
+    --ch-bg: #1b2433;
+    --ch-surface: #243044;
+    --protected: #7dcea0;
+    --caution: #e3b341;
+    --declined: #c4a484;
+    --ok: #7dcea0;
+  }
+}

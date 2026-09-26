@@ -17,7 +17,7 @@ from policy.checkout import CartRejected, ReadBackRequired, UnsignedMandate, che
 from policy.checkout import send_signed_order
 from policy.engine import dollars, to_cents
 from policy.events import post_event
-from policy.mandate import DEFAULT_MANDATE
+from policy.mandate import DEFAULT_MANDATE, fill_v2
 from policy.pricing import UnknownSku
 from policy.store import add_spent_cents, hold_decisions, load_caregiver_credential, load_mandate, load_paused, load_spent_cents, reset as reset_store, save_caregiver_credential, save_decision, save_mandate, save_paused
 from policy.verify_mandate import relying_party, verify_mandate_assertion
@@ -28,6 +28,13 @@ try:
     from policy.screen import router as screen_router
 
     app.include_router(screen_router)
+except ImportError:
+    pass
+
+try:
+    from policy.risk import router as risk_router
+
+    app.include_router(risk_router)
 except ImportError:
     pass
 
@@ -103,7 +110,7 @@ def get_mandate():
     stored = load_mandate()
     paused = load_paused()
     if stored:
-        public = {key: value for key, value in stored.items() if key not in ("passkey", "paused")}
+        public = fill_v2({key: value for key, value in stored.items() if key not in ("passkey", "paused")})
         credential_id = (stored.get("passkey") or {}).get("credential_id")
         return {"signed": True, "credential_id": credential_id, "mandate": public, "paused": paused}
     return {"signed": False, "mandate": DEFAULT_MANDATE, "detail": "unsigned mandate", "paused": paused}
@@ -415,12 +422,19 @@ def submit_code(approval_id: str, payload: dict, request: Request):
         return _finish_approval(document, "code")
 
 
+def _lan_or_marker(request: Request, marker_id: str, action: str) -> None:
+    if marker_matches(marker_id, request.headers.get("x-chaperone-marker", ""), action):
+        return
+    _lan_only(request)
+
+
 @app.post("/orders/{order_id}/cancel")
-def cancel_saved_order(order_id: str, payload: dict | None = None):
+def cancel_saved_order(order_id: str, request: Request, payload: dict | None = None):
     from policy.postpurchase import cancel_order
 
     from policy.postpurchase import MerchantRefused
 
+    _lan_or_marker(request, order_id, "family")
     body = payload or {}
     try:
         return cancel_order(order_id, body.get("mandate_id") or "")
@@ -437,9 +451,10 @@ def cancel_saved_order(order_id: str, payload: dict | None = None):
 
 
 @app.post("/refunds")
-def request_refund(payload: dict):
+def request_refund(payload: dict, request: Request):
     from policy.postpurchase import refund
 
+    _lan_or_marker(request, "family", "family")
     try:
         return refund(payload)
     except RuntimeError as exc:
@@ -447,9 +462,10 @@ def request_refund(payload: dict):
 
 
 @app.get("/history")
-def purchase_history(mandate_id: str = "", days: int = 30):
+def purchase_history(request: Request, mandate_id: str = "", days: int = 30):
     from policy.postpurchase import history
 
+    _lan_or_marker(request, "family", "family")
     return history(mandate_id, days)
 
 
@@ -526,10 +542,75 @@ def mandate_resume(payload: dict, request: Request):
 
 
 @app.get("/decisions/{decision_id}/explain")
-def explain(decision_id: str):
+def explain(decision_id: str, request: Request):
     from policy.postpurchase import explain_decision
 
+    if not marker_matches(decision_id, request.headers.get("x-chaperone-marker", ""), "explain"):
+        raise HTTPException(403, "sign in required")
     try:
         return explain_decision(decision_id)
     except LookupError as exc:
         raise HTTPException(404, str(exc)) from exc
+
+
+@app.get("/mandate/visa")
+def mandate_visa():
+    from policy.mandate import visa_view
+
+    return visa_view(load_mandate() or DEFAULT_MANDATE)
+
+
+@app.post("/card/asa")
+async def card_asa(request: Request):
+    import json
+
+    from policy.card import handle_authorization, verify_webhook
+
+    body = await request.body()
+    secret = os.environ.get("LITHIC_WEBHOOK_SECRET", "")
+    if not verify_webhook(request.headers, body, secret):
+        raise HTTPException(401, "webhook signature rejected")
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(400, "bad card request") from exc
+    import time
+
+    started = time.perf_counter()
+    answer = handle_authorization(payload, load_mandate() or DEFAULT_MANDATE)
+    ms = int((time.perf_counter() - started) * 1000)
+    return JSONResponse({"result": answer["result"], "token": answer["token"]}, headers={"X-Chaperone-Ms": str(ms)})
+
+
+@app.post("/card/simulate")
+def card_simulate(payload: dict, request: Request):
+    _lan_only(request)
+    _host_header(request)
+    from policy.card import simulate_swipe
+
+    try:
+        return simulate_swipe(str(payload.get("acceptor_id") or ""), int(payload.get("amount_cents") or 0))
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@app.post("/card/holds/{hold_id}/allow")
+def card_allow(hold_id: str, request: Request):
+    from policy.card import allow_hold
+
+    if not marker_matches(hold_id, request.headers.get("x-chaperone-marker", ""), "card"):
+        raise HTTPException(401, "sign in required")
+    try:
+        return allow_hold(hold_id)
+    except KeyError as exc:
+        raise HTTPException(404, "unknown hold") from exc
+
+
+@app.get("/card/state")
+def card_state(request: Request, mandate_id: str = ""):
+    from policy.card import public_state
+
+    _lan_or_marker(request, "family", "family")
+    return public_state(mandate_id or (load_mandate() or DEFAULT_MANDATE).get("mandate_id") or "")

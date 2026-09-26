@@ -36,6 +36,7 @@ def reprice(cart: dict) -> dict:
             "mandate_category": mandate_category(item),
             "qty": qty,
             "price": item["price"],
+            "merchant": item.get("merchant") or cart.get("merchant") or "corner_market",
         }
         items.append(priced)
     total_cents = sum(to_cents(item["price"]) * item["qty"] for item in items)

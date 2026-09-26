@@ -55,6 +55,7 @@ def evaluate(
     items = cart.get("items") or []
     total = sum(to_cents(item.get("price", 0)) * int(item.get("qty") or 1) for item in items)
     merchant = cart.get("merchant") or ""
+    item_merchants = {item.get("merchant") or merchant for item in items} or {merchant}
     categories = [mandate_category(item) for item in items]
     blocked = set(mandate.get("blocked_categories") or [])
     allowed_cats = set(mandate.get("allowed_categories") or [])
@@ -82,7 +83,9 @@ def evaluate(
 
     blocked_hit = next((cat for cat in categories if cat in blocked), None)
     r1 = _rule("R1_blocked_category", blocked_hit is None, blocked_hit or "no blocked category")
-    r2 = _rule("R2_merchant_allowed", merchant in set(mandate.get("allowed_merchants") or []), merchant or "missing merchant")
+    allowed_merchants = set(mandate.get("allowed_merchants") or [])
+    blocked_merchant = next((name for name in item_merchants if name not in allowed_merchants), None)
+    r2 = _rule("R2_merchant_allowed", blocked_merchant is None and all(item_merchants), blocked_merchant or merchant or "missing merchant")
     bad_cat = next((cat for cat in categories if cat not in allowed_cats), None)
     r3 = _rule("R3_category_allowed", bad_cat is None, bad_cat or ",".join(categories) or "empty cart")
     r4 = _rule("R4_per_purchase_cap", total <= cap, f"{dollars(total):.2f} <= {dollars(cap):.2f}")

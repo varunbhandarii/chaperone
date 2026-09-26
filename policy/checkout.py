@@ -11,10 +11,10 @@ import requests
 
 from common.config import KEY_ID, merchant_public_url
 from policy.approvals import code_mac, new_nonce, state_of, remember_host_code
+from policy.bills import BillError, price_cart
 from policy.engine import dollars, evaluate, mandate_category, to_cents
 from policy.events import post_event
-from policy.mandate import DEFAULT_MANDATE
-from policy.pricing import UnknownSku, reprice
+from policy.mandate import DEFAULT_MANDATE, fill_v2
 from policy.store import add_spent_cents, get_decision, load_decisions, load_mandate, load_paused, load_spent_cents, save_decision
 from signer.sign import sign_request
 
@@ -74,10 +74,23 @@ def active_mandate() -> tuple[dict, bool]:
     """The mandate the engine checks, with the caregiver's pause (stored apart from the signed file) on top."""
     stored = load_mandate()
     if stored:
-        return {**stored, "paused": load_paused()}, False
+        return {**fill_v2(stored), "paused": load_paused()}, False
     if os.environ.get("MANDATE_UNSIGNED_OK") == "1":
         return {**DEFAULT_MANDATE, "paused": load_paused()}, True
     raise UnsignedMandate()
+
+
+def _carts_by_store(priced: dict) -> list[dict]:
+    """One cart per store. A cart whose items share a merchant stays one order."""
+    fallback = priced.get("merchant") or "corner_market"
+    buckets: dict[str, list] = {}
+    for item in priced.get("items") or []:
+        buckets.setdefault(item.get("merchant") or fallback, []).append(item)
+    carts = []
+    for merchant, items in buckets.items():
+        total = dollars(sum(to_cents(item["price"]) * int(item["qty"]) for item in items))
+        carts.append({"merchant": merchant, "items": items, "total": total})
+    return carts
 
 
 def _order_body(mandate_id: str, decision_id: str, session_id: str, cart: dict, approval_id: str | None) -> dict:
@@ -140,7 +153,10 @@ def checkout(payload: dict) -> dict:
     lang = payload.get("lang") or "en"
     mandate, unsigned = active_mandate()
     _check_cart(payload, mandate)
-    priced = reprice(payload.get("cart") or {})
+    try:
+        priced = price_cart(payload.get("cart") or {}, mandate)
+    except BillError as exc:
+        raise CartRejected(str(exc)) from exc
     screen = call_screen(transcript, lang, session_id)
     blocked = set(mandate.get("blocked_categories") or [])
     category_blocked = any(mandate_category(item) in blocked for item in priced["items"])
@@ -189,16 +205,24 @@ def checkout(payload: dict) -> dict:
     if decision["decision"] == "allow":
         # The merchant looks this decision up before it accepts the order, so store it first.
         save_decision(document)
-        body = _order_body(mandate["mandate_id"], decision_id, session_id, priced, None)
-        try:
-            merchant_order = send_signed_order(body)
+        orders = []
+        spent = 0
+        for sub in _carts_by_store(priced):
+            body = _order_body(mandate["mandate_id"], decision_id, session_id, sub, None)
+            try:
+                merchant_order = send_signed_order(body)
+            except Exception as exc:  # noqa: BLE001 - the decision still stands if the merchant is down
+                order_error = str(exc)
+                break
             signature = merchant_order.pop("_signature", {})
             link = merchant_order.get("payment_link") or {}
-            order = {
+            orders.append({
                 "order_id": merchant_order.get("order_id"),
                 "payment_link": link.get("url") or link,
                 "status": merchant_order.get("status"),
-            }
+                "merchant": sub["merchant"],
+                "total": sub["total"],
+            })
             post_event(
                 "request_signed",
                 session_id,
@@ -208,9 +232,11 @@ def checkout(payload: dict) -> dict:
                 nonce=signature.get("nonce"),
                 expires=signature.get("expires"),
             )
-            add_spent_cents(to_cents(priced["total"]))
-        except Exception as exc:  # noqa: BLE001 - the decision still stands if the merchant is down
-            order_error = str(exc)
+            spent += to_cents(sub["total"])
+        if orders:
+            order = orders[0] if len(orders) == 1 else None
+            document["orders"] = orders
+            add_spent_cents(spent)
     elif decision["decision"] == "approve":
         existing = _open_approval(priced, mandate["mandate_id"])
         if existing:
@@ -222,13 +248,16 @@ def checkout(payload: dict) -> dict:
             approval_id = "a_" + uuid.uuid4().hex[:12]
             expires = datetime.now(timezone.utc) + timedelta(seconds=90)
             code = f"{secrets.randbelow(1_000_000):06d}"
+            judge_down = screen.get("action") == "judge" and judgment is None
             approval = {
                 "approval_id": approval_id,
                 "session_id": session_id,
                 "amount": priced["total"],
                 "merchant": priced["merchant"],
+                "items": [{"name": item["name"], "qty": item["qty"]} for item in priced["items"]],
                 "excerpt": transcript[:240],
-                "rule": "R6_approval_threshold",
+                "rule": "R7_scam_judge" if judge_down else "R6_approval_threshold",
+                "reason": "the safety check was unavailable, so I asked Priyank" if judge_down else None,
                 "expires_at": expires.isoformat(),
                 "nonce": new_nonce(),
                 "code_hash": code_mac(code, approval_id),
@@ -282,6 +311,7 @@ def checkout(payload: dict) -> dict:
         "decision_id": decision_id,
         "say_key": decision["say_key"],
         "order": order,
+        "orders": document.get("orders") or ([order] if order else []),
         "approval": public_approval,
         "judge": judgment,
     }
