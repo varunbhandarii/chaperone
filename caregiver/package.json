@@ -3,8 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node server.mjs",
-    "dev:next": "next dev --port 5175",
+    "dev": "next dev --port 5175",
     "build": "next build",
     "start": "next start --port 5175"
   },

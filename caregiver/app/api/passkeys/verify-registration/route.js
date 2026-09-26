@@ -1,7 +1,7 @@
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { cookies } from "next/headers";
-import { origin, requireUV, rpID, saveCredential } from "@/lib/passkeys";
+import { loadCredentials, origin, requireUV, rpID, saveCredentials } from "@/lib/passkeys";
 
 export async function POST(request) {
   const response = await request.json();
@@ -17,12 +17,13 @@ export async function POST(request) {
     });
     if (!verified.verified) return Response.json({ verified: false }, { status: 400 });
     const credential = verified.registrationInfo.credential;
-    saveCredential({
+    const stored = {
       id: credential.id,
       publicKey: isoBase64URL.fromBuffer(credential.publicKey),
       counter: credential.counter,
       transports: credential.transports || [],
-    });
+    };
+    saveCredentials([...loadCredentials().filter((item) => item.id !== stored.id), stored]);
     return Response.json({ verified: true, id: credential.id });
   } catch (error) {
     return Response.json({ error: String(error) }, { status: 400 });

@@ -1,0 +1,15 @@
+{
+  "session_id": "s_demo",
+  "mandate_id": "m_ruth_2026_09",
+  "cart": {
+    "merchant": "corner_market",
+    "items": [
+      {"sku": "RX-001", "name": "Lisinopril 10 mg", "category": "pharmacy", "qty": 1, "price": 8.0},
+      {"sku": "BAK-001", "name": "Nature's Own Honey Wheat", "category": "grocery", "qty": 1, "price": 3.49}
+    ],
+    "total": 11.49
+  },
+  "transcript": "I need my blood pressure medicine and bread.",
+  "lang": "en",
+  "read_back": true
+}

@@ -36,19 +36,11 @@
     "passkey": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["credential_id", "assertion"],
+      "required": ["credential_id", "public_key", "response"],
       "properties": {
         "credential_id": { "type": "string" },
-        "assertion": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["authenticatorData", "clientDataJSON", "signature"],
-          "properties": {
-            "authenticatorData": { "type": "string" },
-            "clientDataJSON": { "type": "string" },
-            "signature": { "type": "string" }
-          }
-        }
+        "public_key": { "type": "string", "description": "base64url COSE public key" },
+        "response": { "type": "object", "description": "AuthenticationResponseJSON" }
       }
     }
   }
