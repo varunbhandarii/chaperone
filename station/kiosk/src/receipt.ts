@@ -30,18 +30,40 @@ function isLang(v: unknown): v is Lang {
   return v === "es" || v === "hi" || v === "en";
 }
 
+/** Money arrives as a number or as a decimal string ("3.49", the merchant's format). */
+function num(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v.trim())) return Number(v);
+  return null;
+}
+
+/**
+ * GET {merchant}/orders/{id}/receipt. Items come back with `price` as the line total and `unit_price` beside it;
+ * the station keeps unit prices (a line shows qty x price). Without `unit_price`, prices that add up to the total
+ * are taken as line totals.
+ */
 export function parseReceipt(body: unknown, fallbackLang: Lang = "en"): Receipt | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;
-  if (typeof b.order_id !== "string" || typeof b.total !== "number" || !Array.isArray(b.items)) return null;
-  const items = b.items
-    .filter((i): i is Record<string, unknown> => !!i && typeof i === "object")
-    .filter((i) => typeof i.name === "string" && typeof i.price === "number")
-    .map((i) => ({ name: String(i.name), qty: Number.isInteger(i.qty) ? Number(i.qty) : 1, price: Number(i.price) }));
+  const total = num(b.total);
+  if (typeof b.order_id !== "string" || total === null || !Array.isArray(b.items)) return null;
+  const raw = b.items
+    .filter((i): i is Record<string, unknown> => !!i && typeof i === "object" && typeof i.name === "string")
+    .map((i) => ({ name: String(i.name), qty: Number.isInteger(Number(i.qty)) && Number(i.qty) > 0 ? Number(i.qty) : 1, price: num(i.price), unit: num(i.unit_price) }))
+    .filter((i) => i.price !== null || i.unit !== null);
+  const cents = (x: number) => Math.round(x * 100);
+  const sumAsLines = raw.reduce((t, i) => t + cents(i.price ?? 0), 0);
+  const sumAsUnits = raw.reduce((t, i) => t + cents(i.price ?? 0) * i.qty, 0);
+  const pricesAreLineTotals = sumAsLines === cents(total) && sumAsUnits !== cents(total);
+  const items = raw.map((i) => ({
+    name: i.name,
+    qty: i.qty,
+    price: i.unit ?? (pricesAreLineTotals ? Math.round((cents(i.price ?? 0) / i.qty)) / 100 : (i.price ?? 0)),
+  }));
   return {
     merchant: typeof b.merchant === "string" && b.merchant ? b.merchant : "Corner Market",
     items,
-    total: b.total,
+    total,
     pickup: typeof b.pickup === "string" && b.pickup ? b.pickup : "after 3 pm",
     order_id: b.order_id,
     ...(typeof b.decision_id === "string" ? { decision_id: b.decision_id } : {}),
@@ -72,12 +94,35 @@ export function sessionUrl(tunnelHost: string | undefined, sessionId: string): s
   return host ? `https://${host}/s/${encodeURIComponent(sessionId)}` : undefined;
 }
 
+/** "after 3pm", "after 3 pm", "after 11:30 am" -> {h, m, pm}; anything else is shown as given. */
+function parsePickup(when: string): { h: number; m?: string; pm: boolean } | null {
+  const m = when.trim().match(/^after\s+(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\.?$/i);
+  return m ? { h: Number(m[1]), m: m[2], pm: m[3].toLowerCase() === "p" } : null;
+}
+
+function pickupEn(when: string): string {
+  const p = parsePickup(when);
+  return p ? `Pickup after ${p.h}${p.m ? `:${p.m}` : ""} ${p.pm ? "pm" : "am"}` : `Pickup ${when}`;
+}
+
+function pickupEs(when: string): string {
+  const p = parsePickup(when);
+  return p ? `Para recoger después de las ${p.h}${p.m ? `:${p.m}` : ""} ${p.pm ? "pm" : "am"}` : `Para recoger: ${when}`;
+}
+
+function pickupHi(when: string): string {
+  const p = parsePickup(when);
+  if (!p) return `ले जाएँ: ${when}`;
+  const part = !p.pm ? "सुबह" : p.h === 12 || p.h < 5 ? "दोपहर" : p.h < 8 ? "शाम" : "रात";
+  return `${part} ${p.h}${p.m ? `:${p.m}` : ""} बजे के बाद ले जाएँ`;
+}
+
 /** Labels for the on-screen receipt, in the session's language. */
 export const RECEIPT_LABELS: Record<Lang, { title: string; total: string; pickup: (when: string) => string; sandbox: string; scan: string; order: string; decision: string; paid: string }> = {
   en: {
     title: "Receipt",
     total: "Total",
-    pickup: (when) => `Pickup ${when}`,
+    pickup: pickupEn,
     sandbox: "Paid in the Visa sandbox. No real money.",
     scan: "Scan for your session",
     order: "Order",
@@ -87,7 +132,7 @@ export const RECEIPT_LABELS: Record<Lang, { title: string; total: string; pickup
   es: {
     title: "Recibo",
     total: "Total",
-    pickup: (when) => `Para recoger ${when === "after 3 pm" ? "después de las 3 pm" : when}`,
+    pickup: pickupEs,
     sandbox: "Pagado en el entorno de pruebas de Visa. Sin dinero real.",
     scan: "Escanee para ver su sesión",
     order: "Pedido",
@@ -97,7 +142,7 @@ export const RECEIPT_LABELS: Record<Lang, { title: string; total: string; pickup
   hi: {
     title: "रसीद",
     total: "कुल",
-    pickup: (when) => (when === "after 3 pm" ? "दोपहर 3 बजे के बाद ले जाएँ" : `ले जाएँ: ${when}`),
+    pickup: pickupHi,
     sandbox: "Visa सैंडबॉक्स में भुगतान। असली पैसा नहीं।",
     scan: "अपना सत्र देखने के लिए स्कैन करें",
     order: "ऑर्डर",

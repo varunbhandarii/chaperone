@@ -225,14 +225,18 @@ async def mock_decide(approval_id: str, verdict: str, request: Request) -> dict:
 
 
 @app.get("/orders/{order_id}/receipt")
-async def receipt(order_id: str) -> dict:
+async def receipt(order_id: str, lang: str | None = None) -> dict:
     o = ORDERS.get(order_id)
     if o is None:
         raise HTTPException(404, "unknown order")
-    items = [{"name": i["name"], "qty": i["qty"], "price": i["price"]} for i in o["cart"].get("items", [])]
-    return {"merchant": "Corner Market", "items": items, "total": o["cart"].get("total"), "pickup": "after 3 pm",
-            "order_id": order_id, "decision_id": o["decision_id"], "paid_at": o["paid_at"],
-            "session_url": f"https://tunnel.example/s/{o['session_id']}", "lang": o["lang"]}
+    # The merchant's shape: money as strings, price = line total with unit_price beside it, "after 3pm".
+    items = [{"name": i["name"], "qty": i["qty"], "price": f"{i['price'] * i['qty']:.2f}", "unit_price": f"{i['price']:.2f}",
+              "sku": i["sku"]} for i in o["cart"].get("items", [])]
+    return {"merchant": "Corner Market", "items": items, "total": f"{float(o['cart'].get('total', 0)):.2f}", "currency": "USD",
+            "pickup": "after 3pm", "order_id": order_id, "decision_id": o["decision_id"], "session_id": o["session_id"],
+            "status": "paid" if o["paid_at"] else "awaiting_payment", "paid_at": o["paid_at"],
+            "session_url": f"https://tunnel.example/s/{o['session_id']}", "lang": lang or o["lang"],
+            "sandbox_note": "Paid in the Visa sandbox. No real money."}
 
 
 @app.post("/mock/pay/{order_id}")

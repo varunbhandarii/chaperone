@@ -4,9 +4,14 @@
 import type { CartLineView, CatalogItem } from "./cart.ts";
 import type { Lang } from "./lang.ts";
 
+/** The relay's schema wants lang as a string when present, so an unknown language is left out. */
+function withLang(fields: Record<string, unknown>, lang: string | undefined): Record<string, unknown> {
+  return lang ? { ...fields, lang } : fields;
+}
+
 export function heard(role: "shopper" | "agent", text: string, lang: Lang | undefined, itemId: string): Record<string, unknown> {
   // The wall keeps one line per item_id, so a longer transcript of the same turn replaces the shorter one.
-  return { role, text, lang: lang ?? null, item_id: itemId };
+  return withLang({ role, text, item_id: itemId }, lang);
 }
 
 export function itemsFound(query: string, items: CatalogItem[], source: string): Record<string, unknown> {
@@ -22,7 +27,7 @@ export function checkoutRequested(total: number): Record<string, unknown> {
 }
 
 export function refusal(ruleIds: string[], spokenKey: string, lang: string | undefined, via: string): Record<string, unknown> {
-  return { rule_id: ruleIds[0] ?? "unknown", rule_ids: ruleIds, spoken_key: spokenKey, lang: lang ?? null, via };
+  return withLang({ rule_id: ruleIds[0] ?? "unknown", rule_ids: ruleIds, spoken_key: spokenKey, via }, lang);
 }
 
 export function receiptPrinted(orderId: string, via: "printer" | "screen", pdf = false): Record<string, unknown> {

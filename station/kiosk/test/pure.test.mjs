@@ -352,6 +352,10 @@ test("ledger payloads follow the wall's shapes", () => {
     via: "out_of_band",
   });
   assert.deepEqual(payload.receiptPrinted("o_1", "screen"), { order_id: "o_1", via: "screen" });
+  assert.deepEqual(payload.receiptPrinted("o_1", "screen", true), { order_id: "o_1", via: "screen", pdf: true });
+  // an unknown language is left out: the relay's schema rejects lang: null
+  assert.deepEqual(payload.heard("agent", "Un momento.", undefined, "item_2"), { role: "agent", text: "Un momento.", item_id: "item_2" });
+  assert.equal("lang" in payload.refusal(["R1_blocked_category"], "blocked_category", undefined, "tool"), false);
 });
 
 // ---------- receipt and approval ----------
@@ -372,6 +376,35 @@ test("merchant receipts parse; the station can build one from its own order reco
   assert.equal(sessionUrl("", "s_9"), undefined);
   assert.notEqual(formatPaidAt(1790400000), "");
   assert.equal(RECEIPT_LABELS.es.pickup("after 3 pm"), "Para recoger después de las 3 pm");
+});
+
+test("the merchant's receipt: string money, line totals with unit_price, 'after 3pm'", () => {
+  // the exact shape of GET {merchant}/orders/{id}/receipt
+  const r = parseReceipt({
+    merchant: "Corner Market",
+    items: [
+      { name: "Nature's Own Honey Wheat Bread", qty: 2, price: "6.98", unit_price: "3.49", sku: "BAK-001" },
+      { name: "Lisinopril 10 mg", qty: 1, price: "8.00", unit_price: "8.00", sku: "RX-001" },
+    ],
+    total: "14.98", currency: "USD", pickup: "after 3pm", order_id: "ord_abc", decision_id: "d_1", session_id: "s_1",
+    status: "paid", paid_at: "2026-09-26T09:15:00+00:00", paid_via: "callback", session_url: null, lang: "es",
+    sandbox_note: "Paid in the Visa sandbox. No real money.",
+  }, "en");
+  assert.ok(r);
+  assert.equal(r.total, 14.98);
+  assert.deepEqual(r.items.map((i) => [i.qty, i.price]), [[2, 3.49], [1, 8]]); // unit prices
+  assert.equal(r.session_url, undefined);
+  assert.equal(RECEIPT_LABELS.es.pickup(r.pickup), "Para recoger después de las 3 pm");
+  assert.equal(RECEIPT_LABELS.en.pickup("after 3pm"), "Pickup after 3 pm");
+  assert.equal(RECEIPT_LABELS.hi.pickup("after 3pm"), "दोपहर 3 बजे के बाद ले जाएँ");
+  assert.equal(RECEIPT_LABELS.hi.pickup("after 6:30 pm"), "शाम 6:30 बजे के बाद ले जाएँ");
+  // no unit_price, prices that add up to the total are line totals
+  const lines = parseReceipt({ order_id: "o", total: 6.98, items: [{ name: "Bread", qty: 2, price: 6.98 }] });
+  assert.equal(lines.items[0].price, 3.49);
+  // unit prices stay unit prices
+  const units = parseReceipt({ order_id: "o", total: 6.98, items: [{ name: "Bread", qty: 2, price: 3.49 }] });
+  assert.equal(units.items[0].price, 3.49);
+  assert.equal(parseReceipt({ order_id: "o", total: "n/a", items: [] }), null);
 });
 
 test("approval replies parse, with the expiry as epoch seconds, ms or ISO", () => {

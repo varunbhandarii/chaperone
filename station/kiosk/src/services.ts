@@ -344,7 +344,7 @@ export async function getApproval(approvalId: string): Promise<ApprovalStatus | 
 /** GET {merchant}/orders/{id}/receipt; null when unavailable (the station then builds the receipt itself). */
 export async function getReceipt(orderId: string, lang: Lang): Promise<Receipt | null> {
   try {
-    const res = await call(`${URLS.merchant}/orders/${encodeURIComponent(orderId)}/receipt`, { signal: AbortSignal.timeout(2000) });
+    const res = await call(`${URLS.merchant}/orders/${encodeURIComponent(orderId)}/receipt?lang=${lang}`, { signal: AbortSignal.timeout(2000) });
     health.mark("merchant", "up");
     return res.ok ? parseReceipt(await readJson(res), lang) : null;
   } catch (err) {
