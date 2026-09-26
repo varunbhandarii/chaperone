@@ -5,8 +5,9 @@
 
 Texts come from ai/prompts/lines.<lang>.json, the single source the station and /screen read.
 Output goes to ai/warnings/, served by the relay at /audio/<file>:
-    refusal.<key>.<lang>.mp3   blocked_category, scam_pattern, code_reading
-    line.<key>.<lang>.mp3      asking_priya, receipt_done (from receipt_done_clip: no amount)
+    refusal.<key>.<lang>.mp3   blocked_category, scam_pattern, code_reading, refund_scam
+    line.<key>.<lang>.mp3      asking_priya, receipt_done and refund_done (from the *_clip lines,
+                               which leave out the amount)
 VOICES matches the station agent's voice per language so the clip sounds like
 the agent that was just talking. The Hindi lines use feminine verb forms for the agent;
 switching Hindi to a male voice (naksh) needs those forms changed too.
@@ -34,8 +35,10 @@ CLIPS = {
     "refusal.blocked_category": "blocked_category",
     "refusal.scam_pattern": "scam_pattern",
     "refusal.code_reading": "code_reading",
+    "refusal.refund_scam": "refund_scam",
     "line.asking_priya": "asking_priya",
     "line.receipt_done": "receipt_done_clip",
+    "line.refund_done": "refund_done_clip",
 }
 
 

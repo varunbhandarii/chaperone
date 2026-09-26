@@ -61,25 +61,40 @@ def tokens(text: str) -> list[tuple[str, int, int]]:
 
     Punctuation, symbols, spaces and the danda split tokens; zero-width characters and
     apostrophes are deleted in place. Each token is NFKD-decomposed, stripped of Latin
-    accents and the nukta, casefolded and Hinglish-folded.
+    accents and the nukta, casefolded and Hinglish-folded. "$500" becomes "500 dollars" and a
+    thousands comma joins its digits ("1,000" -> "1000"), since speech-to-text writes amounts so.
     """
     out: list[tuple[str, int, int]] = []
     parts: list[str] = []
     start = end = 0
+    dollar = False
+
+    def flush() -> None:
+        nonlocal dollar
+        tok = _fold("".join(parts))
+        out.append((tok, start, end))
+        if dollar and tok.isdigit():
+            out.append(("dollars", start, end))
+        dollar = False
+
     for i, ch in enumerate(text):
         if ch in _DELETE:
             continue
+        if ch == "," and parts and text[i - 1].isdigit() and text[i + 1:i + 2].isdigit():
+            continue
         if ch.isspace() or _is_space_like(ch):
             if parts:
-                out.append((_fold("".join(parts)), start, end))
+                flush()
                 parts = []
+            if ch == "$":
+                dollar = True
             continue
         if not parts:
             start = i
         parts.append(_STRIP_MARKS.sub("", unicodedata.normalize("NFKD", ch)).casefold())
         end = i + 1
     if parts:
-        out.append((_fold("".join(parts)), start, end))
+        flush()
     return _join_spelled([t for t in out if t[0]])
 
 
@@ -150,7 +165,9 @@ class RuleSet:
         self.soft_hits_for_judge = spec["soft_hits_for_judge"]
         self.rules = spec["rules"]
         self.faint_ignores = set(spec.get("faint_needs_other_than", []))
-        self._instruments = [_compile(t) for terms in spec["instrument_terms"].values() for t in terms]
+        # Named word lists a rule can require (needs) or be made hard by (hard_with).
+        self._contexts = {name: [_compile(t) for terms in by_lang.values() for t in terms]
+                          for name, by_lang in spec["contexts"].items()}
         self._terms: list[tuple[str, dict, str, str, str, re.Pattern]] = []
         for rule_id, rule in self.rules.items():
             for key, strength in (("terms", ""), ("weak_terms", "weak"), ("faint_terms", "faint")):
@@ -192,11 +209,11 @@ class RuleSet:
 
         hits = [h for h in hits if counts(h)]
 
-        if any(self.rules[h.rule_id].get("hard_with_instrument") for h in hits):
-            if any(rx.search(norm) for rx in self._instruments):
-                for h in hits:
-                    if self.rules[h.rule_id].get("hard_with_instrument"):
-                        h.severity = "hard"
+        present = {name for name, rxs in self._contexts.items() if any(rx.search(norm) for rx in rxs)}
+        hits = [h for h in hits if set(self.rules[h.rule_id].get("needs", [])) <= present]
+        for h in hits:
+            if present & set(self.rules[h.rule_id].get("hard_with", [])):
+                h.severity = "hard"
 
         soft = {h.rule_id for h in hits if h.severity == "soft"}
         if any(h.severity == "hard" for h in hits):

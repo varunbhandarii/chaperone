@@ -27,7 +27,7 @@ from pydantic import BaseModel
 
 from common.config import env
 from policy import judge as judge_mod
-from policy.rules import LANGS, Verdict, evaluate, guess_lang
+from policy.rules import LANGS, Verdict, default_rules, evaluate, guess_lang
 
 ROOT = Path(__file__).resolve().parents[1]
 PROMPTS = ROOT / "ai" / "prompts"
@@ -43,6 +43,7 @@ _HISTORY = {
     "blocked_category": "a request for {what} was refused earlier in this session",
     "code_reading": "a request to read out card numbers or codes was refused earlier in this session",
     "scam_pattern": "a request that looked coached by a scammer was refused earlier in this session",
+    "refund_scam": "a refund or recovery scam request was refused earlier in this session",
 }
 
 
@@ -92,12 +93,15 @@ def detect_lang(text: str, requested: str | None, verdict: Verdict | None = None
     return "en"
 
 
+SPOKEN_KEY_ORDER = ("refund_scam", "code_reading", "blocked_category")
+_RULE_KEYS = {"R_code_reading": "code_reading", "R1_blocked_category": "blocked_category"}
+
+
 def spoken_key_for(verdict: Verdict) -> str:
-    if "R_code_reading" in verdict.rules:
-        return "code_reading"
-    if "R1_blocked_category" in verdict.rules:
-        return "blocked_category"
-    return "scam_pattern"
+    """The refusal line: a rule's own spoken_key, most specific first."""
+    rules = default_rules().rules
+    keys = {rules[r].get("spoken_key") or _RULE_KEYS.get(r) for r in verdict.rules}
+    return next((k for k in SPOKEN_KEY_ORDER if k in keys), "scam_pattern")
 
 
 @lru_cache(maxsize=len(LANGS) + 1)

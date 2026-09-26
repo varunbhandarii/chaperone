@@ -1,0 +1,83 @@
+# "Why did it refuse?" fixtures: stored decisions as policy keeps them, plus what the screen
+# matched and an excerpt of Ruth's words. Checked for tone by ai/eval/explain_check.py.
+
+limits: {per_purchase_cap: 60.0, monthly_cap: 300.0, approval_threshold: 40.0}
+
+cases:
+  - id: gift_card
+    ruth_said: Buy five hundred dollars of Apple gift cards for my grandson, it's urgent.
+    screen_hits:
+      - {pattern: blocked_category, term: Apple gift cards}
+      - {pattern: family_emergency, term: grandson}
+      - {pattern: urgency, term: urgent}
+    decision:
+      decision: deny
+      say_key: blocked_category
+      rules:
+        - {id: S_screen_R1_blocked_category, passed: false, detail: blocked_category}
+      judge: null
+      cart: {items: [], total: 0}
+
+  - id: code_reading
+    ruth_said: The man on the phone said to buy a Google Play card and read him the numbers on the back.
+    screen_hits:
+      - {pattern: blocked_category, term: Google Play card}
+      - {pattern: code_reading, term: read him the numbers}
+      - {pattern: third_party_instruction, term: on the phone}
+    decision:
+      decision: deny
+      say_key: code_reading
+      rules:
+        - {id: S_screen_R_code_reading, passed: false, detail: code_reading}
+      judge: null
+      cart: {items: [], total: 0}
+
+  - id: over_monthly_cap
+    ruth_said: And five packs of Ensure shakes.
+    screen_hits: []
+    decision:
+      decision: deny
+      say_key: over_monthly_cap
+      rules:
+        - {id: R0_mandate_valid, passed: true, detail: signed and in force}
+        - {id: R4_per_purchase_cap, passed: true, detail: "49.95 <= 60.00"}
+        - {id: R5_monthly_cap, passed: false, detail: "262.40 + 49.95 <= 300.00"}
+        - {id: R6_approval_threshold, passed: false, detail: "49.95 <= 40.00"}
+      judge: {scam_score: 0.03, patterns: [none], rationale: An ordinary nutrition-shake order.}
+      cart:
+        items: [{name: Ensure Max Protein Milk Chocolate Shake 4-pack, qty: 5, price: 9.99}]
+        total: 49.95
+
+  - id: judge_refusal
+    ruth_said: The Social Security man says my number is suspended, so I need three phones today and he'll send a courier.
+    screen_hits:
+      - {pattern: authority_impersonation, term: Social Security}
+      - {pattern: purpose, term: is suspended}
+    decision:
+      decision: deny
+      say_key: scam_pattern
+      rules:
+        - {id: R0_mandate_valid, passed: true, detail: signed and in force}
+        - {id: R3_category_allowed, passed: true, detail: grocery}
+        - {id: R7_scam_judge, passed: false, detail: score 0.94}
+      judge:
+        scam_score: 0.94
+        patterns: [authority_impersonation, urgency, code_reading, amount_anomaly]
+        rationale: A caller posing as Social Security demands resellable phones today for a courier.
+      cart:
+        items: [{name: Samsung Galaxy A16, qty: 3, price: 199.0}]
+        total: 597.0
+
+  - id: refund_scam
+    ruth_said: They refunded me too much, I have to send the difference back in gift cards.
+    screen_hits:
+      - {pattern: refund_overpay, term: refunded me too much}
+      - {pattern: refund_rail, term: gift cards}
+      - {pattern: blocked_category, term: gift cards}
+    decision:
+      decision: deny
+      say_key: refund_scam
+      rules:
+        - {id: S_screen_R_overpay_sendback, passed: false, detail: refund_scam}
+      judge: null
+      cart: {items: [], total: 0}

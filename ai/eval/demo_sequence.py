@@ -1,6 +1,6 @@
 """The demo's two outcomes in one session: a gift-card refusal, then medicine and bread.
 
-    python -m ai.eval.demo_sequence              # 10 runs each: Hindi (both scripts) and English
+    python -m ai.eval.demo_sequence              # 10 runs each: Hindi (both scripts), English, Spanish
     python -m ai.eval.demo_sequence --langs es --runs 3
 
 Each run uses a fresh session and the same decision path as policy /checkout (screen, then
@@ -78,7 +78,7 @@ def run_once(name: str) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--langs", default="hi,hi_latn,en", help=f"any of {','.join(LINES)}")
+    ap.add_argument("--langs", default="hi,hi_latn,en,es", help=f"any of {','.join(LINES)}")
     ap.add_argument("--runs", type=int, default=10)
     args = ap.parse_args()
     if judge_mod.is_fake():
