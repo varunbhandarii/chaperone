@@ -1,0 +1,1119 @@
+{
+  "merchant": "corner_market",
+  "currency": "USD",
+  "group_aliases": {
+    "bread": [
+      "bread",
+      "loaf",
+      "pan",
+      "pan de molde",
+      "double roti",
+      "bread ka packet",
+      "ब्रेड"
+    ],
+    "milk": [
+      "milk",
+      "leche",
+      "doodh",
+      "दूध"
+    ],
+    "eggs": [
+      "eggs",
+      "egg",
+      "huevos",
+      "huevo",
+      "ande",
+      "anda",
+      "अंडे",
+      "अंडा"
+    ],
+    "bananas": [
+      "bananas",
+      "banana",
+      "platanos",
+      "platano",
+      "banano",
+      "kela",
+      "kele",
+      "केला",
+      "केले"
+    ],
+    "soup": [
+      "soup",
+      "sopa",
+      "chicken soup",
+      "caldo",
+      "सूप"
+    ],
+    "oatmeal": [
+      "oatmeal",
+      "oats",
+      "avena",
+      "ओट्स"
+    ],
+    "tea": [
+      "tea",
+      "te",
+      "chai",
+      "चाय"
+    ],
+    "nutrition_shake": [
+      "ensure",
+      "shake",
+      "nutrition shake",
+      "protein shake",
+      "batido",
+      "malteada"
+    ],
+    "pain_relief": [
+      "pain",
+      "pain reliever",
+      "headache",
+      "ibuprofen",
+      "ibuprofeno",
+      "advil",
+      "motrin",
+      "acetaminophen",
+      "acetaminofen",
+      "paracetamol",
+      "tylenol",
+      "dard ki dawai",
+      "दर्द की दवा"
+    ],
+    "allergy": [
+      "allergy",
+      "allergies",
+      "alergia",
+      "zyrtec",
+      "claritin",
+      "loratadine",
+      "cetirizine",
+      "allergy ki dawai"
+    ],
+    "heartburn": [
+      "heartburn",
+      "acid",
+      "antacid",
+      "acidez",
+      "agruras",
+      "pepcid",
+      "tums",
+      "acidity",
+      "gas ki dawai"
+    ],
+    "rice": [
+      "rice",
+      "arroz",
+      "chawal",
+      "चावल"
+    ],
+    "beans": [
+      "beans",
+      "frijoles",
+      "rajma",
+      "canned beans"
+    ],
+    "yogurt": [
+      "yogurt",
+      "yoghurt",
+      "yogur",
+      "dahi",
+      "दही"
+    ],
+    "cheese": [
+      "cheese",
+      "queso",
+      "paneer"
+    ],
+    "apples": [
+      "apples",
+      "apple",
+      "manzanas",
+      "manzana",
+      "seb",
+      "सेब"
+    ],
+    "juice": [
+      "juice",
+      "orange juice",
+      "jugo",
+      "jugo de naranja",
+      "juice ka dabba"
+    ],
+    "coffee": [
+      "coffee",
+      "cafe",
+      "coffee powder"
+    ],
+    "crackers": [
+      "crackers",
+      "galletas saladas",
+      "saltines"
+    ],
+    "peanut_butter": [
+      "peanut butter",
+      "crema de cacahuate",
+      "mantequilla de mani"
+    ],
+    "cereal": [
+      "cereal",
+      "cornflakes",
+      "hojuelas"
+    ],
+    "prescription": [
+      "prescription",
+      "pharmacy",
+      "pickup",
+      "receta",
+      "farmacia",
+      "dawai",
+      "दवाई"
+    ],
+    "gift_card": [
+      "gift card",
+      "gift cards",
+      "tarjeta de regalo",
+      "tarjetas de regalo",
+      "google play",
+      "itunes",
+      "apple card",
+      "steam card",
+      "गिफ्ट कार्ड"
+    ],
+    "prepaid_card": [
+      "prepaid card",
+      "reloadable card",
+      "tarjeta prepagada",
+      "prepaid"
+    ]
+  },
+  "items": [
+    {
+      "sku": "FDA-03C0A599",
+      "name": "Cetirizine Hydrochloride (cetirizine hydrochloride)",
+      "brand": "Pd-Rx Pharmaceuticals, Inc.",
+      "category": "otc_medicine",
+      "group": "allergy",
+      "price": 4.99,
+      "size": "",
+      "tags": [
+        "cetirizine"
+      ],
+      "substitute_key": "cetirizine",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Antihistamine"
+    },
+    {
+      "sku": "FDA-01CB43CF",
+      "name": "Loratadine (loratadine)",
+      "brand": "Advanced Rx Pharmacy Of Tennessee, Llc",
+      "category": "otc_medicine",
+      "group": "allergy",
+      "price": 5.99,
+      "size": "",
+      "tags": [
+        "loratadine"
+      ],
+      "substitute_key": "loratadine",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Antihistamine"
+    },
+    {
+      "sku": "FDA-023A46F0",
+      "name": "Nuvicare-Allergy Relief Loratadine Tablets, 10 Mg (loratadine)",
+      "brand": "Nuvicare Llc",
+      "category": "otc_medicine",
+      "group": "allergy",
+      "price": 7.99,
+      "size": "",
+      "tags": [
+        "loratadine"
+      ],
+      "substitute_key": "loratadine",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Antihistamine"
+    },
+    {
+      "sku": "FDA-0038BC38",
+      "name": "Allergy Relief (loratadine)",
+      "brand": "Cvs Pharmacy",
+      "category": "otc_medicine",
+      "group": "allergy",
+      "price": 12.99,
+      "size": "",
+      "tags": [
+        "loratadine"
+      ],
+      "substitute_key": "loratadine",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Antihistamine"
+    },
+    {
+      "sku": "FDA-0502F197",
+      "name": "Cetirizine Hydrochloride 10 Mg (cetirizine hydrochloride)",
+      "brand": "Yyba Corp",
+      "category": "otc_medicine",
+      "group": "allergy",
+      "price": 13.99,
+      "size": "",
+      "tags": [
+        "cetirizine"
+      ],
+      "substitute_key": "cetirizine",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Antihistamine"
+    },
+    {
+      "sku": "FDA-0643EA78",
+      "name": "All Day Allergy Relief (cetirizine hydrochloride)",
+      "brand": "Dolgencorp, Inc.",
+      "category": "otc_medicine",
+      "group": "allergy",
+      "price": 13.99,
+      "size": "",
+      "tags": [
+        "cetirizine"
+      ],
+      "substitute_key": "cetirizine",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Antihistamine"
+    },
+    {
+      "sku": "PRO-001",
+      "name": "Bananas",
+      "brand": "Fresh",
+      "category": "produce",
+      "group": "bananas",
+      "price": 0.62,
+      "size": "1 lb",
+      "tags": [
+        "soft"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "PRO-002",
+      "name": "Organic Bananas",
+      "brand": "Simple Truth",
+      "category": "produce",
+      "group": "bananas",
+      "price": 1.99,
+      "size": "2 lb bunch",
+      "tags": [
+        "soft",
+        "organic"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "BAK-002",
+      "name": "Kroger Whole Wheat Bread",
+      "brand": "Kroger",
+      "category": "bakery",
+      "group": "bread",
+      "price": 2.99,
+      "size": "20 oz",
+      "tags": [
+        "soft",
+        "whole_grain",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "BAK-003",
+      "name": "Kroger Low Sodium Whole Wheat Bread",
+      "brand": "Kroger",
+      "category": "bakery",
+      "group": "bread",
+      "price": 3.19,
+      "size": "16 oz",
+      "tags": [
+        "low_sodium",
+        "whole_grain",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "BAK-005",
+      "name": "Nature's Own Butterbread",
+      "brand": "Nature's Own",
+      "category": "bakery",
+      "group": "bread",
+      "price": 3.29,
+      "size": "20 oz",
+      "tags": [
+        "soft",
+        "white"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "BAK-001",
+      "name": "Nature's Own Honey Wheat Bread",
+      "brand": "Nature's Own",
+      "category": "bakery",
+      "group": "bread",
+      "price": 3.49,
+      "size": "20 oz",
+      "tags": [
+        "soft",
+        "wheat"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "BAK-004",
+      "name": "Dave's Killer Bread 21 Whole Grains",
+      "brand": "Dave's Killer Bread",
+      "category": "bakery",
+      "group": "bread",
+      "price": 5.99,
+      "size": "27 oz",
+      "tags": [
+        "whole_grain",
+        "high_fiber"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "EGG-003",
+      "name": "Kroger Grade A Large Eggs",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 1.69,
+      "size": "6 ct",
+      "tags": [
+        "store_brand",
+        "small_pack"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "EGG-001",
+      "name": "Kroger Grade A Large Eggs",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 2.79,
+      "size": "12 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "EGG-002",
+      "name": "Eggland's Best Large Eggs",
+      "brand": "Eggland's Best",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 4.49,
+      "size": "12 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "GFT-003",
+      "name": "Target Gift Card",
+      "brand": "Target",
+      "category": "gift_card",
+      "group": "gift_card",
+      "price": 50.0,
+      "size": "$50",
+      "tags": [
+        "gift_card"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "GFT-001",
+      "name": "Google Play Gift Card",
+      "brand": "Google Play",
+      "category": "gift_card",
+      "group": "gift_card",
+      "price": 100.0,
+      "size": "$100",
+      "tags": [
+        "gift_card"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "GFT-002",
+      "name": "Apple Gift Card",
+      "brand": "Apple",
+      "category": "gift_card",
+      "group": "gift_card",
+      "price": 200.0,
+      "size": "$200",
+      "tags": [
+        "gift_card"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "FDA-018B02E8",
+      "name": "Famotidine (famotidine)",
+      "brand": "Wal-Mart Stores, Inc.",
+      "category": "otc_medicine",
+      "group": "heartburn",
+      "price": 7.99,
+      "size": "",
+      "tags": [
+        "famotidine"
+      ],
+      "substitute_key": "famotidine",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Acid reducer"
+    },
+    {
+      "sku": "FDA-0108B97F",
+      "name": "Antacid (calcium carbonate)",
+      "brand": "Advance Pharmaceutical Inc.",
+      "category": "otc_medicine",
+      "group": "heartburn",
+      "price": 8.99,
+      "size": "",
+      "tags": [
+        "calcium"
+      ],
+      "substitute_key": "calcium",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Antacid"
+    },
+    {
+      "sku": "FDA-036EF1ED",
+      "name": "Tums Chewy Bites Orange And Cream Es (calcium carbonate)",
+      "brand": "Haleon Us Holdings Llc",
+      "category": "otc_medicine",
+      "group": "heartburn",
+      "price": 9.99,
+      "size": "",
+      "tags": [
+        "calcium"
+      ],
+      "substitute_key": "calcium",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Antacid"
+    },
+    {
+      "sku": "FDA-05C03FD8",
+      "name": "Heartburn Relief (famotidine)",
+      "brand": "Meijer Distribution Inc",
+      "category": "otc_medicine",
+      "group": "heartburn",
+      "price": 12.99,
+      "size": "",
+      "tags": [
+        "famotidine"
+      ],
+      "substitute_key": "famotidine",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Acid reducer"
+    },
+    {
+      "sku": "FDA-07A924F1",
+      "name": "Maximum Strength Acid Reducer (famotidine)",
+      "brand": "Target Corporation",
+      "category": "otc_medicine",
+      "group": "heartburn",
+      "price": 12.99,
+      "size": "",
+      "tags": [
+        "famotidine"
+      ],
+      "substitute_key": "famotidine",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Acid reducer"
+    },
+    {
+      "sku": "FDA-021E1A7F",
+      "name": "Family Wellness Ultra Stregth Antacid 171Ab (calcium carbonate)",
+      "brand": "Family Dollar Services, Inc.",
+      "category": "otc_medicine",
+      "group": "heartburn",
+      "price": 14.99,
+      "size": "",
+      "tags": [
+        "calcium"
+      ],
+      "substitute_key": "calcium",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "PURPOSE Antacid"
+    },
+    {
+      "sku": "DAI-002",
+      "name": "Kroger 2% Reduced Fat Milk",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "milk",
+      "price": 2.19,
+      "size": "half gal",
+      "tags": [
+        "store_brand",
+        "small_pack"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "DAI-001",
+      "name": "Kroger 2% Reduced Fat Milk",
+      "brand": "Kroger",
+      "category": "dairy",
+      "group": "milk",
+      "price": 3.29,
+      "size": "1 gal",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "DAI-003",
+      "name": "Lactaid 2% Reduced Fat Milk",
+      "brand": "Lactaid",
+      "category": "dairy",
+      "group": "milk",
+      "price": 4.99,
+      "size": "96 oz",
+      "tags": [
+        "lactose_free"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "DAI-004",
+      "name": "Horizon Organic Whole Milk",
+      "brand": "Horizon",
+      "category": "dairy",
+      "group": "milk",
+      "price": 5.49,
+      "size": "half gal",
+      "tags": [
+        "organic"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "NUT-003",
+      "name": "Ensure Max Protein Milk Chocolate Shake",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 9.99,
+      "size": "4 x 11 fl oz",
+      "tags": [
+        "protein",
+        "high_protein"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "NUT-001",
+      "name": "Ensure Original Vanilla Nutrition Shake",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 10.99,
+      "size": "6 x 8 fl oz",
+      "tags": [
+        "protein"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "NUT-004",
+      "name": "Glucerna Original Shake Homemade Vanilla",
+      "brand": "Glucerna",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 11.29,
+      "size": "6 x 8 fl oz",
+      "tags": [
+        "protein",
+        "diabetes_friendly"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "NUT-002",
+      "name": "Ensure Original Vanilla Nutrition Shake, Case",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 52.0,
+      "size": "24 x 8 fl oz",
+      "tags": [
+        "protein",
+        "bulk"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "PAN-003",
+      "name": "Kroger Old Fashioned Oats",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 2.79,
+      "size": "18 oz",
+      "tags": [
+        "whole_grain",
+        "heart_healthy",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "PAN-001",
+      "name": "Quaker Old Fashioned Oats",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 4.29,
+      "size": "18 oz",
+      "tags": [
+        "whole_grain",
+        "heart_healthy"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "PAN-002",
+      "name": "Quaker Instant Oatmeal Original",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 4.49,
+      "size": "10 ct",
+      "tags": [
+        "whole_grain",
+        "easy_prep"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "FDA-00146B91",
+      "name": "Basic Care Acetaminophen (acetaminophen)",
+      "brand": "Amazon.Com Services Llc",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 4.99,
+      "size": "",
+      "tags": [
+        "acetaminophen"
+      ],
+      "substitute_key": "acetaminophen",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Pain reliever/fever reducer"
+    },
+    {
+      "sku": "FDA-00BD8490",
+      "name": "Up And Up Naproxen Sodium (naproxen sodium)",
+      "brand": "Target Corporation",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 5.99,
+      "size": "",
+      "tags": [
+        "naproxen"
+      ],
+      "substitute_key": "naproxen",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purposes Pain reliever/fever reducer"
+    },
+    {
+      "sku": "FDA-00EF5B30",
+      "name": "Aleve (naproxen sodium)",
+      "brand": "Bayer Healthcare Llc.",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 5.99,
+      "size": "",
+      "tags": [
+        "naproxen"
+      ],
+      "substitute_key": "naproxen",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purposes Pain reliever/fever reducer"
+    },
+    {
+      "sku": "FDA-00D9AB0D",
+      "name": "Rapidol Aspirin (aspirin)",
+      "brand": "Pharmadel Llc",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 5.99,
+      "size": "",
+      "tags": [
+        "aspirin"
+      ],
+      "substitute_key": "aspirin",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Active ingredient (in each tablet) Purpose Aspirin 325 mg (NSAID*) ............................. *nonsteroidal anti-inﬂammatory drug Pain reliever"
+    },
+    {
+      "sku": "OTC-004",
+      "name": "Kroger Extra Strength Acetaminophen 500 mg",
+      "brand": "Kroger",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 5.99,
+      "size": "100 ct",
+      "tags": [
+        "acetaminophen",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic",
+      "substitute_key": "acetaminophen"
+    },
+    {
+      "sku": "OTC-002",
+      "name": "Kroger Ibuprofen 200 mg Tablets",
+      "brand": "Kroger",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 6.49,
+      "size": "100 ct",
+      "tags": [
+        "ibuprofen",
+        "nsaid",
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic",
+      "substitute_key": "ibuprofen"
+    },
+    {
+      "sku": "FDA-00653B7C",
+      "name": "Ibuprofen Dye Free (ibuprofen)",
+      "brand": "Cvs Pharmacy",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 7.99,
+      "size": "",
+      "tags": [
+        "ibuprofen"
+      ],
+      "substitute_key": "ibuprofen",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Pain reliever/fever reducer"
+    },
+    {
+      "sku": "FDA-0005AAFA",
+      "name": "Pain Reliever Extra Strength (acetaminophen)",
+      "brand": "Valu Merchandisers Company",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 8.99,
+      "size": "",
+      "tags": [
+        "acetaminophen"
+      ],
+      "substitute_key": "acetaminophen",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Pain reliever/fever reducer"
+    },
+    {
+      "sku": "FDA-024C5054",
+      "name": "Aspirin Low Dose (aspirin)",
+      "brand": "Atlantic Biologicals Corp.",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 8.99,
+      "size": "",
+      "tags": [
+        "aspirin"
+      ],
+      "substitute_key": "aspirin",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Pain reliever"
+    },
+    {
+      "sku": "FDA-0035A4FD",
+      "name": "Acetaminophen (acetaminophen)",
+      "brand": "Walmart Inc.",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 9.99,
+      "size": "",
+      "tags": [
+        "acetaminophen"
+      ],
+      "substitute_key": "acetaminophen",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Pain reliever/fever reducer"
+    },
+    {
+      "sku": "FDA-006ADF23",
+      "name": "Care One Ibuprofen (ibuprofen)",
+      "brand": "American Sales Company",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 10.99,
+      "size": "",
+      "tags": [
+        "ibuprofen"
+      ],
+      "substitute_key": "ibuprofen",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purposes Pain reliever/fever reducer"
+    },
+    {
+      "sku": "FDA-01746BB6",
+      "name": "Foster And Thrive All Day Pain Relief (naproxen sodium)",
+      "brand": "Strategic Sourcing Services Llc",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 11.99,
+      "size": "",
+      "tags": [
+        "naproxen"
+      ],
+      "substitute_key": "naproxen",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purposes Pain reliever/fever reducer"
+    },
+    {
+      "sku": "OTC-003",
+      "name": "Tylenol Extra Strength 500 mg Caplets",
+      "brand": "Tylenol",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 11.99,
+      "size": "100 ct",
+      "tags": [
+        "acetaminophen"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic",
+      "substitute_key": "acetaminophen"
+    },
+    {
+      "sku": "FDA-009DDE4C",
+      "name": "Leader Ibuprofen (ibuprofen)",
+      "brand": "Cardinal Health 110, Llc. Dba Leader",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 12.99,
+      "size": "",
+      "tags": [
+        "ibuprofen"
+      ],
+      "substitute_key": "ibuprofen",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purposes Pain reliever/fever reducer"
+    },
+    {
+      "sku": "OTC-001",
+      "name": "Advil Ibuprofen 200 mg Tablets",
+      "brand": "Advil",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 12.99,
+      "size": "100 ct",
+      "tags": [
+        "ibuprofen",
+        "nsaid"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic",
+      "substitute_key": "ibuprofen"
+    },
+    {
+      "sku": "FDA-0058175F",
+      "name": "Low Dose Aspirin (aspirin)",
+      "brand": "P & L Development, Llc",
+      "category": "otc_medicine",
+      "group": "pain_relief",
+      "price": 13.99,
+      "size": "",
+      "tags": [
+        "aspirin"
+      ],
+      "substitute_key": "aspirin",
+      "merchant": "corner_market",
+      "source": "openfda",
+      "purpose": "Purpose Pain reliever"
+    },
+    {
+      "sku": "PPD-001",
+      "name": "Reloadable Prepaid Debit Card",
+      "brand": "PrePaid Plus",
+      "category": "prepaid_card",
+      "group": "prepaid_card",
+      "price": 200.0,
+      "size": "$200 load",
+      "tags": [
+        "prepaid"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "RX-001",
+      "name": "Lisinopril 10 mg, 30 tablets (pharmacy pickup)",
+      "brand": "Corner Market Pharmacy",
+      "category": "pharmacy_pickup",
+      "group": "prescription",
+      "price": 8.0,
+      "size": "30 tablets",
+      "tags": [
+        "prescription",
+        "pickup",
+        "blood_pressure"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic",
+      "note": "Ready for pickup, $8.00 copay"
+    },
+    {
+      "sku": "SOU-004",
+      "name": "Kroger Chicken Noodle Soup",
+      "brand": "Kroger",
+      "category": "pantry",
+      "group": "soup",
+      "price": 0.99,
+      "size": "10.75 oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "SOU-001",
+      "name": "Campbell's Chicken Noodle Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.49,
+      "size": "10.75 oz",
+      "tags": [
+        "easy_open"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "SOU-002",
+      "name": "Campbell's Healthy Request Chicken Noodle Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.99,
+      "size": "10.75 oz",
+      "tags": [
+        "low_sodium",
+        "heart_healthy",
+        "easy_open"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "SOU-003",
+      "name": "Progresso Reduced Sodium Chicken Noodle Soup",
+      "brand": "Progresso",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.99,
+      "size": "19 oz",
+      "tags": [
+        "low_sodium",
+        "ready_to_eat"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "BEV-002",
+      "name": "Celestial Seasonings Chamomile Herbal Tea",
+      "brand": "Celestial Seasonings",
+      "category": "beverages",
+      "group": "tea",
+      "price": 3.49,
+      "size": "20 ct",
+      "tags": [
+        "caffeine_free"
+      ],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "BEV-001",
+      "name": "Lipton Black Tea Bags",
+      "brand": "Lipton",
+      "category": "beverages",
+      "group": "tea",
+      "price": 5.49,
+      "size": "100 ct",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    },
+    {
+      "sku": "BEV-003",
+      "name": "Wagh Bakri Masala Chai",
+      "brand": "Wagh Bakri",
+      "category": "beverages",
+      "group": "tea",
+      "price": 6.99,
+      "size": "250 g",
+      "tags": [],
+      "merchant": "corner_market",
+      "source": "synthetic"
+    }
+  ]
+}
