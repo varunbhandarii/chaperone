@@ -63,9 +63,18 @@ class DecisionError(InvalidSignature):
 DECISION_TIMEOUT = 0.3
 
 
-def _cart_counts(cart) -> Counter:
+def _cart_lines(cart) -> list[dict]:
+    """A cart's lines: under items or lines, or split per store as orders: [{merchant, items}]."""
     if isinstance(cart, dict):
-        cart = cart.get("items") or cart.get("lines") or []
+        if cart.get("orders"):
+            return [{**line, "merchant": line.get("merchant") or part.get("merchant")}
+                    for part in cart["orders"] for line in _cart_lines(part)]
+        return cart.get("items") or cart.get("lines") or []
+    return cart or []
+
+
+def _cart_counts(cart) -> Counter:
+    cart = _cart_lines(cart)
     counts: Counter = Counter()
     for line in cart or []:
         counts[str(line["sku"])] += int(line.get("qty", 1))
@@ -90,11 +99,16 @@ async def fetch_decision(decision_id: str) -> dict | None:
         raise DecisionError("policy answered with something other than JSON") from exc
 
 
-async def check_decision(body: bytes, fetch=None, existing_order: dict | None = None) -> str:
+async def check_decision(body: bytes, fetch=None, existing_order: dict | None = None, sku_merchant=None) -> str:
     """Contract step 6. Returns the passing detail or raises DecisionError. fetch may be sync or async.
 
     existing_order is set for a post-purchase request (cancel, refund) on that order: the decision must be the
     order's own, or a policy decision made for that order (its order_id), and there is no cart to compare.
+
+    A decision whose cart spans several stores is placed as one signed order per store. Each order must then be
+    exactly that store's share: the decision's lines whose store (the line's merchant, else sku_merchant(sku))
+    is the order's cart.merchant. The merchant takes one order per decision per store, so the shares can't
+    add up to more than the decision.
     """
     fetch = fetch or fetch_decision  # looked up at call time so tests can patch the module
     try:
@@ -124,13 +138,23 @@ async def check_decision(body: bytes, fetch=None, existing_order: dict | None = 
             raise DecisionError(f"order {order_id} belongs to another mandate")
         return f"{decision_id} is {outcome}, for order {order_id}"
     decided_cart = decision.get("cart") or decision.get("priced_cart")
-    if _cart_counts(decided_cart) != _cart_counts(order.get("cart")):
-        raise DecisionError(f"cart differs from decision {decision_id}")
-    decided_merchant = decided_cart.get("merchant") if isinstance(decided_cart, dict) else None
+    decided, ordered = _cart_counts(decided_cart), _cart_counts(order.get("cart"))
     ordered_merchant = (order.get("cart") or {}).get("merchant") if isinstance(order.get("cart"), dict) else None
-    if decided_merchant and ordered_merchant and decided_merchant != ordered_merchant:
-        raise DecisionError(f"decision {decision_id} was for {decided_merchant}, not {ordered_merchant}")
-    return f"{decision_id} is {outcome}, cart matches"
+    if decided == ordered:
+        decided_merchant = decided_cart.get("merchant") if isinstance(decided_cart, dict) else None
+        if decided_merchant and ordered_merchant and decided_merchant != ordered_merchant:
+            raise DecisionError(f"decision {decision_id} was for {decided_merchant}, not {ordered_merchant}")
+        return f"{decision_id} is {outcome}, cart matches"
+    store = ordered_merchant or "corner_market"
+    line_store = {str(line["sku"]): line["merchant"] for line in _cart_lines(decided_cart) if line.get("merchant")}
+
+    def owner(sku: str) -> str | None:
+        return line_store.get(sku) or (sku_merchant(sku) if sku_merchant else None)
+
+    share = Counter({sku: qty for sku, qty in decided.items() if owner(sku) == store})
+    if not share or share != ordered:
+        raise DecisionError(f"cart differs from decision {decision_id}")
+    return f"{decision_id} is {outcome}, {store}'s share of the cart matches"
 
 
 class NonceStore:
@@ -207,6 +231,7 @@ async def verify_request(
     fetch_decision=None,
     existing_order: dict | None = None,
     merchant: str = "corner_market",
+    sku_merchant=None,
 ) -> Verification:
     mode = os.environ.get("MERCHANT_VERIFY", "off")
     has_sig = "signature" in headers and "signature-input" in headers
@@ -221,7 +246,7 @@ async def verify_request(
     request = prepared_from_parts(method, f"http://{authority}{path}", headers, body)
     try:
         result = verify_prepared(request, nonce_store or NONCES, public_key=public_key, merchant=merchant)
-        decision_detail = await check_decision(body, fetch_decision, existing_order)
+        decision_detail = await check_decision(body, fetch_decision, existing_order, sku_merchant)
     except Exception as exc:  # every failure becomes a red check on the wall, never a 500
         if isinstance(exc, DigestMismatch):
             failed = "content_digest"

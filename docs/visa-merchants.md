@@ -33,3 +33,13 @@ creating a link then worked on each.
  When a teammate's account keys arrive, add them
 under `CYBS_PARKSIDE_*`, `CYBS_MAINST_*` or `CYBS_PEACHTREE_*`, restart the merchant, re-run the spike, and
 update this table (check Pay by Link first: signed `GET /ipl/v2/payment-links?offset=0&limit=1` → 200).
+
+A check (Sat ~5:55pm), once each account had a link: signed `GET /ipl/v2/payment-links?offset=0&limit=1` on
+`apitest.cybersource.com` → **HTTP 200** on both. Five Ensure at $49.95 (one line, quantity 1, unit price 49.95),
+read back from Visa as 49.95 ACTIVE:
+
+| Store | Account | Link | Hosted page shows $49.95 |
+|---|---|---|---|
+| Parkside Pharmacy | `…7937` | `PHARM6AB83E9BF072C3` | to confirm by eye |
+| Main Street Home | `…8309` | `HOME6AB83E9E2E5221` | to confirm by eye |
+

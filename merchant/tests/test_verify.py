@@ -202,3 +202,59 @@ def test_nonces_are_kept_per_storefront():
     store.consume("n1", expires, "parkside_pharmacy")
     with pytest.raises(verify.ReplayError):
         store.consume("n1", expires, "parkside_pharmacy")
+
+
+# One decision over two stores is placed as one signed order per store (the split checkout).
+SPLIT = {"decision_id": "dec-001", "decision": "allow",
+         "cart": {"merchant": "corner_market", "items": [{"sku": "RX-001", "qty": 1}, {"sku": "BAK-001", "qty": 1}]}}
+OWNERS = {"RX-001": "parkside_pharmacy", "BAK-001": "corner_market"}
+
+
+def share(merchant, items, decision=SPLIT, owners=OWNERS.get):
+    body = json.dumps({**ORDER, "cart": {"merchant": merchant, "items": items}}).encode()
+    return asyncio.run(verify.check_decision(body, policy_says(decision), sku_merchant=owners))
+
+
+def test_each_store_takes_exactly_its_share_of_a_split_decision():
+    assert "parkside_pharmacy's share" in share("parkside_pharmacy", [{"sku": "RX-001", "qty": 1}])
+    assert "corner_market's share" in share("corner_market", [{"sku": "BAK-001", "qty": 1}])
+
+
+@pytest.mark.parametrize("merchant,items", [
+    ("parkside_pharmacy", [{"sku": "BAK-001", "qty": 1}]),   # bread isn't Parkside's share
+    ("parkside_pharmacy", [{"sku": "RX-001", "qty": 2}]),    # more than was decided
+    ("main_street_home", [{"sku": "RX-001", "qty": 1}]),     # a store with no share
+    ("corner_market", [{"sku": "NUT-002", "qty": 1}]),       # not in the decision at all
+])
+def test_a_share_that_is_not_exactly_the_stores_lines_is_refused(merchant, items):
+    with pytest.raises(verify.DecisionError, match="cart differs"):
+        share(merchant, items)
+
+
+def test_split_decision_can_name_each_lines_store_itself():
+    per_line = {**SPLIT, "cart": {"orders": [
+        {"merchant": "parkside_pharmacy", "items": [{"sku": "RX-001", "qty": 1}]},
+        {"merchant": "corner_market", "items": [{"sku": "BAK-001", "qty": 1}]}]}}
+    assert "share" in share("parkside_pharmacy", [{"sku": "RX-001", "qty": 1}], per_line, owners=None)
+    with pytest.raises(verify.DecisionError):
+        share("parkside_pharmacy", [{"sku": "BAK-001", "qty": 1}], per_line, owners=None)
+
+
+def test_signed_split_orders_go_through_the_endpoint(monkeypatch):
+    monkeypatch.setattr(verify, "jwks_lookup", lambda key_id: KEY.public_key())
+    decision = {**SPLIT, "decision_id": "dec-split-" + os.urandom(3).hex()}
+    monkeypatch.setattr(verify, "fetch_decision", policy_says(decision))
+    placed = []
+    for merchant, sku in (("parkside_pharmacy", "RX-001"), ("corner_market", "BAK-001")):
+        body = {**ORDER, "decision_id": decision["decision_id"],
+                "cart": {"merchant": merchant, "items": [{"sku": sku, "qty": 1}]}}
+        prepared = sign_request(URL, body, private_key=KEY)
+        r = TestClient(app).post("/orders", content=prepared.body, headers=dict(prepared.headers))
+        assert r.status_code == 200, r.text
+        placed.append(r.json())
+    assert [o["store"] for o in placed] == ["Parkside Pharmacy", "Corner Market"]
+    assert [o["amount"] for o in placed] == ["8.00", "3.49"]
+    again = sign_request(URL, {**ORDER, "decision_id": decision["decision_id"],
+                               "cart": {"merchant": "corner_market", "items": [{"sku": "BAK-001", "qty": 1}]}},
+                         private_key=KEY)
+    assert TestClient(app).post("/orders", content=again.body, headers=dict(again.headers)).status_code == 409

@@ -73,3 +73,20 @@ def test_stores_without_their_own_keys_share_the_main_account(monkeypatch):
     assert links.purchase_number("peachtree_power").startswith("POWER")
     assert links.links("unknown") is links.links("corner_market")
     assert orders.merchants.DEFAULT == "corner_market"
+
+
+def test_one_order_per_decision_per_store():
+    body = order("parkside_pharmacy")
+    with TestClient(app, headers=HOST) as client:
+        assert client.post("/orders", json=body).status_code == 200
+        bread = {**body, "cart": {"merchant": "corner_market", "items": [{"sku": "BAK-001", "qty": 1}]}}
+        assert client.post("/orders", json=bread).status_code == 200
+        again = client.post("/orders", json=body)
+        assert again.status_code == 409 and again.json()["detail"]["merchant"] == "parkside_pharmacy"
+
+
+def test_sku_merchant_knows_bills_and_catalog_items():
+    assert orders.sku_merchant("RX-001") == "parkside_pharmacy"
+    assert orders.sku_merchant("BAK-001") == "corner_market"
+    assert orders.sku_merchant("BILL-peachtree_power") == "peachtree_power"
+    assert orders.sku_merchant("NOPE") is None

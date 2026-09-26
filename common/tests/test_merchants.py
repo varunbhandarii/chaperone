@@ -20,7 +20,8 @@ def test_registry_lists_every_store_and_terminal():
 def test_credentials_fall_back_to_the_main_account(monkeypatch):
     for k in ("MERCHANT_ID", "API_KEY_ID", "SECRET_KEY"):
         monkeypatch.setenv("VISA_ACCEPTANCE_" + k, "main_" + k)
-        monkeypatch.delenv("CYBS_PARKSIDE_" + k, raising=False)
+        for prefix in ("CYBS_PARKSIDE_", "CYBS_MAINST_", "CYBS_PEACHTREE_"):  # .env may hold real ones
+            monkeypatch.delenv(prefix + k, raising=False)
     monkeypatch.setenv("CYBS_MAINST_MERCHANT_ID", "only_one_of_three")
     assert merchants.credentials(merchants.get("corner_market")) == ("main_MERCHANT_ID", "main_API_KEY_ID", "main_SECRET_KEY", True)
     assert merchants.credentials(merchants.get("parkside_pharmacy"))[3] is False

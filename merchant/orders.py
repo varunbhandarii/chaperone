@@ -56,8 +56,9 @@ payment_links = storefront_links.links()  # Corner Market's; with MOCK_VISA ever
 ORDERS: dict[str, dict] = {}
 LINK_TO_ORDER: dict[str, str] = {}
 PURCHASE_TO_ORDER: dict[str, str] = {}  # Cybersource purchaseNumber -> order, for webhooks
-# decision_id -> order_id ("" while the payment link is being made). Kept across /reset, like the nonces,
-# so one policy decision can never buy twice.
+# "decision_id:merchant" -> order_id ("" while the payment link is being made). One order per decision per store:
+# a decision over several stores is placed as one signed order at each. Kept across /reset, like the nonces, so
+# one policy decision can never buy twice at the same store.
 DECISION_TO_ORDER: dict[str, str] = {}
 TIMERS: dict[str, set[asyncio.Task]] = {}  # order_id -> lifecycle and refund timers, cancelled on /reset
 
@@ -117,6 +118,14 @@ def health():
             "storefronts": {s["merchant"]: s["backend"] for s in storefront_links.describe()}}
 
 
+def sku_merchant(sku: str) -> str | None:
+    """Which store sells a sku: BILL-<biller> is that biller's, anything else is the catalog's."""
+    if biller.is_bill(sku):
+        return sku[len(biller.BILL_SKU_PREFIX):]
+    item = catalog.items.get(sku)
+    return item.get("merchant", merchants.DEFAULT) if item else None
+
+
 def _body_merchant(body: bytes) -> str:
     """The storefront named in the signed body, read before verification only to keep its nonces apart."""
     try:
@@ -132,7 +141,7 @@ async def create_order(request: Request):
     headers = {k.lower(): v for k, v in request.headers.items()}
     merchant = _body_merchant(body)
     verification = await verify_request(request.method, request.url.netloc, request.url.path, headers, body,
-                                        merchant=merchant)
+                                        merchant=merchant, sku_merchant=sku_merchant)
     if not verification.ok:
         await events.emit("signature_rejected", checks=verification.checks, merchant=merchant)
         raise HTTPException(401, {"error": "signature rejected", "checks": verification.checks})
@@ -148,18 +157,21 @@ async def create_order(request: Request):
             "id": "storefront", "passed": False,
             "detail": f"{merchant} is {'not a known store' if entry is None else 'blocked'}"}], merchant=merchant, **ids)
         raise HTTPException(403, {"error": "not a storefront the agent may buy from", "merchant": merchant})
-    if order_req.decision_id in DECISION_TO_ORDER:
+    claim = f"{order_req.decision_id}:{merchant}"
+    if claim in DECISION_TO_ORDER:
         await events.emit("signature_rejected", checks=[*verification.checks[:-1], {
             "id": "decision", "passed": False,
-            "detail": f"decision {order_req.decision_id} already has order {DECISION_TO_ORDER[order_req.decision_id] or '(in progress)'}"}],
+            "detail": f"decision {order_req.decision_id} already has order {DECISION_TO_ORDER[claim] or '(in progress)'}"
+                      f" at {entry['name']}"}],
             **ids)
-        raise HTTPException(409, {"error": "decision already used", "order_id": DECISION_TO_ORDER[order_req.decision_id]})
-    DECISION_TO_ORDER[order_req.decision_id] = ""  # claimed before the first await, so two racing requests cannot both pass
+        raise HTTPException(409, {"error": "decision already used", "order_id": DECISION_TO_ORDER[claim],
+                                  "merchant": merchant})
+    DECISION_TO_ORDER[claim] = ""  # claimed before the first await, so two racing requests cannot both pass
     try:
         return await _place_order(order_req, verification, ids, entry)
     except BaseException:
-        if not DECISION_TO_ORDER.get(order_req.decision_id):
-            DECISION_TO_ORDER.pop(order_req.decision_id, None)  # nothing was made: the decision may try again
+        if not DECISION_TO_ORDER.get(claim):
+            DECISION_TO_ORDER.pop(claim, None)  # nothing was made: the decision may try again
         raise
 
 
@@ -234,7 +246,7 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict, entry: 
     order["savings"] = money(saved / 100) if saved else None  # never shown when nothing was saved
     aftercare.record(order, "awaiting_payment")
     ORDERS[order_id] = order
-    DECISION_TO_ORDER[order_req.decision_id] = order_id
+    DECISION_TO_ORDER[f"{order_req.decision_id}:{merchant}"] = order_id
     LINK_TO_ORDER[link.id] = order_id
     PURCHASE_TO_ORDER[link.purchase_number] = order_id
     await events.emit("payment_link_created", order_id=order_id, amount=amount, link_id=link.id, url=link.url,
