@@ -12,7 +12,7 @@ export async function POST(request) {
     return Response.json({ error: "setup code required" }, { status: 401 });
   }
   if (existing.length > 0) {
-    const expectedChallenge = takeChallenge((await cookies()).get("sid")?.value, "mandate");
+    const expectedChallenge = takeChallenge((await cookies()).get("sid")?.value, "register");
     const match = existing.find((item) => item.id === body.assertion?.id);
     if (!expectedChallenge || !match) {
       return Response.json({ error: "registration is closed" }, { status: 403 });
@@ -43,7 +43,12 @@ export async function POST(request) {
     userID: isoUint8Array.fromUTF8String("priya"),
     attestationType: "none",
     excludeCredentials: existing.map((credential) => ({ id: credential.id, transports: credential.transports })),
-    authenticatorSelection: { residentKey: "preferred", userVerification: "preferred" },
+    authenticatorSelection: {
+      authenticatorAttachment: "platform",
+      residentKey: "required",
+      userVerification: "required",
+    },
+    extensions: { payment: { isPayment: true } },
   });
   const jar = await cookies();
   jar.set("sid", saveChallenge("register", options.challenge), {

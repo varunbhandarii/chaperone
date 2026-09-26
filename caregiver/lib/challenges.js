@@ -16,6 +16,26 @@ export function takeChallenge(id, purpose) {
   return row.challenge;
 }
 
+const sessions = new Map();
+const SESSION_MS = 30 * 60 * 1000;
+
+export function openSession() {
+  const id = randomBytes(32).toString("hex");
+  sessions.set(id, { verifiedAt: Date.now() });
+  return id;
+}
+
+export function sessionOpen(id) {
+  if (!id) return false;
+  const row = sessions.get(id);
+  if (!row) return false;
+  if (Date.now() - row.verifiedAt > SESSION_MS) {
+    sessions.delete(id);
+    return false;
+  }
+  return true;
+}
+
 const mandateReady = new Set();
 
 export function markMandateReady(id) {

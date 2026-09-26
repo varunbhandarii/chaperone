@@ -10,12 +10,12 @@ from datetime import datetime, timedelta, timezone
 import requests
 
 from common.config import KEY_ID, merchant_public_url
-from policy.approvals import code_mac, new_nonce, remember_host_code
+from policy.approvals import code_mac, new_nonce, state_of, remember_host_code
 from policy.engine import dollars, evaluate, mandate_category, to_cents
 from policy.events import post_event
 from policy.mandate import DEFAULT_MANDATE
 from policy.pricing import UnknownSku, reprice
-from policy.store import add_spent_cents, get_decision, load_mandate, load_spent_cents, save_decision
+from policy.store import add_spent_cents, get_decision, load_decisions, load_mandate, load_spent_cents, save_decision
 from signer.sign import sign_request
 
 JUDGE_THRESHOLD = float(os.environ.get("JUDGE_THRESHOLD", "0.6"))
@@ -125,7 +125,10 @@ def _check_cart(payload: dict, mandate: dict) -> None:
     if not items:
         raise CartRejected("cart is empty")
     for line in items:
-        qty = int(line.get("qty") or 0)
+        try:
+            qty = int(line.get("qty"))
+        except (TypeError, ValueError):
+            raise CartRejected("qty must be from 1 to 24") from None
         if qty < 1 or qty > 24:
             raise CartRejected("qty must be from 1 to 24")
 
@@ -165,6 +168,7 @@ def checkout(payload: dict) -> dict:
     approval = None
     order = None
     order_error = None
+    reused = False
     document = {
         **decision,
         "decision_id": decision_id,
@@ -203,31 +207,29 @@ def checkout(payload: dict) -> dict:
         except Exception as exc:  # noqa: BLE001 - the decision still stands if the merchant is down
             order_error = str(exc)
     elif decision["decision"] == "approve":
-        approval_id = "a_" + uuid.uuid4().hex[:12]
-        expires = datetime.now(timezone.utc) + timedelta(seconds=90)
-        code = f"{secrets.randbelow(1_000_000):06d}"
-        approval = {
-            "approval_id": approval_id,
-            "session_id": session_id,
-            "amount": priced["total"],
-            "merchant": priced["merchant"],
-            "excerpt": transcript[:240],
-            "rule": "R6_approval_threshold",
-            "expires_at": expires.isoformat(),
-            "nonce": new_nonce(),
-            "code_hash": code_mac(code, approval_id),
-            "attempts": 0,
-        }
-        remember_host_code(approval_id, code, approval["expires_at"])
-        post_event(
-            "approval_requested",
-            session_id,
-            mandate["mandate_id"],
-            approval_id=approval_id,
-            amount=priced["total"],
-            rule=approval["rule"],
-            expires_at=approval["expires_at"],
-        )
+        existing = _open_approval(priced, mandate["mandate_id"])
+        if existing:
+            reused = True
+            approval = existing["approval"]
+            decision_id = existing["decision_id"]
+            document = existing
+        else:
+            approval_id = "a_" + uuid.uuid4().hex[:12]
+            expires = datetime.now(timezone.utc) + timedelta(seconds=90)
+            code = f"{secrets.randbelow(1_000_000):06d}"
+            approval = {
+                "approval_id": approval_id,
+                "session_id": session_id,
+                "amount": priced["total"],
+                "merchant": priced["merchant"],
+                "excerpt": transcript[:240],
+                "rule": "R6_approval_threshold",
+                "expires_at": expires.isoformat(),
+                "nonce": new_nonce(),
+                "code_hash": code_mac(code, approval_id),
+                "attempts": 0,
+            }
+            remember_host_code(approval_id, code, approval["expires_at"])
     else:
         failed = [rule["id"] for rule in decision["rules"] if not rule["passed"]]
         post_event(
@@ -248,6 +250,16 @@ def checkout(payload: dict) -> dict:
     document["order"] = order
     document["approval"] = approval
     save_decision(document)
+    if approval and not reused:
+        post_event(
+            "approval_requested",
+            session_id,
+            mandate["mandate_id"],
+            approval_id=approval["approval_id"],
+            amount=approval["amount"],
+            rule=approval["rule"],
+            expires_at=approval["expires_at"],
+        )
     failed = [rule["id"] for rule in decision["rules"] if not rule["passed"]]
     post_event(
         "policy_decision",
@@ -275,6 +287,25 @@ def checkout(payload: dict) -> dict:
     if judge_error:
         response["judge_error"] = judge_error
     return response
+
+
+def _cart_fingerprint(cart: dict) -> tuple:
+    items = tuple(sorted(
+        (str(item.get("sku")), int(item.get("qty") or 0), f"{float(item.get('price') or 0):.2f}")
+        for item in (cart or {}).get("items") or []
+    ))
+    total = f"{float((cart or {}).get('total') or 0):.2f}"
+    return ((cart or {}).get("merchant"), total, items)
+
+
+def _open_approval(cart: dict, mandate_id: str) -> dict | None:
+    for document in load_decisions().values():
+        approval = document.get("approval") or {}
+        if document.get("mandate_id") != mandate_id or state_of(approval) != "pending":
+            continue
+        if _cart_fingerprint(document.get("cart") or {}) == _cart_fingerprint(cart):
+            return document
+    return None
 
 
 def lookup(decision_id: str) -> dict | None:

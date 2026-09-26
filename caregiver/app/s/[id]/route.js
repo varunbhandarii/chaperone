@@ -1,5 +1,4 @@
-// Same pattern the relay enforces for session ids; anything else never reaches the relay or the page.
-const SESSION_ID = /^[A-Za-z0-9_-]{1,64}$/;
+import { escapeHtml, SESSION_ID } from "@/lib/ids";
 
 export async function GET(_request, { params }) {
   const { id } = await params;
@@ -15,7 +14,7 @@ export async function GET(_request, { params }) {
   const json = await fetch(`${relay}/sessions/${encodeURIComponent(id)}`, { cache: "no-store" }).catch(() => null);
   const body = json && json.ok ? await json.text() : "[]";
   return new Response(
-    `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Session</title></head><body style="font-family:Georgia,serif;background:#1c140c;color:#f6f1e7;padding:1.5rem"><h1>Session ${id}</h1><pre style="white-space:pre-wrap;font-size:1.1rem">${body.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))}</pre></body></html>`,
+    `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Session</title></head><body style="font-family:Georgia,serif;background:#1c140c;color:#f6f1e7;padding:1.5rem"><h1>Session ${escapeHtml(id)}</h1><pre style="white-space:pre-wrap;font-size:1.1rem">${escapeHtml(body)}</pre></body></html>`,
     { headers: { "Content-Type": "text/html; charset=utf-8" } },
   );
 }

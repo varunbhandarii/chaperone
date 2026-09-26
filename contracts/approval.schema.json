@@ -7,7 +7,8 @@
   "required": ["approval_id", "state", "expires_at", "amount", "merchant", "excerpt", "rule", "decision_id", "order"],
   "properties": {
     "approval_id": { "type": "string" },
-    "state": { "enum": ["pending", "approved", "rejected", "expired"] },
+    "state": { "enum": ["pending", "approved", "rejected", "expired", "cancelled"] },
+    "message": { "type": "string", "maxLength": 140 },
     "expires_at": { "type": "string" },
     "amount": { "type": "number" },
     "merchant": { "type": "string" },

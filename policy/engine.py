@@ -119,10 +119,10 @@ def evaluate(
     if decision == "approve":
         say = "asking_priya"
     elif decision == "deny":
-        if not r5["passed"]:
-            say = "over_monthly_cap"
-        elif not r1["passed"]:
+        if not r1["passed"]:
             say = "blocked_category"
+        elif not r5["passed"]:
+            say = "over_monthly_cap"
         else:
             say = "declined"
     return {

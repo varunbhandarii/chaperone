@@ -67,7 +67,17 @@ export function setupCodeStatus(record, now = Date.now()) {
 
 export function consumeSetupCode(code) {
   const digest = createHash("sha256").update(String(code || "")).digest("hex");
-  const record = readJson(setupPath, null) || { attempts: 0, used: false, expires_at: Date.now() + 10 * 60 * 1000 };
+  let record = readJson(setupPath, null);
+  if (!record && process.env.CAREGIVER_SETUP_CODE_HASH) {
+    record = {
+      hash: process.env.CAREGIVER_SETUP_CODE_HASH,
+      attempts: 0,
+      used: false,
+      expires_at: Date.now() + 10 * 60 * 1000,
+    };
+    writeJson(setupPath, record);
+  }
+  record = record || { attempts: 0, used: false, expires_at: Date.now() + 10 * 60 * 1000 };
   if (setupCodeStatus(record) !== "open") return false;
   const expected = process.env.CAREGIVER_SETUP_CODE_HASH || record.hash;
   if (!expected || digest !== expected) {

@@ -158,8 +158,10 @@ async def stream(
     types: str | None = None,
     last_event_id: int | None = Query(None),
     once: bool = False,
+    since: int | None = Query(None),
 ):
     wanted = {t.strip() for t in types.split(",") if t.strip()} if types else None
+    since_ms = since or 0
     header_id = request.headers.get("last-event-id")
     after = int(header_id) if header_id and header_id.isdigit() else (last_event_id or 0)
 
@@ -169,9 +171,12 @@ async def stream(
             sent = after
             yield "retry: 2000\n\n"
             for event in LEDGER.read_live():
-                if event.get("seq", 0) > sent and _matches(event, session_id, wanted):
-                    sent = event["seq"]
-                    yield _sse(event)
+                if event.get("seq", 0) <= sent or not _matches(event, session_id, wanted):
+                    continue
+                sent = event["seq"]
+                if since_ms and int(event.get("rt") or event.get("t") or 0) < since_ms:
+                    continue
+                yield _sse(event)
             if sub is None:
                 return
             last_write = time.monotonic()  # a filtered stream may see no matching event for minutes

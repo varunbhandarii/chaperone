@@ -77,6 +77,8 @@ export default function Page() {
   const [setupCode, setSetupCode] = useState("");
   const [approval, setApproval] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [fallbackCode, setFallbackCode] = useState("");
+  const [prepared, setPrepared] = useState(null);
 
   useEffect(() => {
     fetch("/api/config", { headers: { "ngrok-skip-browser-warning": "1" } })
@@ -98,15 +100,47 @@ export default function Page() {
     };
   }, []);
 
+  const approvalId = approval && approval.approval_id;
+  useEffect(() => {
+    if (!approvalId) {
+      setPrepared(null);
+      return undefined;
+    }
+    let cancel = false;
+    post(`/api/approvals/${approvalId}/decide`, { prepare: true })
+      .then((next) => {
+        if (!cancel) setPrepared(next);
+      })
+      .catch(() => {});
+    return () => {
+      cancel = true;
+    };
+  }, [approvalId]);
+
   function note(line) {
     setLog((prev) => prev + line + "\n");
   }
 
   async function register() {
-    const optionsJSON = await post("/api/passkeys/generate-registration-options", { setup_code: setupCode });
+    let optionsJSON;
+    try {
+      optionsJSON = await post("/api/passkeys/generate-registration-options", { setup_code: setupCode });
+    } catch (error) {
+      if (!String(error.message).includes("registration is closed")) throw error;
+      const auth = await post("/api/passkeys/generate-authentication-options", { register: true });
+      const assertion = await startAuthentication({ optionsJSON: auth });
+      optionsJSON = await post("/api/passkeys/generate-registration-options", { setup_code: setupCode, assertion });
+    }
     const attestation = await startRegistration({ optionsJSON });
     const verified = await post("/api/passkeys/verify-registration", attestation);
     note("registration verified=" + verified.verified);
+  }
+
+  async function signIn() {
+    const optionsJSON = await post("/api/passkeys/generate-authentication-options", { session: true });
+    const assertion = await startAuthentication({ optionsJSON });
+    await post("/api/passkeys/verify-authentication", { response: assertion, purpose: "session" });
+    note("signed in");
   }
 
   async function assertMandate() {
@@ -127,9 +161,74 @@ export default function Page() {
     setApproval(Array.isArray(rows) && rows.length ? rows[0] : null);
   }
 
+  function asBytes(value) {
+    if (typeof value === "string") return null;
+    if (value instanceof ArrayBuffer) return new Uint8Array(value);
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+
+  function packField(value) {
+    return typeof value === "string" ? value : bytesToB64url(asBytes(value));
+  }
+
+  function packAssertion(credential) {
+    return {
+      id: credential.id,
+      rawId: packField(credential.rawId),
+      type: credential.type,
+      response: {
+        authenticatorData: packField(credential.response.authenticatorData),
+        clientDataJSON: packField(credential.response.clientDataJSON),
+        signature: packField(credential.response.signature),
+        userHandle: credential.response.userHandle ? packField(credential.response.userHandle) : undefined,
+      },
+      clientExtensionResults: credential.getClientExtensionResults ? credential.getClientExtensionResults() : {},
+      authenticatorAttachment: credential.authenticatorAttachment,
+    };
+  }
+
+  async function secureConfirmation(options) {
+    if (!window.PaymentRequest || !PaymentRequest.securePaymentConfirmationAvailability) return null;
+    if ((await PaymentRequest.securePaymentConfirmationAvailability()) !== "available") return null;
+    const request = new PaymentRequest(
+      [{
+        supportedMethods: "secure-payment-confirmation",
+        data: {
+          credentialIds: (options.allowCredentials || []).map((item) => b64urlToBuffer(item.id)),
+          challenge: b64urlToBuffer(options.challenge),
+          rpId: options.rpId,
+          instrument: {
+            displayName: "Ruth's Visa (sandbox)",
+            icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%238c2f2f'/%3E%3C/svg%3E",
+            iconMustBeShown: false,
+          },
+          payeeName: "Corner Market",
+          payeeOrigin: window.location.origin,
+          timeout: 90000,
+        },
+      }],
+      { total: { label: "Total", amount: { currency: "USD", value: Number(approval.amount).toFixed(2) } } },
+    );
+    const payment = await request.show();
+    const assertion = packAssertion(payment.details);
+    await payment.complete("success");
+    return assertion;
+  }
+
   async function approve() {
-    const prepared = await post(`/api/approvals/${approval.approval_id}/decide`, { prepare: true });
-    const options = prepared.optionsJSON;
+    const ready = prepared || (await post(`/api/approvals/${approval.approval_id}/decide`, { prepare: true }));
+    const options = ready.optionsJSON;
+    try {
+      const assertion = await secureConfirmation(options);
+      if (assertion) {
+        const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: true, spc: true, response: assertion });
+        note("approval " + result.state);
+        setApproval(null);
+        return;
+      }
+    } catch (error) {
+      if (error && error.name !== "NotAllowedError") note("payment dialog " + (error.message || error.name));
+    }
     const challenge = b64urlToBuffer(options.challenge);
     const request = {
       challenge,
@@ -152,21 +251,7 @@ export default function Page() {
       if (!String(error.message || error).includes("expected pattern")) throw error;
       credential = await navigator.credentials.get({ publicKey: request });
     }
-    const assertion = {
-      id: credential.id,
-      rawId: bytesToB64url(new Uint8Array(credential.rawId)),
-      type: credential.type,
-      response: {
-        authenticatorData: bytesToB64url(new Uint8Array(credential.response.authenticatorData)),
-        clientDataJSON: bytesToB64url(new Uint8Array(credential.response.clientDataJSON)),
-        signature: bytesToB64url(new Uint8Array(credential.response.signature)),
-        userHandle: credential.response.userHandle
-          ? bytesToB64url(new Uint8Array(credential.response.userHandle))
-          : undefined,
-      },
-      clientExtensionResults: credential.getClientExtensionResults(),
-      authenticatorAttachment: credential.authenticatorAttachment,
-    };
+    const assertion = packAssertion(credential);
     const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: true, response: assertion });
     note("approval " + result.state);
     setApproval(null);
@@ -176,6 +261,12 @@ export default function Page() {
     const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: false });
     note("approval " + result.state);
     setApproval(null);
+  }
+
+  async function submitCode() {
+    const result = await post("/api/code/verify", { approval_id: approval.approval_id, code: fallbackCode });
+    note(result.verified ? "code accepted" : "code rejected");
+    if (result.verified) setApproval(null);
   }
 
   async function armAlerts() {
@@ -201,7 +292,13 @@ export default function Page() {
     const decoder = new TextDecoder();
     while (true) {
       try {
-        const response = await fetch("/api/alerts/stream", { headers: { "ngrok-skip-browser-warning": "1" } });
+        const headers = { "ngrok-skip-browser-warning": "1" };
+        if (armAlerts.lastEventId) headers["Last-Event-ID"] = armAlerts.lastEventId;
+        const response = await fetch("/api/alerts/stream", { headers });
+        if (response.status === 401) {
+          armAlerts.started = false;
+          throw new Error("sign in required");
+        }
         if (!response.ok || !response.body) throw new Error("stream down");
         delay = 1000;
         const reader = response.body.getReader();
@@ -209,6 +306,8 @@ export default function Page() {
           const { done, value } = await reader.read();
           if (done) break;
           const text = decoder.decode(value, { stream: true });
+          const eventId = text.match(/^id: (\d+)/m);
+          if (eventId) armAlerts.lastEventId = eventId[1];
           if (text.includes("refusal") || text.includes("approval_requested") || text.includes("caregiver_alerted")) {
             refreshApprovals().catch(() => {});
             if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
@@ -228,7 +327,7 @@ export default function Page() {
   return (
     <main style={{ maxWidth: "36rem" }}>
       <h1>Caregiver</h1>
-      <p>Priyank signs Ruth&apos;s mandate. Relying party: {config ? config.rpID : "..."} · v6</p>
+      <p>Priyank signs Ruth&apos;s mandate. Relying party: {config ? config.rpID : "..."}</p>
       <pre style={{ whiteSpace: "pre-wrap", background: "white", padding: "1rem" }}>{JSON.stringify(MANDATE, null, 2)}</pre>
       {approval ? (
         <section style={{ background: "#8c2f2f", color: "white", padding: "1rem" }}>
@@ -240,13 +339,20 @@ export default function Page() {
           <button style={btn} onClick={() => approve().catch((error) => note(String(error)))}>Approve with passkey</button>
           <button style={btn} onClick={() => reject().catch((error) => note(String(error)))}>Reject</button>
           <a href="tel:">Call Ruth</a>
+          <p>
+            <input value={fallbackCode} onChange={(event) => setFallbackCode(event.target.value)} inputMode="numeric" maxLength={6} placeholder="approval code" style={{ fontSize: "1.2rem", padding: "0.4rem" }} />
+            <button style={btn} onClick={() => submitCode().catch((error) => note(String(error)))}>Submit code</button>
+          </p>
         </section>
       ) : null}
       <p>
         <input value={setupCode} onChange={(event) => setSetupCode(event.target.value)} inputMode="numeric" placeholder="setup code" style={{ fontSize: "1.2rem", padding: "0.4rem" }} />
         <button style={btn} onClick={() => register().catch((error) => note(String(error)))}>Register passkey</button>
       </p>
-      <p><button style={btn} onClick={() => armAlerts().catch((error) => note(String(error)))}>Arm alerts</button></p>
+      <p>
+        <button style={btn} onClick={() => signIn().catch((error) => note(String(error)))}>Sign in</button>
+        <button style={btn} onClick={() => armAlerts().catch((error) => note(String(error)))}>Arm alerts</button>
+      </p>
       <p>
         <button style={btn} onClick={() => assertMandate().catch((error) => note(String(error)))}>Sign mandate</button>
       </p>
