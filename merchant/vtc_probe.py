@@ -50,11 +50,16 @@ def session() -> requests.Session:
 def decision_request(pan: str, amount: int = 480) -> dict:
     return {"primaryAccountNumber": pan, "cardholderBillAmount": amount, "decisionType": "RECOMMENDED",
             "messageType": "0100", "processingCode": "000000", "retrievalReferenceNumber": f"{amount:012d}",
-            "transactionID": f"{amount}{amount}{amount}"[:15],
+            "transactionID": f"{amount:03d}" * 3,
             "dateTimeLocal": datetime.datetime.now(datetime.timezone.utc).strftime("%m%d%H%M%S"),
             "merchantInfo": {"name": "Five Points Drug", "merchantCategoryCode": "5912", "countryCode": "USA",
                              "currencyCode": "840", "transactionAmount": amount, "city": "Atlanta", "region": "GA",
-                             "postalCode": "30303"}}
+                             "postalCode": "30303"},
+            # Required: a card-present swipe at a store's attended terminal (enum values from the API's 400s).
+            "pointOfServiceInfo": {"securityLevelIndicator": "000", "terminalType": "POS_TERMINAL",
+                                   "presentationData": {"isCardPresent": True, "howPresented": "CUSTOMER_PRESENT"},
+                                   "terminalClass": {"isAttended": True, "howOperated": "CUSTOMER_OPERATED",
+                                                     "deviceLocation": "ON_PREMISE"}}}
 
 
 def step(name: str, response: requests.Response) -> dict:
@@ -77,10 +82,12 @@ def main():
         raise SystemExit("no documentID: stop here and write the status down")
     step("set rules", s.put(f"{BASE}/vctc/customerrules/v1/consumertransactioncontrols/{doc}/rules", json=RULES,
                             timeout=20))
-    decided = step("decision $480 at Five Points Drug", s.post(f"{BASE}/vctc/validation/v1/decisions",
-                                                              json=decision_request(pan), timeout=20))
-    should = ((decided.get("resource") or {}).get("decisionResponse") or {}).get("shouldDecline")
-    print(f"\nVisa VTC says shouldDecline={should} (expected True: over the $60 threshold)")
+    for amount, expected in ((480, True), (20, False)):
+        decided = step(f"decision ${amount} at Five Points Drug",
+                       s.post(f"{BASE}/vctc/validation/v1/decisions", json=decision_request(pan, amount), timeout=20))
+        answer = (decided.get("resource") or {}).get("decisionResponse") or {}
+        print(f"    -> shouldDecline={answer.get('shouldDecline')} (expected {expected}), "
+              f"rule {answer.get('declineRuleCategory')}\n")
 
 
 if __name__ == "__main__":
