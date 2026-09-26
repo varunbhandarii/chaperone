@@ -245,6 +245,17 @@ function when(v: unknown): string {
   return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0, 10) : "";
 }
 
+/** An order line as words: policy sends "2 x Bread"; objects {qty, name} work too. "1 x Bread" -> "Bread". */
+function itemWords(line: unknown): string {
+  if (typeof line === "string") {
+    const m = /^\s*(\d+)\s*x\s+(.+)$/i.exec(line);
+    return (m ? (Number(m[1]) > 1 ? `${m[1]} ${m[2]}` : m[2]) : line).trim();
+  }
+  if (!line || typeof line !== "object") return "";
+  const l = line as Record<string, unknown>;
+  return `${Number(l.qty) > 1 ? `${l.qty} ` : ""}${String(l.name ?? l.sku ?? "")}`.trim();
+}
+
 /** GET {policy}/history: orders, refunds and refusals, compacted for the model to speak from. */
 export function parseHistory(body: unknown): HistorySummary | null {
   if (!body || typeof body !== "object") return null;
@@ -261,7 +272,7 @@ export function parseHistory(body: unknown): HistorySummary | null {
         when: when(o.at ?? o.created_at ?? o.paid_at ?? o.t),
         total: num(o.total) ?? num(o.amount) ?? 0,
         status: String(o.status ?? ""),
-        items: lines.map((l) => `${Number(l.qty) > 1 ? `${l.qty} ` : ""}${String(l.name ?? l.sku ?? "")}`.trim()).filter(Boolean),
+        items: (lines as unknown[]).map(itemWords).filter(Boolean),
       };
     }),
     refunds: refunds.slice(0, 10).map((r) => ({
@@ -271,6 +282,17 @@ export function parseHistory(body: unknown): HistorySummary | null {
       status: String(r.status ?? ""),
     })),
     refusals,
-    ...(num(totals.spent) !== undefined ? { spent: num(totals.spent) } : {}),
+    ...((num(totals.spent) ?? num(totals.orders)) !== undefined ? { spent: num(totals.spent) ?? num(totals.orders) } : {}),
+  };
+}
+
+/** What purchase_history says: how many orders, what they came to, and what the latest one had (newest first). */
+export function historySummary(h: HistorySummary): { count: number; spentCents: number; lastItems: string[] } {
+  const kept = h.orders.filter((o) => o.status !== "cancelled");
+  const latest = [...kept].sort((a, b) => (a.when < b.when ? 1 : a.when > b.when ? -1 : 0))[0];
+  return {
+    count: kept.length,
+    spentCents: kept.reduce((t, o) => t + Math.round(o.total * 100), 0),
+    lastItems: latest?.items.slice(0, 3) ?? [],
   };
 }

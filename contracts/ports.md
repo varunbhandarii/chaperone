@@ -10,6 +10,7 @@ Frozen for the weekend. A change needs all four people at the table.
 | catalog | 8003 | `0.0.0.0` |
 | station | 5173 | `0.0.0.0` |
 | printer helper (`station/printer.py`) | 8004 | `127.0.0.1` on the station laptop, via the Vite proxy `/svc/printer` |
+| line (`line/server.py`, the Chaperone Line's tools) | 8005 | `127.0.0.1` on the services laptop, public only as `/line/*` through the caregiver app |
 | caregiver | 5175 | tunnel (`ngrok http 5175 --url https://<tunnel-host>`) |
 | wall | retired | served by the relay at `GET /wall` (same origin as the event stream) |
 
@@ -49,3 +50,5 @@ Public through the tunnel, nothing else: the caregiver app, `/s/<session_id>` an
 Policy route the Host page reads (LAN only, Host header): `GET /approvals/{id}/host_code` answers `{code, expires_at}` for a pending approval, 404 otherwise.
 
 Policy's after-payment routes (8001): `POST /orders/{id}/cancel {mandate_id}` (409 with `say_key: cancel_too_late` once paid); `POST /refunds` answers exactly one of `{preview}`, `{refund}` (the merchant's answer) or `{decision: "deny", say_key, rules}`; `GET /history?mandate_id=&days=`; `POST /mandate/pause`, `POST /mandate/resume/challenge` and `POST /mandate/resume` (caregiver marker; resume also needs a passkey assertion over a single-use challenge that expires in 5 minutes; the pause is stored apart from the signed mandate); `GET /decisions/{id}/explain`. Policy reads an order's status, paid time and card from the merchant's `GET /orders/{id}` before cancel, refund and history.
+
+Line routes (8005), every one but `GET /health` behind the token (`Authorization: Bearer $LINE_MCP_TOKEN`, or the path prefix `/k/<token>` for URL-only MCP clients such as the Voice Agent Builder): `/mcp` (MCP Streamable HTTP, JSON responses; one cart per phone call, kept by the `call_id` every result returns) with the tools `scam_check`, `budget_left`, `search_catalog`, `add_to_cart`, `remove_from_cart`, `read_cart`, `checkout`, `bill_status`, `order_status`, `cancel_order`, `request_refund`, `purchase_history`, each taking an optional `ruth_said`; and `POST /api/<tool>` with the same arguments as JSON (the call keyed by `X-Call-Id`), for the Builder's `api_request` tool. Public as `https://<tunnel-host>/line/*` through the caregiver app's rewrite.

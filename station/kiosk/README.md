@@ -2,9 +2,11 @@
 
 A one-page push-to-talk client for the shopper station. It opens a Grok Voice realtime session with an
 ephemeral token from the relay, streams the microphone only while the button is held, plays the reply,
-and runs the shopping tools for the model: `search_catalog`, `add_to_cart`, `remove_from_cart`,
-`read_cart`, `budget_left` and `checkout`, and after payment `order_status`, `cancel_order`, `request_refund`
-and `purchase_history`. The cart lives in the page, and `checkout` takes no arguments:
+and runs the tools for the model: `scam_check` and `bill_status` (the Ask guard), `search_catalog` across Ruth's
+stores, `add_to_cart`, `remove_from_cart`, `read_cart`, `budget_left` and `checkout`, and after payment
+`order_status`, `cancel_order`, `request_refund` and `purchase_history`. The model calls tools without announcing
+them: while they run, the strip says **Checking…** and a soft tick plays instead of "One moment". The cart lives in
+the page, and `checkout` takes no arguments:
 it buys the cart that was read back, and only after the shopper spoke again (the "yes"). Every tool call
 waits for the policy service's rule screen first, and a refused request is answered with a fixed refusal
 instead of the model. The page doubles as the large-type companion screen (**Shopper view**).
@@ -18,6 +20,8 @@ Session settings (model, voice, instructions, tools, audio format) live in
 | `src/audio.ts` | AudioWorklet capture (PCM16, 20 ms blocks) and gapless playback |
 | `src/cart.ts` | the cart (integer cents, versioned), the read-back gate, read-back and outcome sentences in es/hi/en, checkout body |
 | `src/pcm.ts`, `src/lang.ts`, `src/screen.ts` | pure helpers (PCM/base64, pre-roll, language guess, screen parsing) |
+| `src/earcon.ts` | the soft two-note tick while the station checks (tools, the rule screen, a slow reply) |
+| `src/guards.ts` | the scam check's reply and what the model gets from it; the biller's balance, which line fits it, spoken dates, the bill as a cart item |
 | `src/postpurchase.ts` | the refund confirm gate, "repeat that" detection, order status words, and parsers for the order, cancel, refund and history replies |
 | `src/services.ts` | HTTP calls to relay, catalog (`/resolve`, `/search`), policy (`/screen`, `/checkout`, `/budget`, `/orders/{id}/cancel`, `/refunds`, `/history`), merchant (`/orders/{id}`, receipt); reachability probe; each degrades with a warning |
 | `src/ui.ts`, `src/main.ts`, `index.html` | large-type page and companion screen (state strip, cart, outcome, refusal banner), key mapping, device pickers |
@@ -115,14 +119,42 @@ Microphone and speaker pickers are in the same panel (the speaker picker needs a
   `https://<TUNNEL_HOST>/s/<session_id>` (`TUNNEL_HOST` from the root `.env`, or `?tunnel=`), in the session's
   language. The spoken summary adds `you_saved` and `loyalty_points` when they apply.
 
+## The Ask guard: scam check and bills
+
+- **`scam_check {story, caller_org?, caller_phone?}`** posts `POST {policy}/scam-check` with
+  `channel: "station"`, Ruth's story as the model retold it, and her transcribed words as `transcript` when they
+  differ. The reply has `verdict` (`scam`, `unsure` or `ok`), `say` and `actions`. The model gets `say` and the
+  sources' titles (never a URL to read out), and the outcome panel shows **Protected** for a scam. If policy has no
+  `/scam-check` yet or doesn't answer (it gets 14 s: rules, facts, then Grok's search), the model says
+  `scam_check_unavailable`: "don't pay anyone or share any codes until you talk to Priyank".
+- **A scam told as a story:** when the final `/screen` answers `scam_check` (a hard rule inside a story about a call,
+  a text or a pop-up), the station stops the model's reply itself. It posts `/scam-check` with Ruth's exact words as
+  both `story` and `transcript`, and speaks its `say` verbatim with `force_message` while the tick plays. If that
+  fails, it plays the screen's `refusal.audio_url` or speaks `refusal.text`. Partial screens never trigger a check.
+  A turn gets one check: if the model already called its `scam_check` tool, the station doesn't check again. A direct
+  request to buy gift cards is still a `refuse`.
+- **`bill_status {biller?}`** reads `GET {merchant}/billers/{id}/accounts/{ref}`. The account comes from the signed
+  mandate's `billers[]`, else `billers` in `voice.json`. It says `bill_due`, `bill_past_due` or `bill_paid` with the
+  date spoken in her language ("15 de octubre"). A balance above zero becomes the cart item `BILL-<biller>`, so
+  paying it goes through the same read-back and checkout, and policy prices it from the biller.
+- **Search across stores:** `search_catalog {query, store?}` passes `store` to the catalog. Each item the model
+  sees carries `store`, and `elsewhere` (the same product at her other stores, with prices).
+- **The tick:** `earcon` in `voice.json`. It starts when a tool call or the rule screen starts, or when no reply
+  has come `after_ms` (400) after release. It repeats every `interval_ms` (700) at `gain_db` (-24). It stops the
+  moment any audio plays (the model, a clip, a refusal) and never plays while the button is held. The meter shows
+  release → first sound (the tick counts) beside release → first word.
+
 ## After payment: status, cancel, returns, history, "repeat that"
 
 The model never passes an amount or a destination; policy prices everything from the order's own lines.
 Each tool defaults to the latest order of this session.
 
-- **`order_status {order_id?}`** reads `GET {merchant}/orders/{id}` and says `order_status` ("Your order is
-  being prepared.") or, once `ready_for_pickup`, `order_ready` with the pickup code read digit by digit
-  ("4-7-2"). The outcome panel shows the status and code.
+- **`order_status {order_id?}`** reads `GET {merchant}/orders/{id}`:
+  - Paid or being prepared: `order_status_pickup` ("…ready for pickup after 3 pm, and your pickup code is 4-7-2").
+  - Once `ready_for_pickup`: `order_ready`.
+  - Otherwise: `order_status`.
+
+  The pickup code is read digit by digit, and the outcome panel shows the status and code.
 - **`cancel_order {order_id?}`** calls `POST {policy}/orders/{id}/cancel`. Cancelled: `order_cancelled`, and
   the panel shows the payment link status. A paid order (409 or `cancel_too_late`): `cancel_too_late`, which
   offers a return instead.
@@ -136,7 +168,8 @@ Each tool defaults to the latest order of this session.
      panel shows "Refund $3.49 · PENDING · to the original card · sandbox processor stub". A refusal speaks its
      say key (`refund_not_allowed_rx`, `refund_scam`, or `refund_not_possible` for any other).
 - **`purchase_history {days?}`** reads `GET {policy}/history?mandate_id=&days=` and gives the model a compact
-  list of orders, refunds and refusals.
+  list of orders, refunds and refusals, plus a `say`: how many orders, what they came to (cancelled orders left
+  out), and what the latest one had.
 - **"Repeat that"** ("repeat that", "otra vez", "phir se boliye", and the lines' `repeat_phrases`): when the
   whole turn only asks to hear the last line again, the page replays that line verbatim with `force_message`
   and no model turn. It is not the read-back "yes", and it does not change the session's language.
@@ -265,8 +298,8 @@ a system message with a `text` part is accepted; the server does not echo the vo
 `capture.preferred_sample_rate` (null = device rate), `capture.preroll_ms`, `capture.chunk_ms`,
 `capture.min_press_ms`, `screen.timeout_ms`, `screen.screen_partials`, `refusal.fallback`
 (`force_message` or `instruct`), `refusal.clip_timeout_ms`, `barge_in.truncate`, `voice_by_lang`, the
-`session` object (instructions, voice, speed 0.9, keyterms, the ten tools, resumption), and
-`measured.release_to_first_audio_ms`.
+`session` object (instructions, voice, speed 0.9, keyterms, the twelve tools, resumption), `earcon`, `billers`, and
+`measured` (`release_to_first_sound_ms` and `release_to_first_word_ms` for persona v2).
 
 ## Tests (no credentials needed)
 

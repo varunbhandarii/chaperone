@@ -126,6 +126,14 @@ export function compactItem(item: CatalogItem): Record<string, unknown> {
   if (typeof item.usual === "boolean") out.usual = item.usual;
   if (item.profile_label) out.shopper_calls_it = item.profile_label;
   if (item.note) out.note = item.note;
+  // Across Ruth's stores: which store sells it, and the same product at her other stores.
+  if (typeof item.store === "string" && item.store) out.store = item.store;
+  const elsewhere = Array.isArray(item.elsewhere) ? (item.elsewhere as Array<Record<string, unknown>>) : [];
+  const others = elsewhere
+    .filter((e) => e && typeof e.store === "string" && typeof e.price === "number")
+    .slice(0, 3)
+    .map((e) => ({ store: e.store, price: e.price, ...(typeof e.sku === "string" ? { sku: e.sku } : {}) }));
+  if (others.length) out.elsewhere = others;
   return out;
 }
 
@@ -307,9 +315,9 @@ const SAY: Record<string, Record<Lang, string>> = {
     hi: "ऑर्डर हो रहा है। कुल {total}।",
   },
   asking_priya: {
-    en: "That is more than your limit for one purchase, so I have asked Priyank. One moment, please.",
-    es: "Eso pasa de su límite para una compra, así que le pregunté a Priyank. Un momento, por favor.",
-    hi: "यह एक खरीद की सीमा से ज़्यादा है, इसलिए प्रियंक से पूछा है। एक पल रुकिए।",
+    en: "That's more than your limit for one purchase, so I've sent it to Priyank. He usually answers in a minute.",
+    es: "Eso pasa de su límite para una compra, así que se lo mandé a Priyank. Él suele contestar en un minuto.",
+    hi: "यह एक खरीद की आपकी सीमा से ज़्यादा है, इसलिए मैंने इसे प्रियंक को भेज दिया है। वे आमतौर पर जल्दी जवाब देते हैं।",
   },
   declined: {
     en: "I can't buy that on this account. Would you like something else?",
@@ -457,7 +465,55 @@ const SAY: Record<string, Record<Lang, string>> = {
   store_unavailable: {
     en: "I can't reach the store just now. Please try again in a minute.",
     es: "No puedo comunicarme con la tienda ahora mismo. Intente otra vez en un minuto.",
-    hi: "अभी दुकान से संपर्क नहीं हो पा रहा। एक मिनट बाद फिर से कोशिश कीजिए।",
+    hi: "अभी दुकान से संपर्क नहीं हो पा रहा। थोड़ी देर बाद फिर से कोशिश कीजिए।",
+  },
+  // The Ask guard. Slots: {biller} {amount} {due}
+  scam_check_unavailable: {
+    en: "I can't check that right now. Please don't pay anyone or share any codes until you talk to Priyank.",
+    es: "No puedo revisarlo ahora mismo. Por favor no le pague a nadie ni dé ningún código hasta hablar con Priyank.",
+    hi: "मैं अभी इसकी जाँच नहीं कर पा रही। प्रियंक से बात करने तक किसी को पैसे न दें और कोई कोड न बताएँ।",
+  },
+  bill_due: {
+    en: "Your {biller} bill is {amount}, due {due}. It is not past due.",
+    es: "Su factura de {biller} es de {amount} y vence el {due}. No está atrasada.",
+    hi: "आपका {biller} का बिल {amount} है, जो {due} तक भरना है। यह बकाया नहीं है।",
+  },
+  bill_past_due: {
+    en: "Your {biller} bill is {amount}, and it was due {due}.",
+    es: "Su factura de {biller} es de {amount} y venció el {due}.",
+    hi: "आपका {biller} का बिल {amount} है, जो {due} को भरना था।",
+  },
+  bill_paid: {
+    en: "Your {biller} bill is paid. You owe nothing right now.",
+    es: "Su factura de {biller} está pagada. No debe nada ahora.",
+    hi: "आपका {biller} का बिल भरा हुआ है। अभी कुछ बकाया नहीं है।",
+  },
+  // After payment, paid or being prepared: when and how to pick it up. Slots: {status} {code}
+  order_status_pickup: {
+    en: "Your order is {status}. It will be ready for pickup after 3 pm, and your pickup code is {code}.",
+    es: "Su pedido está {status}. Estará listo para recoger después de las 3, y su código de recogida es {code}.",
+    hi: "आपका ऑर्डर {status}। यह दोपहर 3 बजे के बाद ले जाने के लिए तैयार होगा, और आपका पिकअप कोड {code} है।",
+  },
+  // purchase_history. Slots: {count} {days} {spent} {items}
+  history_summary: {
+    en: "You placed {count} orders in the last {days} days, {spent} in all.",
+    es: "Hizo {count} pedidos en los últimos {days} días, {spent} en total.",
+    hi: "पिछले {days} दिनों में आपने {count} ऑर्डर किए, कुल {spent}।",
+  },
+  history_summary_one: {
+    en: "You placed one order in the last {days} days, for {spent}.",
+    es: "Hizo un pedido en los últimos {days} días, de {spent}.",
+    hi: "पिछले {days} दिनों में आपने एक ऑर्डर किया, {spent} का।",
+  },
+  history_last: {
+    en: "The last one had {items}.",
+    es: "El último tenía {items}.",
+    hi: "पिछले ऑर्डर में {items} था।",
+  },
+  history_none: {
+    en: "I don't see any orders in the last {days} days.",
+    es: "No veo pedidos en los últimos {days} días.",
+    hi: "पिछले {days} दिनों में कोई ऑर्डर नहीं दिखा।",
   },
 };
 

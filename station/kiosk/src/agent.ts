@@ -2,6 +2,7 @@
 // rule screening in front of every tool, the search_catalog and checkout tools, refusals and the ledger.
 
 import { Capture, MIC_CONSTRAINTS, Player, createAudioContext, type CaptureBlock } from "./audio.ts";
+import { Earcon } from "./earcon.ts";
 import { TUNNEL_HOST, VOICE, VOICE_NAME, buildSession, languageHint, realtimeUrl, voiceFor } from "./config.ts";
 import * as payload from "./events.ts";
 import { localReceipt, sessionUrl, type ApprovalStatus, type PlacedOrder, type Receipt } from "./receipt.ts";
@@ -27,7 +28,8 @@ import { detectLang, guessLang, type Lang } from "./lang.ts";
 import { ChunkAccumulator, PcmRing, base64ToPcm16, median, pcm16ToBase64 } from "./pcm.ts";
 import { ruleIds, type ScreenResult } from "./screen.ts";
 import { collapseShopperTurns } from "./recording.ts";
-import { RefundGate, isRepeatRequest, spokenCode, statusWords, type RefundReply, type RefundTarget } from "./postpurchase.ts";
+import { RefundGate, historySummary, isRepeatRequest, spokenCode, statusWords, type RefundReply, type RefundTarget } from "./postpurchase.ts";
+import { billItem, billSayKey, billerId, scamToolOutput, spokenDate } from "./guards.ts";
 import {
   Ledger,
   RelayStream,
@@ -35,8 +37,10 @@ import {
   cancelOrder,
   fetchToken,
   getApproval,
+  getBill,
   getBudget,
   getHistory,
+  getMandateBillers,
   getOrder,
   getReceipt,
   health,
@@ -46,17 +50,20 @@ import {
   postRefund,
   printReceipt,
   requestReset,
+  scamCheck,
   saveCachedSession,
   screenText,
   searchCatalog,
   type StreamEvent,
 } from "./services.ts";
 
-export type AgentState = "off" | "connecting" | "ready" | "listening" | "thinking" | "speaking" | "waiting";
+export type AgentState = "off" | "connecting" | "ready" | "listening" | "thinking" | "checking" | "speaking" | "waiting";
 export type NoteKind = "info" | "tool" | "warn" | "error" | "rule";
 
 export interface AgentUI {
   state(state: AgentState): void;
+  /** release -> first sound (the earcon or the first word) */
+  firstSound(ms: number, via: string): void;
   status(text: string, kind?: NoteKind): void;
   transcript(role: "shopper" | "agent", key: string, text: string, final: boolean, lang?: string): void;
   note(text: string, kind?: NoteKind): void;
@@ -107,6 +114,8 @@ interface Turn {
   responseRequested: boolean;
   pendingToolCalls: number;
   refusal: "none" | "tool" | "out_of_band";
+  /** /scam-check already ran for this turn (the station's own, or the model's scam_check tool): never twice. */
+  scamChecked?: boolean;
   partialInFlight: boolean;
   partialQueued?: string;
   lastPartialScreened?: string;
@@ -254,6 +263,16 @@ export class StationAgent {
   private refundPreview: { amount: number; last4?: string } | null = null;
   /** The last line the shopper heard (model, clip or fixed line), for "repeat that". */
   private lastSpoken: string | null = null;
+  /** The soft tick while tools, the rule screen or a slow reply run; stops the moment any audio plays. */
+  private earcon: Earcon | null = null;
+  private checking = false;
+  private toolsRunning = 0;
+  /** station work with no model reply running (the scam check it asks for itself) keeps the tick going */
+  private stationBusy = 0;
+  private slowWaitTimer: ReturnType<typeof setTimeout> | null = null;
+  /** release (or send) -> first sound, the earcon included; the meter's figure is release -> first word */
+  private firstSoundPending = false;
+  private soundLatencies: number[] = [];
   private replayGen = 0;
   private pendingForce: { text: string; at: number } | null = null;
   private deferredRefusal: { turn: Turn; result: ScreenResult } | null = null;
@@ -281,6 +300,7 @@ export class StationAgent {
     void ctx.resume();
     this.player = new Player(ctx);
     this.player.onIdle = () => this.refreshState();
+    this.earcon = this.makeEarcon(ctx);
 
     this.rateReady = this.setupCapture(ctx, micDeviceId);
     void health.start();
@@ -368,11 +388,13 @@ export class StationAgent {
     this.ws = null;
     if (ws && ws.readyState <= WebSocket.OPEN) ws.close(1000, "station stopped");
     this.player?.stop();
+    this.endChecking();
     this.capture?.close();
     const ctx = this.ctx;
     this.ctx = null;
     this.capture = null;
     this.player = null;
+    this.earcon = null;
     if (ctx && ctx.state !== "closed") await ctx.close().catch(() => {});
     this.ui.state("off");
   }
@@ -465,6 +487,7 @@ export class StationAgent {
     this.appendedSamples = 0;
     this.generation++;
     this.bargeIn("button pressed");
+    this.endChecking();
 
     const turn = this.newTurn("voice");
     turn.pressed = true;
@@ -511,6 +534,7 @@ export class StationAgent {
     this.tRelease = tRelease;
     this.latencyKind = "voice";
     this.awaitingFirstAudio = true;
+    this.armSlowWait();
     if (turn) {
       turn.pressed = false;
       // Placeholder keeps the shopper's line above the agent's reply; transcription events fill it in.
@@ -518,7 +542,10 @@ export class StationAgent {
     }
     console.info(`[${ts()}] released after ${Math.round(heldMs)} ms; committed ${Math.round((this.appendedSamples / this.rate) * 1000)} ms of audio`);
 
-    if (turn && turn.screenResult?.action === "refuse") {
+    if (turn && turn.screenResult?.action === "scam_check") {
+      this.deferredRefusal = null;
+      void this.scamCheckOutOfBand(turn, turn.screenResult);
+    } else if (turn && turn.screenResult?.action === "refuse") {
       this.deferredRefusal = null;
       void this.refuseOutOfBand(turn, turn.screenResult);
     } else if (!this.deliverDeferredRefusal()) {
@@ -533,7 +560,8 @@ export class StationAgent {
     const deferred = this.deferredRefusal;
     this.deferredRefusal = null;
     if (!deferred) return false;
-    void this.refuseOutOfBand(deferred.turn, deferred.result);
+    if (deferred.result.action === "scam_check") void this.scamCheckOutOfBand(deferred.turn, deferred.result);
+    else void this.refuseOutOfBand(deferred.turn, deferred.result);
     return true;
   }
 
@@ -552,6 +580,7 @@ export class StationAgent {
       this.send({ type: "conversation.item.truncate", item_id: itemId, content_index: 0, audio_end_ms: played });
     }
     this.awaitingFirstAudio = false;
+    this.endChecking();
     if (wasSpeaking) console.info(`[${ts()}] barge-in (${reason})`);
   }
 
@@ -593,10 +622,11 @@ export class StationAgent {
     this.tRelease = performance.now();
     this.latencyKind = "typed";
     this.awaitingFirstAudio = true;
+    this.armSlowWait();
 
     const result = await screenText(this.sessionId, text, turn.lang, (m) => this.warn("screen", m));
     this.settleScreen(turn, result);
-    if (result?.action === "refuse") return; // settleScreen delivered the refusal
+    if (result?.action === "refuse" || result?.action === "scam_check") return; // settleScreen answered it
     this.send({ type: "response.create" });
     turn.responseRequested = true;
     this.refreshState();
@@ -680,9 +710,10 @@ export class StationAgent {
   }
 
   private settleScreen(turn: Turn, result: ScreenResult | null): void {
+    const stops = (a?: string) => a === "refuse" || a === "scam_check";
     if (turn.screenSettled) {
-      // Only a refusal of a longer transcript may replace a settled result; anything else is stale.
-      if (result?.action !== "refuse" || turn.screenResult?.action === "refuse") return;
+      // Only a refusal or a scam story in a longer transcript may replace a settled result; anything else is stale.
+      if (!stops(result?.action) || stops(turn.screenResult?.action)) return;
       turn.screenResult = result;
     } else {
       turn.screenSettled = true;
@@ -701,6 +732,17 @@ export class StationAgent {
         return;
       }
       void this.refuseOutOfBand(turn, result);
+    } else if (result.action === "scam_check") {
+      // Ruth is telling a story about a call, a text or a pop-up: answer with the scam check, not a refusal.
+      console.warn(`%c[${ts()}] SCAM STORY ${ids.join(", ")}`, "color:#111;background:#fc3;font-size:16px;padding:2px 6px");
+      this.ui.rules(ids, "scam_check");
+      if (turn.pendingToolCalls > 0) return; // the waiting tool call hands it over (runTool)
+      if (turn.pressed) return; // still talking: the final transcript decides
+      if (this.pressed) {
+        this.deferredRefusal = { turn, result }; // never talk over the shopper; delivered on release
+        return;
+      }
+      void this.scamCheckOutOfBand(turn, result);
     } else if (result.action !== "proceed" || ids.length) {
       console.info(`[${ts()}] screen: ${result.action} ${ids.join(", ")}`);
       this.ui.rules(ids, result.action);
@@ -734,15 +776,66 @@ export class StationAgent {
   /** Refusal without the model: cancel what it is saying, then play the clip or speak the text verbatim. */
   private async refuseOutOfBand(turn: Turn, result: ScreenResult): Promise<void> {
     if (turn.refusal !== "none") return;
+    this.takeTurn(turn, "rule refusal");
+    this.logRefusal(turn, result, "out_of_band");
+    await this.deliverRefusal(turn, result);
+  }
+
+  /** The station answers this turn itself: cancel what the model is saying or about to say. */
+  private takeTurn(turn: Turn, reason: string): void {
     turn.refusal = "out_of_band";
     this.generation++;
     const waitingForAudio = this.awaitingFirstAudio;
     // The reply requested on release may not exist yet, so bargeIn has nothing to cancel: catch it on creation.
     if (this.responsePending) this.cancelWhenCreated = true;
-    this.bargeIn("rule refusal");
+    this.bargeIn(reason);
     this.awaitingFirstAudio = waitingForAudio;
+  }
+
+  /**
+   * A scam told as a story ("Peachtree Power called, pay in gift cards"): POST /scam-check with Ruth's exact words
+   * (policy checks her real bill, her trusted contacts and this week's reports, sets the card cool-down and tells
+   * Priyank), then say its answer verbatim. If the check fails, the screen's refusal is the fallback.
+   */
+  private async scamCheckOutOfBand(turn: Turn, result: ScreenResult): Promise<void> {
+    if (turn.scamChecked || (turn.refusal !== "none" && turn.refusal !== "out_of_band")) return;
+    turn.scamChecked = true;
+    this.takeTurn(turn, "scam story");
+    this.requestStart = this.shopperTexts.length; // the story never rides along into a later checkout
+    const gen = this.generation;
+    const words = (turn.text ?? "").trim() || this.shopperTexts.slice(-1).join(" ");
+    this.awaitingFirstAudio = true;
+    this.stationBusy++;
+    this.beginChecking(); // the tick plays while policy checks (rules first; Grok's search adds sources later)
+    const reply = await scamCheck({
+      session_id: this.sessionId,
+      mandate_id: VOICE.mandate_id,
+      lang: turn.lang ?? this.lang,
+      channel: "station",
+      story: words,
+      transcript: words,
+      caller: { org: null, name: null, phone: null },
+    }).finally(() => this.stationBusy--);
+    if (gen !== this.generation) return; // the shopper pressed again: they are talking now
+    if (reply.kind === "ok") {
+      const v = reply.verdict;
+      const pattern = (v.pattern ?? "").replace(/_/g, " ");
+      if (v.verdict !== "ok") {
+        this.ui.notice(v.verdict === "scam" ? "Protected: this looks like a scam" : "Be careful", `${pattern || "a known scam"} · Priyank has been told${v.sources.length ? ` · ${v.sources.length} source(s)` : ""}`, "warn");
+      }
+      console.info(`[${ts()}] scam check (screen): ${v.verdict} ${v.pattern ?? ""} in ${v.ms ?? "?"} ms${v.from_cache ? " (cache)" : ""}`);
+      this.speakVerbatim(v.say); // the tick stops when this audio starts
+      return;
+    }
+    this.warn("scam-check", `scam check failed (${reply.kind === "not_ready" ? `HTTP ${reply.status}` : reply.error}); the refusal is spoken instead`);
+    this.endChecking();
+    this.logRefusal(turn, result, "scam_check_fallback");
+    await this.deliverRefusal(turn, result);
+  }
+
+  /** The refusal clip in the session voice if it loads in time, else the refusal text verbatim. */
+  private async deliverRefusal(turn: Turn, result: ScreenResult): Promise<void> {
     const say = result.refusal?.text || DEFAULT_SAY;
-    this.logRefusal(turn, result, "out_of_band");
 
     let played = false;
     const url = result.refusal?.audio_url;
@@ -752,6 +845,7 @@ export class StationAgent {
       if (clip && gen === this.generation && this.player) {
         played = true;
         this.markFirstAudio("refusal clip");
+        this.endChecking();
         this.refreshState("speaking");
         this.ui.transcript("agent", `refusal-${turn.n}`, say, true);
         console.log(`%c[${ts()}] AGENT (clip): ${say}`, "color:#36c;font-weight:bold");
@@ -891,6 +985,7 @@ export class StationAgent {
       case "response.output_audio.delta": {
         if (this.cancelled.has(ev.response_id) || !this.player || typeof ev.delta !== "string") break;
         this.markFirstAudio(this.pendingForce ? "refusal speech" : "model");
+        this.endChecking();
         this.player.enqueue(base64ToPcm16(ev.delta), ev.item_id);
         this.record({ kind: "agent_audio", audio: ev.delta, item: ev.item_id });
         this.refreshState();
@@ -990,6 +1085,7 @@ export class StationAgent {
   private markFirstAudio(via: string): void {
     if (!this.awaitingFirstAudio) return;
     this.awaitingFirstAudio = false;
+    this.markFirstSound(via);
     const ms = Math.round(performance.now() - this.tRelease);
     // Only button release -> model audio counts toward the release-to-first-audio target.
     const counted = this.latencyKind === "voice" && via === "model";
@@ -1011,6 +1107,17 @@ export class StationAgent {
     const args = safeParse(ev.arguments);
     const turn = this.currentTurn();
     const gen = this.socketGen;
+    this.toolsRunning++;
+    this.beginChecking();
+    try {
+      await this.runToolInner(name, callId, args, turn, gen, responseId);
+    } finally {
+      this.toolsRunning--;
+      this.refreshState();
+    }
+  }
+
+  private async runToolInner(name: string, callId: string, args: Record<string, unknown>, turn: Turn | undefined, gen: number, responseId: string): Promise<void> {
     console.info(`%c[${ts()}] TOOL CALL ${name}(${JSON.stringify(args)})`, "color:#a0a;font-weight:bold");
     this.ui.note(`Tool call: ${name}(${JSON.stringify(args)})`, "tool");
 
@@ -1023,6 +1130,10 @@ export class StationAgent {
       if (this.cancelled.has(responseId)) {
         // The shopper pressed during the screen wait (up to 1.5 s): nothing may run, least of all a checkout.
         output = { cancelled: true, note: "The shopper interrupted before this ran. Nothing was done." };
+      } else if (screen?.action === "scam_check" && turn && !(name === "scam_check" && !turn.scamChecked)) {
+        // The station answers the story itself (scam check, spoken verbatim); the model stays quiet this turn.
+        void this.scamCheckOutOfBand(turn, screen);
+        output = { handled_by_station: true, note: "The station is answering Ruth about this call itself. Say nothing." };
       } else if (screen?.action === "refuse") {
         output = { refused: true, rule_id: screen.refusal?.rule_id ?? ruleIds(screen)[0] ?? "unknown", say: screen.refusal?.text || DEFAULT_SAY };
         if (turn && turn.refusal === "none") {
@@ -1048,6 +1159,10 @@ export class StationAgent {
     switch (name) {
       case "search_catalog":
         return this.toolSearch(args);
+      case "scam_check":
+        return this.toolScamCheck(args);
+      case "bill_status":
+        return this.toolBillStatus(args);
       case "add_to_cart":
         return this.toolAdd(args);
       case "remove_from_cart":
@@ -1074,6 +1189,7 @@ export class StationAgent {
   /** After a response with tool calls: outputs are sent; ask for the next response once playback has drained. */
   private async continueAfterTools(batch: Promise<void>[], responseId: string): Promise<void> {
     const gen = this.generation;
+    const sessionId = this.sessionId;
     this.continuing = true;
     this.refreshState();
     try {
@@ -1085,10 +1201,13 @@ export class StationAgent {
     const turn = this.currentTurn();
     const said = this.silentResponses.get(responseId);
     this.silentResponses.delete(responseId);
-    if (said !== undefined && gen === this.generation) {
+    if (said !== undefined) {
       // The station already played this moment's line (the asking-Priyank clip): record it in the history after the
       // tool outputs, so the model sees call, result, then its own words; the model then waits for the shopper.
-      if (said) this.send({ type: "conversation.item.create", item: { type: "message", role: "assistant", content: [{ type: "text", text: said }] } });
+      // Also when the shopper pressed during the clip: they heard it, so the model must know it was said.
+      if (said && sessionId === this.sessionId) {
+        this.send({ type: "conversation.item.create", item: { type: "message", role: "assistant", content: [{ type: "text", text: said }] } });
+      }
       this.refreshState();
       return;
     }
@@ -1107,7 +1226,8 @@ export class StationAgent {
   private async toolSearch(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const query = String(args.query ?? "").trim();
     if (!query) return { error: "query is required" };
-    const result = await searchCatalog(query, (m) => this.warn("catalog", m));
+    const store = typeof args.store === "string" && args.store.trim() ? args.store.trim() : undefined;
+    const result = await searchCatalog(query, (m) => this.warn("catalog", m), store);
     this.cache.add(result.items);
     this.ui.items(result.items, result.source);
     this.ledger.post("items_found", payload.itemsFound(query, result.items, result.source));
@@ -1235,8 +1355,82 @@ export class StationAgent {
     this.ledger.post("heard", payload.heard("agent", text, this.lastLang, `${this.sessionId}-line-${key}-${this.turns.length}`));
     this.record({ kind: "clip", url, text });
     this.lastSpoken = text;
+    this.endChecking();
     void this.player.playClip(clip).then(() => this.refreshState());
     return true;
+  }
+
+  // ---------------------------------------------------------------- the Ask guard
+
+  /**
+   * "Someone called and asked for money": policy checks the story against the rules, Ruth's real facts (her bill,
+   * her trusted contacts, her orders) and this week's reports, and answers with one clear action to say.
+   */
+  private async toolScamCheck(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const turn = this.currentTurn();
+    if (turn?.scamChecked) return { handled_by_station: true, note: "This story was already checked and answered. Say nothing." };
+    if (turn) turn.scamChecked = true;
+    const heard = this.shopperTexts.slice(this.requestStart).join(" ").trim();
+    const story = String(args.story ?? "").trim() || heard;
+    if (!story) return { error: "story is required: pass Ruth's own words" };
+    const body = {
+      session_id: this.sessionId,
+      mandate_id: VOICE.mandate_id,
+      lang: this.lang,
+      channel: "station",
+      story,
+      // her exact words as transcribed, beside the model's retelling: the rules read what she actually said
+      ...(heard && heard !== story ? { transcript: heard } : {}),
+      caller: {
+        org: typeof args.caller_org === "string" && args.caller_org ? args.caller_org : null,
+        name: null,
+        phone: typeof args.caller_phone === "string" && args.caller_phone ? args.caller_phone : null,
+      },
+    };
+    const reply = await scamCheck(body);
+    if (reply.kind !== "ok") {
+      const why = reply.kind === "not_ready" ? `scam check not ready (HTTP ${reply.status})` : reply.error;
+      this.warn("scam-check", `${why}; the safe fallback line is spoken`);
+      return { error: "not ready", say: sayFor("scam_check_unavailable", this.lang) };
+    }
+    const v = reply.verdict;
+    const pattern = (v.pattern ?? "").replace(/_/g, " "); // "grandparent_emergency" -> "grandparent emergency"
+    if (v.verdict === "scam") {
+      this.ui.notice("Protected: this looks like a scam", `${pattern || "a known scam"} · Priyank has been told${v.sources.length ? ` · ${v.sources.length} source(s)` : ""}`, "warn");
+    } else if (v.verdict === "unsure") {
+      this.ui.notice("Be careful", `${pattern || "not sure yet"} · checked ${v.facts_checked.length} fact(s)`, "warn");
+    }
+    console.info(`[${ts()}] scam check: ${v.verdict} ${v.pattern ?? ""} in ${v.ms ?? "?"} ms${v.from_cache ? " (cache)" : ""}`);
+    return scamToolOutput(v);
+  }
+
+  /** What Ruth really owes a biller; the bill becomes a cart item, so paying it is read back like any order. */
+  private async toolBillStatus(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const known = Object.keys(VOICE.billers);
+    const id = billerId(args.biller, known);
+    if (!id) return { error: "unknown biller", billers: known.map((k) => VOICE.billers[k].name) };
+    const fromMandate = (await getMandateBillers())?.find((b) => b.merchant_id === id)?.account_ref;
+    const ref = fromMandate ?? VOICE.billers[id].account_ref;
+    const bill = await getBill(id, ref);
+    if (!bill) return { error: "not ready", say: sayFor("store_unavailable", this.lang) };
+    const name = VOICE.billers[id].name;
+    const item = billItem(id, name, bill);
+    if (bill.balance_due > 0) this.cache.add([item]);
+    const say = sayFor(billSayKey(bill), this.lang, {
+      biller: name,
+      amount: money(toCents(bill.balance_due), this.lang),
+      due: spokenDate(bill.due_date, this.lang),
+    });
+    return {
+      biller: name,
+      balance_due: bill.balance_due,
+      ...(bill.due_date ? { due_date: bill.due_date } : {}),
+      past_due: bill.past_due,
+      disconnect_notice: bill.disconnect_notice,
+      ...(bill.last_payment ? { last_payment: bill.last_payment } : {}),
+      ...(bill.balance_due > 0 ? { sku: item.sku } : {}),
+      say,
+    };
   }
 
   // ---------------------------------------------------------------- after payment
@@ -1255,10 +1449,13 @@ export class StationAgent {
     const code = spokenCode(order.pickup_code);
     // After a partial refund the rest of the order is still picked up: speak its pickup progress.
     const ready = order.status === "ready_for_pickup" || (order.status === "partially_refunded" && order.fulfilment === "ready_for_pickup");
+    const progress = order.status === "partially_refunded" ? order.fulfilment : order.status;
     const say =
       ready && code
         ? sayFor("order_ready", this.lang, { code })
-        : sayFor("order_status", this.lang, { status: statusWords(order.status, this.lang), code });
+        : (progress === "paid" || progress === "preparing") && code
+          ? sayFor("order_status_pickup", this.lang, { status: statusWords(order.status, this.lang), code })
+          : sayFor("order_status", this.lang, { status: statusWords(order.status, this.lang), code });
     this.ui.notice(statusWords(order.status, "en"), `${order.order_id}${order.pickup_code ? ` · pickup code ${order.pickup_code}` : ""}`, "ok");
     return {
       order_id: order.order_id,
@@ -1376,7 +1573,12 @@ export class StationAgent {
     const days = Math.min(60, Math.max(1, Number.isInteger(args.days) ? Number(args.days) : 30));
     const history = await getHistory(VOICE.mandate_id, days);
     if (!history) return { error: "history unavailable", say: sayFor("store_unavailable", this.lang) };
-    return { days, ...history };
+    const { count, spentCents, lastItems } = historySummary(history);
+    const vars = { days: String(days), count: String(count), spent: money(spentCents, this.lang), items: lastItems.join(", ") };
+    const say = !count
+      ? sayFor("history_none", this.lang, vars)
+      : `${sayFor(count === 1 ? "history_summary_one" : "history_summary", this.lang, vars)}${lastItems.length ? ` ${sayFor("history_last", this.lang, vars)}` : ""}`;
+    return { days, ...history, say };
   }
 
   /** "Repeat that": the last line again, verbatim, with no model turn (and it is not the read-back "yes"). */
@@ -1477,10 +1679,10 @@ export class StationAgent {
   /** A fixed line, spoken verbatim (force_message) once the shopper and the model are quiet; never over them. */
   private async speakFixed(text: string): Promise<void> {
     if (this.replaying) return; // the recording carries its own audio
-    this.lastSpoken = text;
     const t0 = performance.now();
     while ((this.pressed || this.responseActive || this.player?.active) && performance.now() - t0 < 8000) await sleep(150);
     if (!this.started || this.pressed || !this.configured) return; // the screen still shows it
+    this.lastSpoken = text; // only what was actually spoken can be repeated
     this.speakVerbatim(text);
   }
 
@@ -1811,13 +2013,71 @@ export class StationAgent {
   // ---------------------------------------------------------------- state and warnings
 
   private refreshState(force?: AgentState): void {
-    if (!this.started) return this.ui.state("off");
-    if (force) return this.ui.state(force);
-    if (!this.configured) return this.ui.state(this.pressed ? "listening" : "connecting");
-    if (this.pressed) return this.ui.state("listening");
-    if (this.player?.active) return this.ui.state("speaking");
-    if (this.responseActive || this.continuing || this.awaitingFirstAudio) return this.ui.state("thinking");
-    this.ui.state(this.waitingForCaregiver ? "waiting" : "ready");
+    // A turn that ended with no audio (a silent tool result, a cancelled reply) also ends the tick.
+    if (this.checking && !this.responseActive && !this.responsePending && !this.continuing && this.toolsRunning === 0 && this.stationBusy === 0) {
+      this.endChecking();
+    }
+    const state = this.stateNow(force);
+    // Tick only while checking and nothing else is audible (never over the shopper or the agent).
+    if (state === "checking" && !this.replaying) this.earcon?.start();
+    else this.earcon?.stop();
+    this.ui.state(state);
+  }
+
+  private stateNow(force?: AgentState): AgentState {
+    if (!this.started) return "off";
+    if (force) return force;
+    if (!this.configured) return this.pressed ? "listening" : "connecting";
+    if (this.pressed) return "listening";
+    if (this.player?.active) return "speaking";
+    if (this.checking) return "checking";
+    if (this.responseActive || this.continuing || this.awaitingFirstAudio) return "thinking";
+    return this.waitingForCaregiver ? "waiting" : "ready";
+  }
+
+  // ---------------------------------------------------------------- the checking tick
+
+  private makeEarcon(ctx: AudioContext): Earcon {
+    const earcon = new Earcon(ctx, { intervalMs: VOICE.earcon.interval_ms, gainDb: VOICE.earcon.gain_db });
+    earcon.onTick = () => this.markFirstSound("earcon");
+    return earcon;
+  }
+
+  /** No word yet a moment after the shopper finished: tick, so the silence never reads as "it didn't hear me". */
+  private armSlowWait(): void {
+    if (this.slowWaitTimer) clearTimeout(this.slowWaitTimer);
+    this.firstSoundPending = true;
+    const gen = this.generation;
+    this.slowWaitTimer = setTimeout(() => {
+      this.slowWaitTimer = null;
+      if (gen === this.generation && this.awaitingFirstAudio && !this.pressed) this.beginChecking();
+    }, VOICE.earcon.after_ms);
+  }
+
+  private beginChecking(): void {
+    if (this.pressed || this.replaying) return;
+    this.checking = true;
+    this.refreshState();
+  }
+
+  private endChecking(): void {
+    if (this.slowWaitTimer) {
+      clearTimeout(this.slowWaitTimer);
+      this.slowWaitTimer = null;
+    }
+    this.checking = false;
+    this.earcon?.stop();
+  }
+
+  private markFirstSound(via: string): void {
+    if (!this.firstSoundPending) return;
+    this.firstSoundPending = false;
+    const ms = Math.round(performance.now() - this.tRelease);
+    if (this.latencyKind === "voice") this.soundLatencies.push(ms);
+    const n = this.soundLatencies.length;
+    const med = n ? Math.round(median(this.soundLatencies) ?? ms) : null;
+    console.log(`%c[${ts()}] ${this.latencyKind === "voice" ? "release" : "send"} -> first sound: ${ms} ms (${via})${med !== null ? `; voice median ${med}, n=${n}` : ""}`, "color:#b60");
+    this.ui.firstSound(ms, via);
   }
 
   private warn(key: string, msg: string): void {

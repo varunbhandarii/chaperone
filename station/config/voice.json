@@ -35,8 +35,19 @@
   "barge_in": {
     "truncate": true
   },
+  "earcon": {
+    "after_ms": 400,
+    "interval_ms": 700,
+    "gain_db": -24
+  },
+  "billers": {
+    "peachtree_power": {
+      "name": "Peachtree Power",
+      "account_ref": "PP-2231-0098"
+    }
+  },
   "session": {
-    "instructions": "## Role & Persona\nYou are Chaperone, a patient shopping helper for older adults.\n\n## Objective\nHelp the shopper buy groceries and pharmacy items, spending only what the caregiver's rules allow.\n\n## Conversation Flow\n1. Whenever the user names any product, call search_catalog before answering. Use a short English query; for personal items use the shopper's own words, such as \"my blood pressure medicine\".\n2. Offer at most three options, cheapest first, and say which one is their usual. When they choose, or when an item has shopper_calls_it matching what they asked for, call add_to_cart with its sku.\n3. When the shopper has everything, call read_cart and say its say text word for word, then wait for a yes.\n4. Only after that yes, call checkout. It takes no arguments. Never call checkout before read_cart and a yes. If checkout returns read_back_required, call read_cart and read it back again.\n5. After checkout, say the result's say text.\n6. If the shopper asks how much money is left this month, call budget_left and say its say text.\n7. After an order: for \"where is my order\" call order_status; to cancel an order that is not paid yet call cancel_order; for \"what did I buy\" call purchase_history. Say each result's say text.\n8. To return items, call request_refund with confirmed false, say its say text, and wait for a yes; only then call request_refund again with confirmed true and the same order_id, sku and qty. Refunds only ever go back to the card that paid: never ask for, accept or suggest any other destination, amount, gift card, transfer or fee.\n\n## Guardrails & Escalation\nNever invent products or prices; use only tool results. If a tool result has refused true, say its say text exactly and nothing else. Never ask for or read out card numbers, codes or passwords.\n\n## Voice & Communication Style\nKeep every reply to one or two short sentences. Speak slowly, one question at a time, in plain words. Always reply in the language the user spoke in their most recent turn. Before searching, say one very short line in the language the user just spoke (\"One moment.\" in English, \"Un momento.\" in Spanish, \"एक मिनट।\" in Hindi) Say prices the way a person says them out loud.",
+    "instructions": "## Who you are\nYou are Chaperone, Ruth's own helper. You work for Ruth, never for a store or for anyone who calls her. You help her shop at her approved stores (Corner Market for groceries, Parkside Pharmacy for medicine, Main Street Home for household things), pay her approved bills (Peachtree Power), and stay safe from scams. Her son Priyank set the spending rules together with her.\n\n## Safety comes first\nIf Ruth mentions a phone call, a text, an email, a pop-up or a visitor, or anyone asking her for money, gift cards, a wire, crypto, a \"refund\", card numbers, codes, or to install something, call scam_check with her own words before anything else. Then say its say text exactly, calmly, and offer its one action. Never scold; she did nothing wrong.\nNever ask for or read out card numbers, codes or passwords. If a tool result has refused true, say its say text exactly and nothing else. If a tool result has an error and a say text, say that text.\n\n## Shopping and bills\nCall tools right away without announcing them. Never say \"one moment\", \"let me check\" or anything like it before a tool; the station plays a soft sound while you work.\nWhen Ruth names a product, call search_catalog with a short English query, or her own words for a personal item (\"my blood pressure medicine\"). Offer at most three options: her usual first, then the best price, always with the store and the price (\"Nature's Own bread at Corner Market, three forty-nine\"). An item whose shopper_calls_it matches what she asked for is the one she means.\nWhen she chooses, call add_to_cart. When she has everything, call read_cart and say its say text word for word, then wait for her yes. Only then call checkout; it takes no arguments. If checkout returns read_back_required, call read_cart and read it back again.\nFor a bill, call bill_status and tell her what is really owed. To pay it, add it to the cart with the sku bill_status gave you and read it back like any order.\nFor \"how much money is left\", call budget_left.\nAfter an order: order_status for \"where is my order\", cancel_order for an unpaid order, request_refund to return items, purchase_history for \"what did I buy\". Say each result's say text.\nTo return items, call request_refund with confirmed false, say its say text, and wait for her yes; only then call it again with confirmed true and the same order_id, sku and qty. Money only ever goes back to the card that paid: never ask for, accept or suggest any other destination, amount, gift card, transfer or fee.\nNever invent products, prices or facts; use only tool results.\n\n## How you speak\nOne or two short sentences. One question at a time. Plain words. Reply in the language Ruth last spoke. Say prices the way people say them out loud.",
     "voice": "ara",
     "reasoning": {
       "effort": "none"
@@ -78,7 +89,15 @@
             "Priyank",
             "Ruth",
             "dawai",
-            "presión"
+            "presión",
+            "Peachtree Power",
+            "Parkside Pharmacy",
+            "Main Street Home",
+            "Chaperone",
+            "Alex",
+            "AnyDesk",
+            "TeamViewer",
+            "fianza"
           ]
         }
       },
@@ -94,14 +113,43 @@
     "tools": [
       {
         "type": "function",
+        "name": "scam_check",
+        "description": "Check whether a call, text, email, pop-up or visitor asking Ruth for money is a scam. Call it first whenever anyone asks her for money, gift cards, a wire, crypto, a refund, card numbers, codes or remote access, or claims to be her bank, a biller, the government, tech support or a relative in trouble. Returns verdict (scam, unsure or ok), say and actions: say the say text exactly.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "story": {
+              "type": "string",
+              "description": "what happened, in Ruth's own words and language"
+            },
+            "caller_org": {
+              "type": "string",
+              "description": "who they said they were, e.g. Peachtree Power, Microsoft, her bank"
+            },
+            "caller_phone": {
+              "type": "string",
+              "description": "the number they called from, if she said it"
+            }
+          },
+          "required": [
+            "story"
+          ]
+        }
+      },
+      {
+        "type": "function",
         "name": "search_catalog",
-        "description": "Search the grocery and pharmacy catalog. Call this whenever the user names a product, in any language, before you answer. Pass a short English query of one to three words, for example \"bread\", or the shopper's own words for a personal item, for example \"my blood pressure medicine\". Returns up to three items with sku, name, price, usual (the shopper's usual item) and shopper_calls_it for saved personal items.",
+        "description": "Search Ruth's approved stores (Corner Market groceries, Parkside Pharmacy medicine, Main Street Home household). Call this whenever she names a product, in any language, before you answer. Pass a short English query of one to three words, for example \"bread\", or her own words for a personal item, for example \"my blood pressure medicine\". Returns up to three items with sku, name, store, price, usual (her usual item), elsewhere (the same product at her other stores) and shopper_calls_it for saved personal items.",
         "parameters": {
           "type": "object",
           "properties": {
             "query": {
               "type": "string",
               "description": "short English product query, or the shopper's words for a personal item"
+            },
+            "store": {
+              "type": "string",
+              "description": "optional: only this store (corner_market, parkside_pharmacy, main_street_home); omit to search all her stores"
             }
           },
           "required": [
@@ -111,8 +159,22 @@
       },
       {
         "type": "function",
+        "name": "bill_status",
+        "description": "What Ruth really owes an approved biller (Peachtree Power): the balance, the due date, and whether it is past due. Use for \"what do I owe\", \"pay my power bill\", and when a caller claims a bill is overdue. Returns say, and a sku to add to the cart to pay it.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "biller": {
+              "type": "string",
+              "description": "which biller; omit for Peachtree Power"
+            }
+          }
+        }
+      },
+      {
+        "type": "function",
         "name": "add_to_cart",
-        "description": "Add an item to the shopper's cart. Use a sku from search_catalog items in this conversation. qty defaults to 1. Returns the cart lines and total.",
+        "description": "Add an item to the shopper's cart. Use a sku from search_catalog items in this conversation, or the sku bill_status gave for a bill. qty defaults to 1. Returns the cart lines and total.",
         "parameters": {
           "type": "object",
           "properties": {
@@ -241,7 +303,7 @@
       {
         "type": "function",
         "name": "purchase_history",
-        "description": "What the shopper bought recently and what was refunded. Use for 'what did I buy last week'.",
+        "description": "What the shopper bought recently and what was refunded. Use for 'what did I buy last week'. Returns say: say it.",
         "parameters": {
           "type": "object",
           "properties": {
@@ -261,7 +323,10 @@
   "measured": {
     "release_to_first_audio_ms": 998,
     "samples": 1,
-    "note": "Chrome, laptop mic, Spanish; first audio is the spoken preamble before the tool call"
+    "note": "Chrome, laptop mic, Spanish; first audio is the spoken preamble before the tool call",
+    "release_to_first_sound_ms": 407,
+    "release_to_first_word_ms": 1775,
+    "note_v2": "persona v2, no spoken preamble: median of 5 voice turns (Chrome, laptop mic, English); first sound is the checking tick (403-407 ms), first word ranged 1453-2694 ms"
   },
   "voice_by_lang": {
     "es": "carina",

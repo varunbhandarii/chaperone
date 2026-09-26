@@ -44,6 +44,7 @@ RATES = {8000, 11025, 16000, 22050, 24000, 32000, 44100, 48000}
 FIRST_AUDIO_DELAY_S = 0.15
 CHUNK_S = 0.04
 BLOCKED_WORDS = ("tarjeta", "tarjetas", "regalo", "gift card", "gift cards")
+STORY_WORDS = ("llamó", "llamo", "me dijo", "me pidió", "quiere que", "called", "told me", "asked me", "wants me")
 MOCK = {"transcript": "necesito pan", "pace": 0.25, "clip": False, "eager_checkout": False,  # pace 1.0 = real time
         "approval_ttl": 90.0, "print_ok": False,
         "preparing_after": 3.0, "ready_after": 6.0}  # the merchant's timers after paid (20 s and 60 s for real)
@@ -145,8 +146,10 @@ async def screen(request: Request) -> dict:
     record("http", path="/screen", body=body)
     text = str(body.get("text", "")).lower()
     if any(w in text for w in BLOCKED_WORDS):
+        # a story about someone else asking for gift cards is a scam check, a request to buy them is a refusal
+        story = any(w in text for w in STORY_WORDS)
         return {
-            "action": "refuse",
+            "action": "scam_check" if story else "refuse",
             "hits": [{"rule_id": "R1_blocked_category", "pattern": "gift_card", "lang": "es", "term": "tarjetas de regalo"}],
             "refusal": {
                 "rule_id": "R1_blocked_category",
@@ -342,6 +345,52 @@ async def history(mandate_id: str = "", days: int = 30) -> dict:
     return {"orders": orders, "refunds": refunds, "refusals": [], "totals": {"spent": 142.10}}
 
 
+SCAM_WORDS = {
+    "grandparent_emergency": ("nieto", "grandson", "cárcel", "carcel", "jail", "fianza", "bail", "पोता", "जेल"),
+    "utility_disconnect": ("peachtree", "cortar la luz", "cut my power", "disconnect", "बिजली काट"),
+    "tech_support": ("microsoft", "amazon", "anydesk", "teamviewer", "virus"),
+    "gift_card_payment": ("tarjeta", "regalo", "gift card"),
+}
+SCAM_SAY = {
+    "es": "Esto es una estafa muy común; la voz se puede copiar. Por favor cuelgue. ¿Quiere que llame a Alex a su número de siempre?",
+    "en": "This is a common scam; voices can be copied. Please hang up. Shall I call Alex on his usual number?",
+    "hi": "यह एक आम धोखा है; आवाज़ की नकल की जा सकती है। कृपया फ़ोन रख दीजिए। क्या मैं एलेक्स को उनके पुराने नंबर पर फ़ोन करूँ?",
+}
+
+
+@app.post("/scam-check")
+async def scam_check(request: Request):
+    """Policy's scam check: rules first here; the real one adds Ruth's facts and Grok's search."""
+    body = await request.json()
+    record("http", path="/scam-check", body=body)
+    if not MOCK.get("scam_ready", True):
+        raise HTTPException(404, "Not Found")
+    story = f"{body.get('story', '')} {body.get('transcript', '')}".lower()
+    pattern = next((k for k, words in SCAM_WORDS.items() if any(w in story for w in words)), None)
+    lang = body.get("lang") if body.get("lang") in SCAM_SAY else "en"
+    check_id = new_id("sc")
+    if pattern:
+        emit({"type": "scam_checked", "session_id": body.get("session_id"), "mandate_id": body.get("mandate_id"), "t": int(time.time() * 1000),
+              "source": "policy", "check_id": check_id, "verdict": "scam", "pattern": pattern, "sources": [], "ms": 40, "channel": body.get("channel")})
+        return {"check_id": check_id, "verdict": "scam", "pattern": pattern, "say": SCAM_SAY[lang],
+                "actions": ["hang_up", "call_trusted:Alex", "tell_priya"],
+                "facts_checked": [{"fact": "Alex's number on file", "result": "+1-404-555-0187, different from the caller"}],
+                "sources": [{"title": "FTC: Family emergency scams", "url": "https://consumer.ftc.gov/articles/scammers-use-fake-emergencies-steal-your-money"}],
+                "cooldown_until": iso(time.time() + 86400), "ms": 40, "from_cache": False}
+    return {"check_id": check_id, "verdict": "ok", "pattern": "none", "say": {"es": "No veo nada raro en eso.", "hi": "इसमें कुछ गड़बड़ नहीं दिखती।"}.get(lang, "I don't see anything wrong with that."),
+            "actions": ["none"], "facts_checked": [], "sources": [], "ms": 30, "from_cache": False}
+
+
+@app.get("/billers/{biller_id}/accounts/{account_ref}")
+async def biller_account(biller_id: str, account_ref: str) -> dict:
+    """The merchant's biller."""
+    record("http", path=f"/billers/{biller_id}/accounts/{account_ref}")
+    if biller_id != "peachtree_power":
+        raise HTTPException(404, "unknown biller")
+    return {"biller": "Peachtree Power", "account_ref": account_ref, "balance_due": "86.40", "due_date": "2026-10-15",
+            "past_due": False, "autopay": False, "last_payment": {"amount": "91.12", "at": "2026-09-12"}, "disconnect_notice": False}
+
+
 @app.post("/mock/pay/{order_id}")
 async def mock_pay(order_id: str) -> dict:
     """The merchant's paid event, as after the hosted page or the sandbox callback."""
@@ -476,6 +525,7 @@ async def mock_reset(request: Request) -> dict:
         MOCK["approval_ttl"] = float(body.get("approval_ttl", 90.0))
         MOCK["print_ok"] = bool(body.get("print_ok", False))
         MOCK["eager_refund"] = bool(body.get("eager_refund", False))
+        MOCK["scam_ready"] = bool(body.get("scam_ready", True))
     return {"ok": True}
 
 
@@ -514,7 +564,7 @@ class Session:
             return await self.error("mock expects manual turn detection", "session.turn_detection")
         names = [t.get("name") for t in session.get("tools", []) if t.get("type") == "function"]
         missing = [n for n in ("search_catalog", "add_to_cart", "read_cart", "checkout", "order_status", "cancel_order",
-                               "request_refund", "purchase_history") if n not in names]
+                               "request_refund", "purchase_history", "scam_check", "bill_status") if n not in names]
         if missing:
             return await self.error(f"tools missing: {', '.join(missing)}", "session.tools")
         self.config = session
@@ -555,20 +605,8 @@ class Session:
         try:
             await self.send({"type": "response.created", "response": {"id": rid, "object": "realtime.response", "status": "in_progress", "output": []}})
             await asyncio.sleep(FIRST_AUDIO_DELAY_S)
-            await self.send({"type": "response.output_item.added", "response_id": rid, "output_index": 0, "item": {"id": item_id, "object": "realtime.item", "type": "message", "role": "assistant", "status": "in_progress", "content": []}})
-            pcm = tone(seconds, self.rate)
-            step = int(CHUNK_S * self.rate) * 2
-            words = text.split(" ")
-            for i, off in enumerate(range(0, len(pcm), step)):
-                await self.send({"type": "response.output_audio.delta", "response_id": rid, "item_id": item_id, "output_index": 0, "content_index": 0, "delta": base64.b64encode(pcm[off:off + step]).decode()})
-                if i < len(words):
-                    await self.send({"type": "response.output_audio_transcript.delta", "response_id": rid, "item_id": item_id, "output_index": 0, "content_index": 0, "delta": (" " if i else "") + words[i]})
-                await asyncio.sleep(CHUNK_S * MOCK["pace"])
-            rest = " ".join(words[len(range(0, len(pcm), step)):])
-            if rest:
-                await self.send({"type": "response.output_audio_transcript.delta", "response_id": rid, "item_id": item_id, "output_index": 0, "content_index": 0, "delta": " " + rest})
-            await self.send({"type": "response.output_audio.done", "response_id": rid, "item_id": item_id, "output_index": 0, "content_index": 0})
-            await self.send({"type": "response.output_audio_transcript.done", "response_id": rid, "item_id": item_id, "output_index": 0, "content_index": 0, "transcript": text})
+            if text:
+                await self.say_audio(rid, item_id, text, seconds)
             if tool_call:
                 fc_id, call_id = new_id("item"), new_id("call")
                 await self.send({"type": "response.output_item.added", "response_id": rid, "output_index": 1, "item": {"id": fc_id, "object": "realtime.item", "type": "function_call", "status": "in_progress", "call_id": call_id, "name": tool_call["name"]}})
@@ -581,6 +619,22 @@ class Session:
         finally:
             if self.response_id == rid:
                 self.response_id = None
+
+    async def say_audio(self, rid: str, item_id: str, text: str, seconds: float) -> None:
+        await self.send({"type": "response.output_item.added", "response_id": rid, "output_index": 0, "item": {"id": item_id, "object": "realtime.item", "type": "message", "role": "assistant", "status": "in_progress", "content": []}})
+        pcm = tone(seconds, self.rate)
+        step = int(CHUNK_S * self.rate) * 2
+        words = text.split(" ")
+        for i, off in enumerate(range(0, len(pcm), step)):
+            await self.send({"type": "response.output_audio.delta", "response_id": rid, "item_id": item_id, "output_index": 0, "content_index": 0, "delta": base64.b64encode(pcm[off:off + step]).decode()})
+            if i < len(words):
+                await self.send({"type": "response.output_audio_transcript.delta", "response_id": rid, "item_id": item_id, "output_index": 0, "content_index": 0, "delta": (" " if i else "") + words[i]})
+            await asyncio.sleep(CHUNK_S * MOCK["pace"])
+        rest = " ".join(words[len(range(0, len(pcm), step)):])
+        if rest:
+            await self.send({"type": "response.output_audio_transcript.delta", "response_id": rid, "item_id": item_id, "output_index": 0, "content_index": 0, "delta": " " + rest})
+        await self.send({"type": "response.output_audio.done", "response_id": rid, "item_id": item_id, "output_index": 0, "content_index": 0})
+        await self.send({"type": "response.output_audio_transcript.done", "response_id": rid, "item_id": item_id, "output_index": 0, "content_index": 0, "transcript": text})
 
     def start(self, coro) -> None:
         self.response_id = "starting"
@@ -621,8 +675,12 @@ class Session:
                 return self.start(self.speak(data["say"], 0.8))
             if "left" in data and "say" in data:
                 return self.start(self.speak(data["say"], 0.8))
+            if "orders" in data and "say" in data:
+                return self.start(self.speak(data["say"], 0.8))
             if "orders" in data:
                 return self.start(self.speak(f"Tiene {len(data['orders'])} pedidos recientes.", 0.8))
+            if data.get("verdict") or ("balance_due" in data and "say" in data) or (data.get("error") == "not ready" and "say" in data):
+                return self.start(self.speak(data["say"], 1.0))
             if data.get("error") == "refund_confirm_required":
                 return self.start(self.speak("Primero se lo confirmo.", 0.4, {"name": "request_refund", "arguments": {"sku": "BAK-001", "reason": "return", "confirmed": False}}))
             return self.start(self.speak("Lo siento, hubo un problema.", 0.8))
@@ -630,23 +688,27 @@ class Session:
         low = self.last_user.lower()
         if words & {"sí", "si", "yes"} and getattr(self, "pending_refund", None):
             self.pending_refund = None
-            return self.start(self.speak("Un momento.", 0.4, {"name": "request_refund", "arguments": {"sku": "BAK-001", "reason": "return", "confirmed": True}}))
+            return self.start(self.speak("", 0, {"name": "request_refund", "arguments": {"sku": "BAK-001", "reason": "return", "confirmed": True}}))
+        if any(w in low for w in ("llamó", "llamo", "called", "nieto", "grandson", "microsoft", "anydesk", "fon aaya", "फोन")):
+            return self.start(self.speak("", 0, {"name": "scam_check", "arguments": {"story": self.last_user, "caller_org": "Microsoft" if "microsoft" in low else None}}))
+        if any(w in low for w in ("factura", "bill", "debo", "owe", "बिल")):
+            return self.start(self.speak("", 0, {"name": "bill_status", "arguments": {}}))
         if "devolver" in low or "return" in low or "wapas" in low:
-            return self.start(self.speak("Un momento.", 0.4, {"name": "request_refund", "arguments": {"sku": "RX-001" if "medicina" in low else "BAK-001", "reason": "return", "confirmed": MOCK.get("eager_refund", False)}}))
+            return self.start(self.speak("", 0, {"name": "request_refund", "arguments": {"sku": "RX-001" if "medicina" in low else "BAK-001", "reason": "return", "confirmed": MOCK.get("eager_refund", False)}}))
         if "cancel" in low:
-            return self.start(self.speak("Un momento.", 0.4, {"name": "cancel_order", "arguments": {}}))
+            return self.start(self.speak("", 0, {"name": "cancel_order", "arguments": {}}))
         if "dónde" in low or "donde" in low or "where" in low:
-            return self.start(self.speak("Un momento.", 0.4, {"name": "order_status", "arguments": {}}))
+            return self.start(self.speak("", 0, {"name": "order_status", "arguments": {}}))
         if "compré" in low or "compre" in low or "bought" in low:
-            return self.start(self.speak("Un momento.", 0.4, {"name": "purchase_history", "arguments": {"days": 30}}))
+            return self.start(self.speak("", 0, {"name": "purchase_history", "arguments": {"days": 30}}))
         if words & {"sí", "si", "yes"}:
-            return self.start(self.speak("Un momento.", 0.4, {"name": "checkout", "arguments": {}}))
+            return self.start(self.speak("", 0, {"name": "checkout", "arguments": {}}))
         if words & {"cuánto", "cuanto", "queda", "left"}:
-            return self.start(self.speak("Un momento.", 0.4, {"name": "budget_left", "arguments": {}}))
+            return self.start(self.speak("", 0, {"name": "budget_left", "arguments": {}}))
         if "ensure" in self.last_user.lower():
-            return self.start(self.speak("Un momento.", 0.4, {"name": "search_catalog", "arguments": {"query": "Ensure"}}))
+            return self.start(self.speak("", 0, {"name": "search_catalog", "arguments": {"query": "Ensure"}}))
         if "pan" in self.last_user.lower() or "bread" in self.last_user.lower():
-            return self.start(self.speak("Un momento.", 0.4, {"name": "search_catalog", "arguments": {"query": "bread"}}))
+            return self.start(self.speak("", 0, {"name": "search_catalog", "arguments": {"query": "bread"}}))
         return self.start(self.speak("¿En qué le puedo ayudar?", 0.8))
 
     async def cancel(self) -> None:

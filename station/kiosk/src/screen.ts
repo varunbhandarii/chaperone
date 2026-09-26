@@ -1,9 +1,11 @@
 // Rule-screen results from the policy service's POST /screen:
-//   {"action":"refuse"|"judge"|"slow"|"proceed","hits":[{"rule_id",...}],
+//   {"action":"refuse"|"scam_check"|"judge"|"slow"|"proceed","hits":[{"rule_id",...}],
 //    "refusal":{"rule_id","spoken_key","patterns","lang","text","audio_url"}|null}
 // Pure functions: no DOM or network, so they run under `node --test`.
 
-export type ScreenAction = "refuse" | "judge" | "slow" | "proceed";
+/** scam_check: a hard rule inside a story about someone else (a call, a text, a pop-up); the station asks
+ * POST /scam-check and speaks its answer, and the refusal is the fallback if that fails. */
+export type ScreenAction = "refuse" | "scam_check" | "judge" | "slow" | "proceed";
 
 export interface Refusal {
   rule_id: string;
@@ -20,7 +22,7 @@ export interface ScreenResult {
   refusal: Refusal | null;
 }
 
-const ACTIONS = new Set<ScreenAction>(["refuse", "judge", "slow", "proceed"]);
+const ACTIONS = new Set<ScreenAction>(["refuse", "scam_check", "judge", "slow", "proceed"]);
 
 export function parseScreen(body: unknown): ScreenResult | null {
   if (!body || typeof body !== "object") return null;
