@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "screen.schema.json",
+  "title": "Rule screen result (POST /screen)",
+  "description": "Request: {session_id, text, lang?, partial?}. slow = exactly one soft rule; judge = two or more soft rules, or any final screen after a refusal in the same session; refuse = a hard rule. Only action refuse carries a refusal.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action", "hits", "refusal"],
+  "properties": {
+    "action": { "enum": ["refuse", "judge", "slow", "proceed"] },
+    "hits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "pattern", "lang", "term"],
+        "properties": {
+          "rule_id": { "type": "string" },
+          "pattern": { "type": "string" },
+          "lang": { "enum": ["en", "es", "hi", "hi_latn"] },
+          "term": { "type": "string", "description": "the normalized text that matched" }
+        }
+      }
+    },
+    "refusal": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rule_id", "spoken_key", "patterns", "lang", "text", "audio_url"],
+          "properties": {
+            "rule_id": { "type": "string" },
+            "spoken_key": { "enum": ["blocked_category", "scam_pattern", "code_reading"] },
+            "patterns": { "type": "array", "items": { "type": "string" } },
+            "lang": { "enum": ["en", "es", "hi"] },
+            "text": { "type": "string", "minLength": 1 },
+            "audio_url": { "type": "string", "pattern": "^/audio/refusal\\.[a-z_]+\\.(en|es|hi)\\.mp3$" }
+          }
+        }
+      ]
+    }
+  }
+}

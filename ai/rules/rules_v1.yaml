@@ -1,0 +1,337 @@
+# Chaperone scam rule layer v1. Runs before any model call (policy/rules.py).
+#
+# Matching: text and terms are both normalized (NFKD, Latin accents and the Devanagari
+# nukta stripped, punctuation and danda to spaces, zero-width characters and apostrophes
+# deleted, casefolded) and then Hinglish-folded (aa->a, ee->i, oo->u, z->j, w->v, ph->f,
+# nahin->nahi) so one spelling covers the variants. Terms match whole words. Prefix a term
+# with "re:" for a regex; do not use backslash classes such as \w in regexes.
+#
+# Languages: en, es, hi (Devanagari) and hi_latn (Hinglish). Grok may write Hindi loanwords
+# in either script, so English loanwords also appear under hi.
+#
+# Decision (per utterance):
+#   any hard hit                    -> refuse
+#   >= 2 distinct soft rules        -> judge
+#   exactly 1 soft rule             -> slow
+#   none                            -> proceed
+# weak_terms count only when another soft rule also fires.
+# R_code_reading turns hard when an instrument term is in the same utterance.
+
+version: 1
+soft_hits_for_judge: 2
+
+instrument_terms:
+  en: ["re:cards?", "gift", "voucher", "recharge", "itunes", "google play", "steam", "bitcoin"]
+  es: ["re:tarjetas?", "re:regalo", "recarga", "itunes", "google play", "bitcoin"]
+  hi: ["कार्ड", "गिफ्ट", "रिचार्ज", "वाउचर", "card"]
+  hi_latn: ["re:cards?", "gift", "recharge", "voucher", "google play"]
+
+rules:
+  R1_blocked_category:
+    severity: hard
+    pattern: blocked_category
+    detail: Gift cards, prepaid cards, wire transfers, crypto and money orders are never purchasable.
+    terms:
+      en:
+        - "re:gift ?cards?"
+        - "re:(?:prepaid|reloadable|recharge) (?:debit )?cards?"
+        - "re:(?:google play|apple|itunes|steam|target|walmart|amazon|ebay) (?:gift )?cards?"
+        - "re:visa gift cards?"
+        - "re:prepaid visa"
+        - "re:vanilla (?:visa|gift)"
+        - "re:wire (?:transfer|the money|money)"
+        - "western union"
+        - "moneygram"
+        - "re:money ?orders?"
+        - "re:bitcoins?"
+        - "re:crypto(?:currency|currencies)?"
+        - "re:(?:bitcoin|crypto) atm"
+      es:
+        - "re:tarjetas? de regalo"
+        - "re:tarjetas? (?:de )?(?:google play|apple|itunes|steam|amazon|target|walmart)"
+        - "re:tarjetas? (?:prepagadas?|prepago|de recarga|recargables?)"
+        - "re:tarjetas? telefonicas?"
+        - "re:transferencias? (?:bancarias?|de dinero)"
+        - "re:giros? (?:postal|postales|de dinero)"
+        - "re:ordenes? de pago"
+        - "re:bitcoins?"
+        - "re:criptomonedas?"
+        - "cripto"
+        - "western union"
+        - "moneygram"
+      hi:
+        - "re:गिफ्ट (?:कार्ड|card)"
+        - "उपहार कार्ड"
+        - "re:(?:गूगल प्ले|आईट्यून्स|अमेज़न|अमेजन) (?:गिफ्ट )?कार्ड"
+        - "प्रीपेड कार्ड"
+        - "रिचार्ज कार्ड"
+        - "बिटकॉइन"
+        - "बिटकोइन"
+        - "क्रिप्टो"
+        - "वायर ट्रांसफर"
+        - "मनी ऑर्डर"
+        - "वेस्टर्न यूनियन"
+        - "re:gift ?cards?"
+      hi_latn:
+        - "re:gift ?cards?"
+        - "re:tohfa cards?"
+        - "re:(?:google play|itunes|amazon|steam) (?:gift )?cards?"
+        - "re:(?:prepaid|recharge) cards?"
+        - "re:bitcoins?"
+        - "crypto"
+        - "wire transfer"
+        - "money order"
+        - "western union"
+
+  R_code_reading:
+    severity: soft
+    hard_with_instrument: true
+    pattern: code_reading
+    detail: Someone wants card numbers, codes, a PIN or an OTP read out to them.
+    terms:
+      en:
+        - "re:read (?:me |him |her |them |out )?(?:the )?(?:numbers?|codes?|pin|otp)"
+        - "re:(?:give|tell|send) (?:him|her|them|the man|the caller) (?:the )?(?:numbers?|codes?|pin|otp)"
+        - "re:scratch (?:off )?(?:the )?(?:back|silver)"
+        - "re:(?:the )?code on the back"
+        - "upi pin"
+      es:
+        - "re:(?:leame|leale|leerle|leer|dicteme|dictele|dictarle) (?:los|el) (?:numeros?|codigos?)"
+        - "re:(?:dele|darle|deme|mandele|mandarle) (?:los|el) (?:numeros?|codigos?|pin)"
+        - "re:(?:el )?codigo de (?:la )?tarjeta"
+        - "re:raspe? (?:la parte de )?atras"
+        - "re:raspar (?:la parte de )?atras"
+      hi:
+        - "re:(?:ओटीपी|otp|कोड|नंबर|पिन) (?:बताओ|बताइए|बताना|बता दो|बता दीजिए|भेजो|भेज दो|पढ़ो|पढो|पढ़कर)"
+        - "पीछे का नंबर"
+        - "यूपीआई पिन"
+        - "ओटीपी"
+      hi_latn:
+        - "re:(?:otp|code|number|pin) (?:batao|bataiye|batana|bata do|bata dijiye|bhejo|bhej do|padho|padh kar|share karo)"
+        - "re:pichhe? ka (?:number|code)"
+        - "upi pin"
+
+  R_family_emergency:
+    severity: soft
+    pattern: family_emergency
+    detail: A relative in trouble is the most common coached-purchase story.
+    terms:
+      en:
+        - "re:in (?:jail|prison)"
+        - "arrested"
+        - "re:(?:car )?accident"
+        - "re:in (?:big |bad )?trouble"
+        - "lawyer"
+        - "re:(?:was|got|been) (?:hurt|detained|kidnapped)"
+      es:
+        - "re:(?:en|a) la carcel"
+        - "re:arrestad[oa]"
+        - "re:detenid[oa]"
+        - "re:accidente"
+        - "re:en problemas"
+        - "abogado"
+      hi:
+        - "जेल"
+        - "गिरफ्तार"
+        - "दुर्घटना"
+        - "एक्सीडेंट"
+        - "मुसीबत"
+        - "वकील"
+        - "re:हादसा|हादसे"
+      hi_latn:
+        - "jail"
+        - "re:giraftar"
+        - "accident"
+        - "musibat"
+        - "vakil"
+        - "re:hadsa|hadse"
+    weak_terms:
+      en: ["re:grand(?:son|daughter|child|kid)s?", "son", "daughter", "nephew", "niece", "hospital"]
+      es: ["re:niet[oa]s?", "re:hij[oa]s?", "re:sobrin[oa]s?", "hospital"]
+      hi: ["पोता", "पोती", "नाती", "नातिन", "बेटा", "बेटी", "अस्पताल"]
+      hi_latn: ["pota", "poti", "nati", "beta", "beti", "hospital"]
+
+  R_purpose:
+    severity: soft
+    pattern: purpose
+    detail: The money is for bail, a fine, taxes, a refund, an unlock, customs or a parcel.
+    terms:
+      en:
+        - "bail"
+        - "re:(?:pay|owe|a|the) fines?"
+        - "re:(?:back |unpaid )?taxes"
+        - "re:owe (?:the )?(?:irs|tax)"
+        - "refund"
+        - "re:unlock (?:my |the )?(?:account|computer)"
+        - "customs"
+        - "re:(?:held|stuck) parcel|parcel (?:is )?(?:held|stuck)"
+        - "re:(?:prize|lottery) fee"
+        - "re:safe account"
+      es:
+        - "fianza"
+        - "re:multas?"
+        - "impuestos"
+        - "reembolso"
+        - "re:desbloquear"
+        - "aduana"
+        - "re:paquete (?:retenido|detenido)"
+      hi:
+        - "re:जमानत"
+        - "जुर्माना"
+        - "चालान"
+        - "टैक्स"
+        - "रिफंड"
+        - "केवाईसी"
+        - "पार्सल"
+        - "कस्टम"
+        - "डिजिटल अरेस्ट"
+        - "re:(?:खाता|अकाउंट) (?:ब्लॉक|बंद) हो जाएगा"
+      hi_latn:
+        - "re:jamanat"
+        - "jurmana"
+        - "challan"
+        - "refund"
+        - "kyc"
+        - "parcel"
+        - "customs"
+        - "digital arrest"
+        - "re:(?:account|khata) (?:block|band) ho jayega"
+
+  R_urgency:
+    severity: soft
+    pattern: urgency
+    detail: Pressure to act immediately. The agent slows down instead.
+    terms:
+      en:
+        - "urgent"
+        - "re:right (?:now|away)"
+        - "immediately"
+        - "hurry"
+        - "asap"
+        - "re:before (?:its too late|tonight|they)"
+        - "re:(?:no|not much) time"
+      es:
+        - "urgente"
+        - "ahora mismo"
+        - "re:de inmediato|inmediatamente"
+        - "re:apurate|date prisa|deprisa"
+        - "hoy mismo"
+        - "no hay tiempo"
+      hi:
+        - "जल्दी"
+        - "तुरंत"
+        - "फौरन"
+        - "अभी के अभी"
+        - "अभी चाहिए"
+        - "आज ही"
+        - "अर्जेंट"
+      hi_latn:
+        - "jaldi"
+        - "turant"
+        - "fauran"
+        - "abhi ke abhi"
+        - "abhi chahiye"
+        - "aaj hi"
+        - "urgent"
+
+  R_secrecy:
+    severity: soft
+    pattern: secrecy
+    detail: Instructions to hide the purchase from family or the caregiver.
+    terms:
+      en:
+        - "re:(?:dont|do not) tell"
+        - "re:(?:keep|its) (?:it |this )?(?:a )?secret"
+        - "re:between (?:us|you and me)"
+        - "re:no ?one (?:can|should|must) know"
+        - "re:(?:dont|do not) (?:let|call) (?:priyank|anyone|my daughter|my son|the bank)"
+      es:
+        - "re:no (?:le|les|se lo|se la) (?:digas|diga|cuentes|cuente)"
+        - "re:no (?:le )?digas? a nadie"
+        - "secreto"
+        - "re:entre (?:nosotros|tu y yo)"
+        - "re:nadie (?:puede|debe) saber"
+      hi:
+        - "मत बताना"
+        - "मत बताओ"
+        - "मत बताइए"
+        - "किसी को नहीं बताना"
+        - "re:राज (?:रखना|रखो|रखिए|की बात)"
+        - "गुप्त"
+        - "re:छुपा ?कर"
+      hi_latn:
+        - "re:mat (?:batana|batao|bataiye|bataye)"
+        - "re:kisi ko (?:mat|nahi) (?:batana|batao)"
+        - "re:raj (?:rakhna|rakho|rakhiye|ki baat)"
+        - "re:chupa ?kar"
+        - "secret"
+
+  R_authority:
+    severity: soft
+    pattern: authority_impersonation
+    detail: A caller claiming to be government, police, bank or tech support.
+    terms:
+      en:
+        - "irs"
+        - "police"
+        - "sheriff"
+        - "re:federal agent"
+        - "re:social security"
+        - "medicare"
+        - "re:the government"
+        - "re:(?:fraud|security) department"
+        - "re:(?:microsoft|apple|amazon|tech) support"
+        - "re:computer (?:is|was|got) (?:hacked|infected|locked)"
+        - "warrant"
+      es:
+        - "irs"
+        - "policia"
+        - "re:agente (?:federal|del gobierno)"
+        - "re:seguro social"
+        - "medicare"
+        - "re:el gobierno"
+        - "re:soporte (?:tecnico|de microsoft|de apple)"
+        - "microsoft"
+        - "re:computadora (?:esta )?(?:hackeada|bloqueada|infectada)"
+        - "re:orden de (?:arresto|captura)"
+      hi:
+        - "पुलिस"
+        - "सरकार"
+        - "सरकारी"
+        - "अधिकारी"
+        - "सीबीआई"
+        - "कस्टम अधिकारी"
+        - "माइक्रोसॉफ्ट"
+        - "re:बैंक (?:से|वाले|मैनेजर)"
+      hi_latn:
+        - "police"
+        - "re:sarkar(?:i)?"
+        - "adhikari"
+        - "cbi"
+        - "microsoft"
+        - "re:bank (?:se|vale|manager)"
+
+  R_third_party_instruction:
+    severity: soft
+    pattern: third_party_instruction
+    detail: Someone else is directing the purchase, often on the phone or a pop-up.
+    terms:
+      en:
+        - "re:(?:he|she|they|the man|the woman|the caller|the officer|the agent) (?:told|said|asked) (?:me )?to"
+        - "re:(?:hes|shes|theyre|they are|he is|she is) (?:still )?on the (?:phone|line)"
+        - "re:(?:pop ?up|popup) (?:said|says|told)"
+        - "re:(?:ship|send) (?:it|them) to (?:a|his|her|their) (?:new|different) address"
+      es:
+        - "re:me (?:dijo|dijeron|pidio|pidieron) (?:por telefono )?que"
+        - "re:(?:el|la) (?:senor|senora|hombre|mujer) (?:del|en el) telefono"
+        - "re:(?:esta|sigue) en la linea"
+        - "ventana emergente"
+        - "re:(?:mandarlo|enviarlo|mandarlos|enviarlos) a (?:otra|una nueva) direccion"
+      hi:
+        - "re:(?:उसने|उन्होंने|उन्होने) (?:कहा|बोला)"
+        - "re:(?:फोन|कॉल) पर (?:कहा|बोला|बताया)"
+        - "re:(?:नए|दूसरे) पते पर"
+      hi_latn:
+        - "re:(?:usne|unhone|unhonne) (?:kaha|bola)"
+        - "re:(?:fone|phone|call) (?:pe|par) (?:kaha|bola|bataya)"
+        - "re:(?:naye|dusre) pate (?:pe|par)"
