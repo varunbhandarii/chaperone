@@ -376,3 +376,9 @@ def test_traversal_approval_ids_are_not_found(tmp_path, monkeypatch):
 def test_budget_starts_at_the_baseline(tmp_path, monkeypatch):
     response = client(tmp_path, monkeypatch).get("/budget", params={"mandate_id": "m_ruth_2026_09"})
     assert response.json() == {"monthly_cap": 300.0, "spent": 142.1, "left": 157.9}
+
+
+def test_reset_needs_the_host_header(tmp_path, monkeypatch):
+    test_client = client(tmp_path, monkeypatch)  # temp store paths, so the real sessions/ files stay untouched
+    assert test_client.post("/reset").status_code == 403
+    assert test_client.post("/reset", headers={"X-Chaperone-Host": "1"}).status_code == 200

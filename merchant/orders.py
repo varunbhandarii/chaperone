@@ -6,11 +6,11 @@ POST /orders             signed order from the checkout tool -> verify -> price 
                          (409 if the decision already has an order)
 GET  /orders[/{id}]      order state (wall)
 GET  /orders/{id}/receipt[?lang=]  what the station prints; session_url is the receipt's QR code
-POST /orders/{id}/paid   callback fallback: Visa webhook or the Host marks paid
+POST /orders/{id}/paid   the Host marks paid (X-Chaperone-Host: 1)
 GET  /pay/{link_id}      mock hosted payment page (MOCK_VISA=1 or fallback)
 GET  /checkout/{id}      CARD_AUTH=1: our checkout page with a real Cybersource sandbox card authorization
 GET  /panel              merchant verification panel data for the wall
-POST /reset              demo reset: clear orders and the panel's event buffer (nonces are kept)
+POST /reset              demo reset (X-Chaperone-Host: 1): clear orders and the panel's event buffer (nonces are kept)
 POST /webhooks/cybersource            signed Cybersource webhook -> order paid (see merchant.webhooks)
 """
 
@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field, ValidationError
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from catalog.search import Catalog  # noqa: E402
+from common import host_header  # noqa: E402
 from merchant import card_auth, events, webhooks  # noqa: E402
 from merchant.verify import verify_request  # noqa: E402
 from merchant.visa import LineItem, get_payment_links, money, new_purchase_number  # noqa: E402
@@ -226,7 +227,8 @@ async def mark_paid(order_id: str, via: str) -> dict:
 
 
 @app.post("/orders/{order_id}/paid")
-async def paid_callback(order_id: str, via: str = "callback"):
+async def paid_callback(order_id: str, request: Request, via: str = "callback"):
+    host_header.require(request)  # the Host's Confirm payment; Cybersource uses the signed webhook
     if order_id not in ORDERS:
         raise HTTPException(404, "unknown order")
     return await mark_paid(order_id, via)
@@ -331,8 +333,9 @@ def cybersource_webhook_health():
 
 
 @app.post("/reset")
-def reset():
+def reset(request: Request):
     """Nonces stay: a reset must not let an old signed order replay."""
+    host_header.require(request)
     cleared = len(ORDERS)
     ORDERS.clear()
     LINK_TO_ORDER.clear()

@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from merchant.orders import app as merchant_app  # noqa: E402
 from relay import host, ledger  # noqa: E402,F401
+from common.host_header import HEADERS as HOST  # noqa: E402
 
 ORDER = {"mandate_id": "m_ruth_2026_09", "session_id": "s1",
          "cart": {"items": [{"sku": "RX-001", "qty": 1}, {"sku": "BAK-001", "qty": 1}]}}
@@ -21,7 +22,7 @@ ORDER = {"mandate_id": "m_ruth_2026_09", "session_id": "s1",
 
 @pytest.fixture
 def merchant():
-    with TestClient(merchant_app) as m:
+    with TestClient(merchant_app, headers=HOST) as m:
         m.post("/reset")
         yield m
 

@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from merchant.orders import app  # noqa: E402
 from merchant.visa import new_purchase_number  # noqa: E402
+from common.host_header import HEADERS as HOST  # noqa: E402
 
 DEMO = {
     "mandate_id": "mandate-ruth-001",
@@ -25,7 +26,7 @@ def demo(**changes):
 
 
 def test_demo_order_prices_from_catalog_and_pays_on_mock_page():
-    with TestClient(app) as client:
+    with TestClient(app, headers=HOST) as client:
         r = client.post("/orders", json=demo())
         assert r.status_code == 200, r.text
         order = r.json()
@@ -45,12 +46,12 @@ def test_demo_order_prices_from_catalog_and_pays_on_mock_page():
 
 def test_agent_supplied_prices_are_ignored():
     body = {**demo(), "cart": {"items": [{"sku": "NUT-002", "qty": 1, "price": 0.01}]}}
-    with TestClient(app) as client:
+    with TestClient(app, headers=HOST) as client:
         assert client.post("/orders", json=body).json()["amount"] == "52.00"
 
 
 def test_callback_fallback_marks_paid_once():
-    with TestClient(app) as client:
+    with TestClient(app, headers=HOST) as client:
         order_id = client.post("/orders", json=demo()).json()["order_id"]
         first = client.post(f"/orders/{order_id}/paid").json()
         second = client.post(f"/orders/{order_id}/paid?via=webhook").json()
@@ -58,7 +59,7 @@ def test_callback_fallback_marks_paid_once():
 
 
 def test_rejects_unknown_sku_bad_qty_and_empty_cart():
-    with TestClient(app) as client:
+    with TestClient(app, headers=HOST) as client:
         for items in ([{"sku": "NOPE", "qty": 1}], [{"sku": "BAK-001", "qty": 0}], []):
             assert client.post("/orders", json={**demo(), "cart": {"items": items}}).status_code == 422
 
@@ -70,7 +71,7 @@ def test_purchase_number_fits_visa_rules():
 
 
 def test_reset_clears_orders_and_panel():
-    with TestClient(app) as client:
+    with TestClient(app, headers=HOST) as client:
         client.post("/orders", json=demo())
         assert client.post("/reset").json()["ok"]
         assert client.get("/orders").json() == []
@@ -84,7 +85,7 @@ def test_events_follow_the_ledger_contract():
     import jsonschema
 
     schema = json.loads((Path(__file__).resolve().parents[2] / "contracts" / "events.schema.json").read_text())
-    with TestClient(app) as client:
+    with TestClient(app, headers=HOST) as client:
         client.post("/reset")
         order = client.post("/orders", json=demo()).json()
         client.post(f"/orders/{order['order_id']}/paid")
@@ -95,7 +96,7 @@ def test_events_follow_the_ledger_contract():
 
 def test_one_decision_buys_once():
     body = demo()
-    with TestClient(app) as client:
+    with TestClient(app, headers=HOST) as client:
         first = client.post("/orders", json=body)
         assert first.status_code == 200
         again = client.post("/orders", json=body)
@@ -110,7 +111,7 @@ def test_a_failed_payment_link_frees_the_decision(monkeypatch):
     from merchant import orders
 
     body = demo()
-    with TestClient(app) as client:
+    with TestClient(app, headers=HOST) as client:
         async def down(**kwargs):
             raise RuntimeError("visa down")
         monkeypatch.setattr(orders.payment_links, "create", down)
@@ -121,7 +122,7 @@ def test_a_failed_payment_link_frees_the_decision(monkeypatch):
 
 def test_receipt_has_the_d3_shape(monkeypatch):
     monkeypatch.setenv("TUNNEL_HOST", "chaperone-demo.ngrok.app")
-    with TestClient(app) as client:
+    with TestClient(app, headers=HOST) as client:
         order = client.post("/orders", json=demo(cart={"items": [{"sku": "BAK-001", "qty": 2}, {"sku": "RX-001", "qty": 1}]},
                                                  lang="hi")).json()
         unpaid = client.get(f"/orders/{order['order_id']}/receipt").json()
@@ -140,9 +141,18 @@ def test_receipt_has_the_d3_shape(monkeypatch):
 
 def test_receipt_has_no_lan_url_without_a_tunnel(monkeypatch):
     monkeypatch.delenv("TUNNEL_HOST", raising=False)
-    with TestClient(app) as client:
+    with TestClient(app, headers=HOST) as client:
         order = client.post("/orders", json=demo()).json()
         assert client.get(f"/orders/{order['order_id']}/receipt").json()["session_url"] is None
     monkeypatch.setenv("TUNNEL_HOST", "http://chaperone-demo.ngrok.app/")
     from merchant.orders import session_url
     assert session_url("s1") == "https://chaperone-demo.ngrok.app/s/s1"
+
+
+def test_reset_and_paid_need_the_host_header():
+    with TestClient(app, headers=HOST) as client:
+        order_id = client.post("/orders", json=demo()).json()["order_id"]
+    bare = TestClient(app)
+    assert bare.post("/reset").status_code == 403
+    assert bare.post(f"/orders/{order_id}/paid").status_code == 403
+    assert bare.get(f"/orders/{order_id}").json()["status"] == "awaiting_payment"

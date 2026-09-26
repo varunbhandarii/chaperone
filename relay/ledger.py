@@ -5,10 +5,12 @@ relay/main.py mounts this with `app.include_router(ledger.router)`. Standalone f
 
 POST /events                       validate (contracts/events.schema.json), add rt + seq, append to
                                    sessions/by-id/<session_id>.jsonl and sessions/live.jsonl, fan out; 202
-GET  /events/stream?session_id=&types=&once=
+GET  /events/stream?session_id=&types=&once=&since=
                                    SSE, `id: <seq>`, replays after Last-Event-ID (header or ?last_event_id=),
                                    `:` heartbeat after 15 s without a write; once=1 replays and closes (curl,
                                    tests). A reader that falls 1000 events behind is closed and reconnects.
+                                   since=<ms> skips replayed events older than that (the phone's first
+                                   connect, so old alerts don't buzz again); live events always pass.
 GET  /sessions/{id}[?format=html]  that session's events, JSON; html is the read-only page behind the receipt's
                                    QR code (relay/session_view.py), served publicly by the caregiver app at /s/<id>
 GET  /jwks.json, /.well-known/jwks.json
@@ -35,6 +37,7 @@ import jsonschema
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 
+from common import host_header
 from common.config import JWKS_PATH, ROOT, ledger_path
 from relay import session_view
 
@@ -295,7 +298,7 @@ RESET_TIMEOUT_S = 5.0
 
 async def _reset_one(client: httpx.AsyncClient, url: str) -> str:
     try:
-        r = await client.post(f"{url}/reset")
+        r = await client.post(f"{url}/reset", headers=host_header.HEADERS)
         return "ok" if r.is_success else f"HTTP {r.status_code}"
     except httpx.HTTPError as exc:
         return f"unreachable ({type(exc).__name__})"

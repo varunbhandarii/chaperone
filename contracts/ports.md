@@ -31,7 +31,7 @@ Relay routes (8000). `relay/main.py` owns the token routes; `relay/ledger.py` ow
 |---|---|
 | `POST /session/token`, `GET /health` | Grok Voice client secrets |
 | `POST /events` | validate, add `rt` and `seq`, append to `sessions/by-id/<session_id>.jsonl` and `sessions/live.jsonl`, fan out |
-| `GET /events/stream?session_id=&types=` | SSE, `id: <seq>`, replay from `Last-Event-ID`, `:` heartbeat every 15 s |
+| `GET /events/stream?session_id=&types=&since=` | SSE, `id: <seq>`, replay from `Last-Event-ID`, `:` heartbeat 15 s after the last write; `since=<ms>` skips replayed events older than that |
 | `GET /sessions/{id}[?format=html]` | that session's events as JSON; `format=html` is the read-only page behind the receipt's QR code |
 | `GET /jwks.json`, `GET /.well-known/jwks.json` | `relay/jwks.json` |
 | `GET /audio/*` | refusal clips from `ai/warnings/` |

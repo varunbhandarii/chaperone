@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from merchant import webhooks  # noqa: E402
 from merchant.orders import app  # noqa: E402
 from merchant.simulate_payment import envelope  # noqa: E402
+from common.host_header import HEADERS as HOST  # noqa: E402
 
 KEY_ID = "8a2b7c4d-0000-4000-8000-000000000001"
 KEY = base64.b64encode(secrets.token_bytes(32)).decode()
@@ -31,7 +32,7 @@ def keys(monkeypatch):
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    with TestClient(app, headers=HOST) as c:
         c.post("/reset")
         yield c
 
