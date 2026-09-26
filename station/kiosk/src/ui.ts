@@ -1,7 +1,9 @@
 // DOM rendering for the station page: state strip, transcripts, cart, outcome, latency, rule banner, items, meter.
 
 import type { AgentState, AgentUI, NoteKind } from "./agent.ts";
+import { renderSVG } from "uqr";
 import type { CartLineView, CatalogItem, CheckoutOutcome } from "./cart.ts";
+import { RECEIPT_LABELS, formatPaidAt, type Receipt } from "./receipt.ts";
 import { levelFromRms } from "./pcm.ts";
 
 function $(id: string): HTMLElement {
@@ -57,6 +59,15 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
   const cartEl = $("cart");
   const cartTotal = $("cart-total");
   const outcomeEl = $("outcome");
+  const receiptOverlay = $("receipt-overlay");
+  const replayBanner = $("replay-banner");
+  const sessionEl = $("session");
+  let currentState: AgentState = "off";
+  let waitSecs: number | null = null;
+
+  function stripLabel(state: AgentState): string {
+    return state === "waiting" && waitSecs !== null ? `${STRIP_LABEL.waiting} · ${waitSecs} s` : STRIP_LABEL[state];
+  }
 
   const lines = new Map<string, HTMLLIElement>();
 
@@ -84,7 +95,8 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
       ptt.className = `ptt state-${state}`;
       ptt.disabled = state === "off";
       pttLabel.textContent = STATE_LABEL[state];
-      strip.textContent = STRIP_LABEL[state];
+      currentState = state;
+      strip.textContent = stripLabel(state);
       strip.className = `strip state-${state}`;
       onStateChange(state);
     },
@@ -110,7 +122,6 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
       who.textContent = role === "shopper" ? `You${lang ? ` (${lang})` : ""}:` : "Chaperone:";
       li.querySelector(".text")!.textContent = text;
       li.classList.toggle("live", !final);
-      if (final) lines.delete(`${role}:${key}`);
       scroll();
     },
 
@@ -221,6 +232,78 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
         .filter(Boolean)
         .join(" · ");
       outcomeEl.append(small);
+    },
+
+    waiting(secondsLeft: number | null) {
+      waitSecs = secondsLeft;
+      if (currentState === "waiting") strip.textContent = stripLabel(currentState);
+    },
+
+    receipt(receipt: Receipt | null, note?: string, files?: { png?: string; pdf?: string }) {
+      if (!receipt) {
+        receiptOverlay.hidden = true;
+        return;
+      }
+      // The rendered paper slip (what a thermal printer would print) beside the large-type receipt.
+      const slip = $("receipt-slip");
+      const slipImg = $("receipt-slip-img") as HTMLImageElement;
+      const pdfLink = $("receipt-pdf") as HTMLAnchorElement;
+      if (files?.png) {
+        slipImg.src = `${files.png}?v=${Date.now()}`;
+        slip.hidden = false;
+      } else if (files !== undefined || !note?.startsWith("Preparing")) {
+        slip.hidden = true;
+      }
+      pdfLink.hidden = !files?.pdf;
+      if (files?.pdf) pdfLink.href = files.pdf;
+      const L = RECEIPT_LABELS[receipt.lang] ?? RECEIPT_LABELS.en;
+      $("receipt-store").textContent = receipt.merchant;
+      $("receipt-title").textContent = L.title;
+      $("receipt-items").replaceChildren(
+        ...receipt.items.map((item) => {
+          const li = document.createElement("li");
+          const name = document.createElement("span");
+          name.textContent = `${item.qty > 1 ? `${item.qty} × ` : ""}${item.name}`;
+          const price = document.createElement("span");
+          price.className = "price";
+          price.textContent = usd(item.price * item.qty);
+          li.append(name, price);
+          return li;
+        }),
+      );
+      $("receipt-total-label").textContent = L.total;
+      $("receipt-total").textContent = usd(receipt.total);
+      $("receipt-pickup").textContent = L.pickup(receipt.pickup);
+      const qr = $("receipt-qr");
+      qr.innerHTML = receipt.session_url ? renderSVG(receipt.session_url, { border: 2 }) : "";
+      $("receipt-scan").textContent = receipt.session_url ? L.scan : "";
+      const paid = formatPaidAt(receipt.paid_at);
+      $("receipt-ids").textContent = [`${L.order} ${receipt.order_id}`, receipt.decision_id && `${L.decision} ${receipt.decision_id}`, paid && `${L.paid} ${paid}`]
+        .filter(Boolean)
+        .join(" · ");
+      $("receipt-sandbox").textContent = L.sandbox;
+      $("receipt-note").textContent = note ?? "";
+      receiptOverlay.hidden = false;
+    },
+
+    replay(on: boolean, lang?: string) {
+      replayBanner.hidden = !on;
+      replayBanner.textContent = on ? `REPLAY${lang ? ` · ${lang}` : ""}` : "";
+      document.body.classList.toggle("replaying", on);
+    },
+
+    cleared(sessionId: string) {
+      log.replaceChildren();
+      lines.clear();
+      cartEl.replaceChildren(Object.assign(document.createElement("li"), { className: "empty", textContent: "Nothing yet" }));
+      cartTotal.textContent = usd(0);
+      outcomeEl.hidden = true;
+      rulesEl.hidden = true;
+      rulesEl.textContent = "";
+      itemsPanel.hidden = true;
+      receiptOverlay.hidden = true;
+      waitSecs = null;
+      sessionEl.textContent = sessionId;
     },
 
     level(rms) {

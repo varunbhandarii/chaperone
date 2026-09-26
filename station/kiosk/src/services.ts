@@ -2,6 +2,7 @@
 // a missing or unreachable service produces a logged warning and a safe fallback, never a crash.
 
 import { URLS, VOICE } from "./config.ts";
+import { parseApproval, parseReceipt, type ApprovalStatus, type Receipt } from "./receipt.ts";
 import { FALLBACK_ITEMS, mergeResults, parseResolveResponse, parseSearchResponse, type CatalogItem, type CheckoutBody } from "./cart.ts";
 import type { Lang } from "./lang.ts";
 import { parseScreen, type ScreenResult } from "./screen.ts";
@@ -28,14 +29,14 @@ function describe(err: unknown): string {
 // connection often hangs instead of failing fast). Probe once at Start, skip services that are down,
 // and re-probe the down ones in the background so they come back on their own.
 
-export type ServiceName = "relay" | "policy" | "catalog";
+export type ServiceName = "relay" | "policy" | "merchant" | "catalog" | "printer";
 export type ServiceState = "unknown" | "up" | "down";
-const SERVICE_NAMES: ServiceName[] = ["relay", "policy", "catalog"];
+const SERVICE_NAMES: ServiceName[] = ["relay", "policy", "merchant", "catalog", "printer"];
 const PROBE_TIMEOUT_MS = 1000;
 const RECHECK_MS = 30_000;
 
 class ServiceHealth {
-  private state: Record<ServiceName, ServiceState> = { relay: "unknown", policy: "unknown", catalog: "unknown" };
+  private state: Record<ServiceName, ServiceState> = { relay: "unknown", policy: "unknown", merchant: "unknown", catalog: "unknown", printer: "unknown" };
   private timer: ReturnType<typeof setInterval> | undefined;
   private listeners = new Set<() => void>();
 
@@ -259,6 +260,8 @@ export class Ledger {
   readonly sessionId: string;
   readonly mandateId: string;
   private readonly warn: Warn;
+  /** Set while a cached session replays, so the wall labels those events. */
+  replay = false;
 
   constructor(sessionId: string, mandateId: string, warn: Warn) {
     this.sessionId = sessionId;
@@ -267,7 +270,15 @@ export class Ledger {
   }
 
   post(type: string, payload: Record<string, unknown> = {}): void {
-    const event = { ...payload, type, session_id: this.sessionId, mandate_id: this.mandateId, t: Date.now(), source: "station" };
+    const event = {
+      ...payload,
+      ...(this.replay ? { replay: true } : {}),
+      type,
+      session_id: this.sessionId,
+      mandate_id: this.mandateId,
+      t: Date.now(),
+      source: "station",
+    };
     fetch(`${URLS.relay}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -312,4 +323,200 @@ export function loadClip(ctx: AudioContext, audioUrl: string, timeoutMs: number,
   }
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
   return Promise.race([pending, timeout]);
+}
+
+// ---------- caregiver approval ----------
+
+/** GET {policy}/approvals/{id}; null when the policy is unreachable or the reply has no state. */
+export async function getApproval(approvalId: string): Promise<ApprovalStatus | null> {
+  try {
+    const res = await call(`${URLS.policy}/approvals/${encodeURIComponent(approvalId)}`, { signal: AbortSignal.timeout(2500), cache: "no-store" });
+    health.mark("policy", "up");
+    return res.ok ? parseApproval(await readJson(res)) : null;
+  } catch (err) {
+    if (isNetworkFailure(err)) health.mark("policy", "down");
+    return null;
+  }
+}
+
+// ---------- receipt ----------
+
+/** GET {merchant}/orders/{id}/receipt; null when unavailable (the station then builds the receipt itself). */
+export async function getReceipt(orderId: string, lang: Lang): Promise<Receipt | null> {
+  try {
+    const res = await call(`${URLS.merchant}/orders/${encodeURIComponent(orderId)}/receipt`, { signal: AbortSignal.timeout(2000) });
+    health.mark("merchant", "up");
+    return res.ok ? parseReceipt(await readJson(res), lang) : null;
+  } catch (err) {
+    if (isNetworkFailure(err)) health.mark("merchant", "down");
+    return null;
+  }
+}
+
+export interface PrintResult {
+  ok: boolean;
+  /** "printer": on paper; "pdf": no printer, the saved PDF (and its image) is the receipt */
+  via?: "printer" | "pdf";
+  reason?: string;
+  ms: number;
+  /** absolute URLs (through the proxy) of the rendered receipt */
+  pngUrl?: string;
+  pdfUrl?: string;
+}
+
+/** POST {printer}/print; anything but {ok: true} within 5 s counts as a failed print. */
+export async function printReceipt(receipt: Receipt): Promise<PrintResult> {
+  const t0 = performance.now();
+  if (health.isDown("printer")) return { ok: false, reason: "print helper is not running", ms: 0 };
+  try {
+    const res = await call(`${URLS.printer}/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(receipt),
+      signal: AbortSignal.timeout(5000),
+    });
+    health.mark("printer", "up");
+    const body = (await readJson(res)) as { ok?: unknown; via?: unknown; reason?: unknown; png_url?: unknown; pdf_url?: unknown } | null;
+    const ms = Math.round(performance.now() - t0);
+    const files = {
+      ...(typeof body?.png_url === "string" ? { pngUrl: `${URLS.printer}${body.png_url}` } : {}),
+      ...(typeof body?.pdf_url === "string" ? { pdfUrl: `${URLS.printer}${body.pdf_url}` } : {}),
+    };
+    const reason = typeof body?.reason === "string" ? body.reason : undefined;
+    if (res.ok && body?.ok === true) return { ok: true, via: body.via === "pdf" ? "pdf" : "printer", ms, ...(reason ? { reason } : {}), ...files };
+    return { ok: false, reason: reason ?? `HTTP ${res.status}`, ms, ...files };
+  } catch (err) {
+    if (isNetworkFailure(err)) health.mark("printer", "down");
+    return { ok: false, reason: describe(err), ms: Math.round(performance.now() - t0) };
+  }
+}
+
+// ---------- cached sessions: the print helper's files, else this browser's IndexedDB ----------
+
+function idb<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open("chaperone-station", 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("cached");
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const req = run(db.transaction("cached", mode).objectStore("cached"));
+      req.onsuccess = () => {
+        resolve(req.result);
+        db.close();
+      };
+      req.onerror = () => {
+        reject(req.error);
+        db.close();
+      };
+    };
+  });
+}
+
+/** Saves to the print helper (sessions/cached/<lang>.json) and, as a copy, to this browser's IndexedDB. */
+export async function saveCachedSession(lang: Lang, session: unknown): Promise<{ ok: boolean; where: string; error?: string }> {
+  let helper = "";
+  try {
+    const res = await call(`${URLS.printer}/cached/${lang}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(session),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) helper = `helper answered HTTP ${res.status}`;
+  } catch (err) {
+    helper = `helper unavailable (${describe(err)})`;
+  }
+  try {
+    await idb("readwrite", (store) => store.put(session, lang));
+  } catch (err) {
+    return helper ? { ok: false, where: "nowhere", error: `${helper}; browser storage failed (${describe(err)})` } : { ok: true, where: "the print helper" };
+  }
+  return { ok: true, where: helper ? `this browser only (${helper})` : "the print helper and this browser" };
+}
+
+/** The print helper's copy first (it survives a cleared browser), else the browser's. */
+export async function loadCachedSession(lang: Lang): Promise<unknown | null> {
+  try {
+    const res = await call(`${URLS.printer}/cached/${lang}`, { signal: AbortSignal.timeout(20000) });
+    if (res.ok) return await res.json();
+  } catch {
+    /* fall through to the browser copy */
+  }
+  try {
+    return (await idb("readonly", (store) => store.get(lang))) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------- reset ----------
+
+/** POST {relay}/reset: the relay resets policy, merchant and the live ledger, then posts a reset event. */
+export async function requestReset(): Promise<boolean> {
+  try {
+    const res = await call(`${URLS.relay}/reset`, { method: "POST", signal: AbortSignal.timeout(15000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ---------- relay event stream ----------
+
+export type StreamEvent = { type: string; session_id?: string; seq?: number; [k: string]: unknown };
+
+/**
+ * Follows the relay's event stream for the given types. The stream first replays the live ledger, so the
+ * backlog is skipped: the current last sequence number is read once, and only newer events are delivered.
+ */
+export class RelayStream {
+  private source: EventSource | null = null;
+  private lastSeq = 0;
+  private closed = false;
+  private readonly types: string[];
+  private readonly onEvent: (ev: StreamEvent) => void;
+  private readonly warn: Warn;
+
+  constructor(types: string[], onEvent: (ev: StreamEvent) => void, warn: Warn) {
+    this.types = types;
+    this.onEvent = onEvent;
+    this.warn = warn;
+  }
+
+  async open(): Promise<void> {
+    const url = `${URLS.relay}/events/stream?types=${encodeURIComponent(this.types.join(","))}`;
+    try {
+      const res = await call(`${url}&once=true`, { signal: AbortSignal.timeout(5000), cache: "no-store" });
+      const text = await res.text();
+      for (const m of text.matchAll(/^id: (\d+)$/gm)) this.lastSeq = Math.max(this.lastSeq, Number(m[1]));
+    } catch (err) {
+      this.warn(`relay event stream unavailable (${describe(err)}); paid and reset events will not arrive until it is up`);
+    }
+    if (this.closed) return;
+    const source = new EventSource(`${url}&last_event_id=${this.lastSeq}`);
+    this.source = source;
+    source.onmessage = (e) => {
+      let ev: StreamEvent;
+      try {
+        ev = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      const seq = typeof ev.seq === "number" ? ev.seq : Number(e.lastEventId);
+      if (Number.isFinite(seq) && seq <= this.lastSeq) return; // replayed on reconnect
+      if (Number.isFinite(seq)) this.lastSeq = seq;
+      this.onEvent(ev);
+    };
+    source.onerror = () => {
+      // EventSource reconnects on its own and sends Last-Event-ID, so nothing is missed or repeated.
+      console.warn("[stream] relay event stream interrupted; reconnecting");
+    };
+  }
+
+  close(): void {
+    this.closed = true;
+    this.source?.close();
+    this.source = null;
+  }
 }

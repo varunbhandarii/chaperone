@@ -334,11 +334,69 @@ const SAY: Record<string, Record<Lang, string>> = {
     es: "Le quedan {left} este mes.",
     hi: "इस महीने आपके पास {left} बाकी हैं।",
   },
+  read_back_required: {
+    en: "Let me read your order back first.",
+    es: "Primero le leo su pedido.",
+    hi: "पहले मैं आपका ऑर्डर पढ़कर सुनाती हूँ।",
+  },
+  // Refusal keys the policy can return on a deny; the rule screen's own refusal text is spoken when it has one.
+  blocked_category: {
+    en: "I can't buy gift cards, money transfers or crypto on this account. I have told Priyank.",
+    es: "No puedo comprar tarjetas de regalo, transferencias ni criptomonedas con esta cuenta. Ya le avisé a Priyank.",
+    hi: "इस खाते से गिफ्ट कार्ड, पैसे भेजना या क्रिप्टो नहीं खरीदा जा सकता। मैंने प्रियंक को बता दिया है।",
+  },
+  scam_pattern: {
+    en: "This sounds like it could be a scam, so I won't buy it. You did nothing wrong. I have told Priyank.",
+    es: "Esto podría ser una estafa, así que no lo voy a comprar. Usted no hizo nada malo. Ya le avisé a Priyank.",
+    hi: "यह धोखा हो सकता है, इसलिए यह नहीं खरीदा जाएगा। आपकी कोई गलती नहीं है। मैंने प्रियंक को बता दिया है।",
+  },
+  code_reading: {
+    en: "Please never read card numbers or codes to anyone. I have told Priyank.",
+    es: "Por favor, nunca le lea a nadie números de tarjeta ni códigos. Ya le avisé a Priyank.",
+    hi: "कृपया किसी को भी कार्ड नंबर या कोड न बताएँ। मैंने प्रियंक को बता दिया है।",
+  },
+  caregiver_approved: {
+    en: "Priyank said yes. Ordering now. Total {total}.",
+    es: "Priyank dijo que sí. Hago el pedido ahora. Total: {total}.",
+    hi: "प्रियंक ने हाँ कहा है। ऑर्डर हो रहा है। कुल {total}।",
+  },
+  caregiver_declined: {
+    en: "Priyank did not approve this order. Your cart is still here; would you like to change it?",
+    es: "Priyank no aprobó este pedido. Su carrito sigue aquí; ¿quiere cambiarlo?",
+    hi: "प्रियंक ने यह ऑर्डर मंज़ूर नहीं किया। आपकी कार्ट वैसी ही है; क्या आप इसे बदलना चाहेंगे?",
+  },
+  caregiver_timeout: {
+    en: "Priyank did not answer, so nothing was ordered. I have kept your cart.",
+    es: "Priyank no contestó, así que no se pidió nada. Le guardé su carrito.",
+    hi: "प्रियंक ने जवाब नहीं दिया, इसलिए कुछ ऑर्डर नहीं हुआ। आपकी कार्ट रखी हुई है।",
+  },
+  receipt_done: {
+    en: "Done. {total} at Corner Market, pickup after 3 pm. I printed your receipt.",
+    es: "Listo. {total} en Corner Market, para recoger después de las 3. Le imprimí su recibo.",
+    hi: "हो गया। कॉर्नर मार्केट में {total}, दोपहर 3 बजे के बाद ले सकते हैं। आपकी रसीद छप गई है।",
+  },
+  receipt_on_screen: {
+    en: "Done. {total} at Corner Market, pickup after 3 pm. Your receipt is on the screen.",
+    es: "Listo. {total} en Corner Market, para recoger después de las 3. Su recibo está en la pantalla.",
+    hi: "हो गया। कॉर्नर मार्केट में {total}, दोपहर 3 बजे के बाद ले सकते हैं। आपकी रसीद स्क्रीन पर है।",
+  },
 };
 
+/** Replaces or adds a spoken line (the shared line files in ai/prompts are registered at startup). */
+export function registerSay(key: string, lang: Lang, text: string): void {
+  const clean = text.trim();
+  if (!clean) return;
+  SAY[key] = { ...(SAY[key] ?? SAY.declined), [lang]: clean };
+}
+
+export function hasSay(key: string): boolean {
+  return key in SAY;
+}
+
+/** `{name}` placeholders take `vars`; a literal "$X" in a line file stands for the total. */
 export function sayFor(key: string, lang: Lang = "en", vars: Record<string, string> = {}): string {
   const table = SAY[key] ?? SAY.declined;
-  return table[lang].replace(/\{(\w+)\}/g, (_, name: string) => vars[name] ?? "");
+  return table[lang].replace(/\{(\w+)\}/g, (_, name: string) => vars[name] ?? "").replace(/\$X\b/g, vars.total ?? "");
 }
 
 // ---------------------------------------------------------------- checkout outcome

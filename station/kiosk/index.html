@@ -83,6 +83,45 @@
       </div>
     </details>
 
+    <div id="replay-banner" class="replay-banner" role="status" hidden></div>
+
+    <div id="replay-chooser" class="overlay" role="dialog" aria-label="Replay a cached session" hidden>
+      <div class="chooser">
+        <h2>Replay a cached session</h2>
+        <div class="chooser-row">
+          <button type="button" data-replay="es">Español</button>
+          <button type="button" data-replay="hi">हिन्दी</button>
+          <button type="button" data-replay="en">English</button>
+        </div>
+        <button type="button" id="replay-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div id="receipt-overlay" class="overlay" role="dialog" aria-label="Receipt" hidden>
+      <div class="receipt-wrap">
+      <div class="receipt">
+        <div id="receipt-store" class="receipt-store">Corner Market</div>
+        <div id="receipt-title" class="receipt-title">Receipt</div>
+        <ul id="receipt-items" class="receipt-items"></ul>
+        <div class="receipt-total"><span id="receipt-total-label">Total</span><span id="receipt-total"></span></div>
+        <div id="receipt-pickup" class="receipt-pickup"></div>
+        <div id="receipt-qr" class="receipt-qr"></div>
+        <div id="receipt-scan" class="receipt-small"></div>
+        <div id="receipt-ids" class="receipt-small"></div>
+        <div id="receipt-sandbox" class="receipt-small"></div>
+        <div id="receipt-note" class="receipt-note"></div>
+        <div class="receipt-actions">
+          <a id="receipt-pdf" class="button" href="#" target="_blank" rel="noopener" hidden>Open PDF</a>
+          <button type="button" id="receipt-reprint">Reprint</button>
+          <button type="button" id="receipt-close">Close</button>
+        </div>
+      </div>
+      <div id="receipt-slip" class="slip" hidden>
+        <img id="receipt-slip-img" alt="The receipt as printed on 58 mm paper" />
+      </div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

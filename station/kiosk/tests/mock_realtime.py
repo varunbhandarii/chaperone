@@ -10,7 +10,7 @@ It also supports response.cancel, input_audio_buffer.clear, conversation.item.tr
 force_message. Audio is a quiet sine tone at the session's output rate.
 
 HTTP stand-ins, in the agreed shapes: POST /session/token; catalog GET /search {"q","items"} and
-GET /resolve {"q","matches"}; policy POST /screen, POST /checkout (decision, decision_id, say_key, order,
+GET /resolve {"q","matches"}; policy POST /screen, GET /approvals/{id}, POST /checkout (decision, decision_id, say_key, order,
 approval) and GET /budget; relay POST /events and GET /audio/<clip>.
 GET /mock/log returns every client event and HTTP call it saw.
 
@@ -28,7 +28,10 @@ import secrets
 import struct
 import time
 
-from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
+from datetime import datetime, timezone
+
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="mock realtime + services")
@@ -40,7 +43,34 @@ RATES = {8000, 11025, 16000, 22050, 24000, 32000, 44100, 48000}
 FIRST_AUDIO_DELAY_S = 0.15
 CHUNK_S = 0.04
 BLOCKED_WORDS = ("tarjeta", "tarjetas", "regalo", "gift card", "gift cards")
-MOCK = {"transcript": "necesito pan", "pace": 0.25, "clip": False, "eager_checkout": False}  # pace 1.0 = real time
+MOCK = {"transcript": "necesito pan", "pace": 0.25, "clip": False, "eager_checkout": False,  # pace 1.0 = real time
+        "approval_ttl": 90.0, "print_ok": False}
+
+# Merchant, policy approvals, relay stream and the station's print helper, all in memory.
+ORDERS: dict[str, dict] = {}
+APPROVALS: dict[str, dict] = {}
+BUS: list[dict] = []           # relay ledger (seq-numbered), replayed and streamed by /events/stream
+SUBSCRIBERS: set = set()       # asyncio queues of open streams
+CACHED: dict[str, dict] = {}   # the print helper's cached sessions
+
+
+def emit(event: dict) -> dict:
+    stored = {**event, "seq": len(BUS) + 1, "rt": int(time.time() * 1000)}
+    BUS.append(stored)
+    for q in list(SUBSCRIBERS):
+        q.put_nowait(stored)
+    return stored
+
+
+def iso(ts: float) -> str:
+    return datetime.fromtimestamp(ts, timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def new_order(session_id: str, cart: dict, decision_id: str, lang: str | None) -> dict:
+    order_id = new_id("o")
+    ORDERS[order_id] = {"order_id": order_id, "session_id": session_id, "cart": cart, "decision_id": decision_id,
+                        "lang": lang or "en", "paid_at": None}
+    return {"order_id": order_id, "payment_link": f"http://127.0.0.1:8002/pay/{order_id}", "status": "link_created"}
 
 BREAD = [
     {"sku": "BAK-002", "name": "Kroger Whole Wheat Bread", "brand": "Kroger", "category": "bakery", "mandate_category": "grocery", "price": 2.99, "size": "20 oz", "usual": False},
@@ -48,6 +78,7 @@ BREAD = [
     {"sku": "BAK-001", "name": "Nature's Own Honey Wheat Bread", "brand": "Nature's Own", "category": "bakery", "mandate_category": "grocery", "price": 3.49, "size": "20 oz", "usual": True},
 ]
 RX = {"sku": "RX-001", "name": "Lisinopril 10 mg, 30 tablets (pharmacy pickup)", "brand": "Corner Market Pharmacy", "category": "pharmacy_pickup", "mandate_category": "pharmacy", "price": 8.0, "size": "30 tablets", "usual": True}
+ENSURE = {"sku": "NUT-002", "name": "Ensure Original Vanilla Nutrition Shake, Case", "brand": "Ensure", "category": "nutrition", "mandate_category": "grocery", "price": 52.0, "size": "24 x 8 fl oz", "usual": False}
 GIFT = {"sku": "GFT-002", "name": "Apple Gift Card", "brand": "Apple", "category": "gift_card", "mandate_category": "gift_card", "price": 200.0, "size": "$200", "usual": False}
 PROFILE = [
     (RX, "blood pressure medicine", "Pharmacy pickup, $8.00 copay", ("blood pressure", "presion", "presión", "mi medicina", "dawai", "दवाई")),
@@ -81,7 +112,8 @@ async def token() -> dict:
 async def search(q: str = "", limit: int = 3) -> dict:
     record("http", path="/search", q=q, limit=limit)
     ql = q.lower()
-    items = BREAD if ("bread" in ql or "pan" in ql) else [RX] if ("pressure" in ql or "presi" in ql) else [GIFT] if "gift" in ql else []
+    items = (BREAD if ("bread" in ql or "pan" in ql) else [RX] if ("pressure" in ql or "presi" in ql)
+             else [ENSURE] if "ensure" in ql else [GIFT] if "gift" in ql else [])
     return {"q": q, "items": items[:limit]}
 
 
@@ -114,11 +146,11 @@ async def screen(request: Request) -> dict:
             "hits": [{"rule_id": "R1_blocked_category", "pattern": "gift_card", "lang": "es", "term": "tarjetas de regalo"}],
             "refusal": {
                 "rule_id": "R1_blocked_category",
-                "spoken_key": "blocked_gift_card",
+                "spoken_key": "blocked_category",
                 "patterns": ["gift_card"],
                 "lang": "es",
                 "text": "No puedo comprar tarjetas de regalo en esta cuenta. Ya le avisé a Priyank.",
-                "audio_url": "/audio/refusal.gift_card.es.mp3",
+                "audio_url": "/audio/refusal.blocked_category.es.mp3",
             },
         }
     return {"action": "proceed", "hits": [], "refusal": None}
@@ -148,16 +180,147 @@ async def checkout(request: Request) -> dict:
         "approval": None,
     }
     if decision == "allow":
-        order_id = new_id("o")
-        reply["order"] = {"order_id": order_id, "payment_link": f"http://127.0.0.1:8002/pay/{order_id}", "status": "link_created"}
+        reply["order"] = new_order(body.get("session_id"), cart, reply["decision_id"], body.get("lang"))
     elif decision == "approve":
-        reply["approval"] = {"approval_id": new_id("a"), "expires_at": int(time.time() * 1000) + 90_000}
+        approval_id = new_id("a")
+        created = time.time()
+        APPROVALS[approval_id] = {
+            "approval_id": approval_id, "created": created, "expires_at": iso(created + MOCK["approval_ttl"]),
+            "amount": total, "merchant": "corner_market", "excerpt": body.get("transcript", "")[-200:],
+            "rule": "R6_approval_threshold", "decision_id": reply["decision_id"], "order": None, "state": "pending",
+            "session_id": body.get("session_id"), "cart": cart, "lang": body.get("lang"),
+        }
+        reply["approval"] = {"approval_id": approval_id, "expires_at": APPROVALS[approval_id]["expires_at"]}
     return reply
+
+
+@app.get("/approvals/{approval_id}")
+async def approval_status(approval_id: str) -> dict:
+    """The policy's approval contract; expiry is computed on read."""
+    a = APPROVALS.get(approval_id)
+    if a is None:
+        raise HTTPException(404, "unknown approval")
+    if a["state"] == "pending" and time.time() > a["created"] + MOCK["approval_ttl"]:
+        a["state"] = "expired"
+    record("http", path=f"/approvals/{approval_id}", state=a["state"])
+    return {k: a[k] for k in ("approval_id", "state", "expires_at", "amount", "merchant", "excerpt", "rule", "decision_id", "order")} | (
+        {"message": a["message"]} if a.get("message") else {})
+
+
+@app.post("/mock/approvals/{approval_id}/{verdict}")
+async def mock_decide(approval_id: str, verdict: str, request: Request) -> dict:
+    """Stands in for the caregiver's passkey approval: approve places the order, reject may carry a message."""
+    a = APPROVALS[approval_id]
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if verdict == "approve":
+        a["state"] = "approved"
+        a["order"] = new_order(a["session_id"], a["cart"], a["decision_id"], a["lang"])
+    else:
+        a["state"] = "rejected"
+        a["message"] = (body or {}).get("message")
+    return {"approval_id": approval_id, "state": a["state"], "order": a["order"]}
+
+
+@app.get("/orders/{order_id}/receipt")
+async def receipt(order_id: str) -> dict:
+    o = ORDERS.get(order_id)
+    if o is None:
+        raise HTTPException(404, "unknown order")
+    items = [{"name": i["name"], "qty": i["qty"], "price": i["price"]} for i in o["cart"].get("items", [])]
+    return {"merchant": "Corner Market", "items": items, "total": o["cart"].get("total"), "pickup": "after 3 pm",
+            "order_id": order_id, "decision_id": o["decision_id"], "paid_at": o["paid_at"],
+            "session_url": f"https://tunnel.example/s/{o['session_id']}", "lang": o["lang"]}
+
+
+@app.post("/mock/pay/{order_id}")
+async def mock_pay(order_id: str) -> dict:
+    """The merchant's paid event, as after the hosted page or the sandbox callback."""
+    o = ORDERS[order_id]
+    o["paid_at"] = iso(time.time())
+    return emit({"type": "paid", "session_id": o["session_id"], "mandate_id": "m_ruth_2026_09", "t": int(time.time() * 1000),
+                 "source": "merchant", "order_id": order_id, "total": o["cart"].get("total"), "via": "mock"})
+
+
+@app.get("/mock/orders")
+async def mock_orders() -> dict:
+    return {"orders": ORDERS, "approvals": {k: v["state"] for k, v in APPROVALS.items()}}
+
+
+@app.post("/reset")
+async def relay_reset() -> dict:
+    """The relay's reset: clears the stand-ins and posts a reset event."""
+    ORDERS.clear()
+    APPROVALS.clear()
+    record("http", path="/reset")
+    emit({"type": "reset", "session_id": "none", "mandate_id": "m_ruth_2026_09", "t": int(time.time() * 1000), "source": "relay"})
+    return {"ok": True}
+
+
+@app.get("/events/stream")
+async def stream(request: Request, types: str | None = None, session_id: str | None = None,
+                 last_event_id: int | None = None, once: bool = False) -> StreamingResponse:
+    """The relay's SSE stream: replays the ledger after last_event_id, then follows it (unless once)."""
+    wanted = {t for t in (types or "").split(",") if t} or None
+    header = request.headers.get("last-event-id")
+    after = int(header) if header and header.isdigit() else (last_event_id or 0)
+
+    def matches(ev: dict) -> bool:
+        return (not session_id or ev.get("session_id") == session_id) and (not wanted or ev.get("type") in wanted)
+
+    async def gen():
+        q: asyncio.Queue = asyncio.Queue()
+        if not once:
+            SUBSCRIBERS.add(q)
+        try:
+            yield "retry: 1000\n\n"
+            for ev in list(BUS):
+                if ev["seq"] > after and matches(ev):
+                    yield f"id: {ev['seq']}\ndata: {json.dumps(ev)}\n\n"
+            if once:
+                return
+            while True:
+                try:
+                    ev = await asyncio.wait_for(q.get(), timeout=10)
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+                    continue
+                if matches(ev):
+                    yield f"id: {ev['seq']}\ndata: {json.dumps(ev)}\n\n"
+        finally:
+            SUBSCRIBERS.discard(q)
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
+
+
+@app.post("/print")
+async def print_receipt(request: Request) -> dict:
+    """The station print helper: {ok: true} only when enabled with /mock/reset {"print_ok": true}."""
+    body = await request.json()
+    record("http", path="/print", body=body)
+    return {"ok": True, "via": "printer", "ms": 40} if MOCK["print_ok"] else {"ok": False, "reason": "no printer (mock)", "ms": 5}
+
+
+@app.put("/cached/{lang}")
+async def put_cached(lang: str, request: Request) -> dict:
+    CACHED[lang] = await request.json()
+    return {"ok": True}
+
+
+@app.get("/cached/{lang}")
+async def get_cached(lang: str):
+    if lang not in CACHED:
+        raise HTTPException(404, f"no cached session for {lang}")
+    return CACHED[lang]
 
 
 @app.post("/events")
 async def events(request: Request) -> dict:
-    record("event", body=await request.json())
+    body = await request.json()
+    record("event", body=body)
+    emit(body)
     return {"ok": True}
 
 
@@ -203,6 +366,8 @@ async def mock_reset(request: Request) -> dict:
         if body.get("clip") is not None:
             MOCK["clip"] = bool(body["clip"])
         MOCK["eager_checkout"] = bool(body.get("eager_checkout", False))
+        MOCK["approval_ttl"] = float(body.get("approval_ttl", 90.0))
+        MOCK["print_ok"] = bool(body.get("print_ok", False))
     return {"ok": True}
 
 
@@ -350,6 +515,8 @@ class Session:
             return self.start(self.speak("Un momento.", 0.4, {"name": "checkout", "arguments": {}}))
         if words & {"cuánto", "cuanto", "queda", "left"}:
             return self.start(self.speak("Un momento.", 0.4, {"name": "budget_left", "arguments": {}}))
+        if "ensure" in self.last_user.lower():
+            return self.start(self.speak("Un momento.", 0.4, {"name": "search_catalog", "arguments": {"query": "Ensure"}}))
         if "pan" in self.last_user.lower() or "bread" in self.last_user.lower():
             return self.start(self.speak("Un momento.", 0.4, {"name": "search_catalog", "arguments": {"query": "bread"}}))
         return self.start(self.speak("¿En qué le puedo ayudar?", 0.8))

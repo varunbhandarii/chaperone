@@ -193,9 +193,10 @@ export class Player {
   }
 
   /** Schedules one PCM16 delta right after the previous one (gapless). */
-  enqueue(pcm: Int16Array, itemId?: string): void {
+  /** `rate` is the PCM's sample rate (a replayed recording may differ from the context; the buffer resamples). */
+  enqueue(pcm: Int16Array, itemId?: string, rate: number = this.ctx.sampleRate): void {
     if (pcm.length === 0) return;
-    const buf = this.ctx.createBuffer(1, pcm.length, this.ctx.sampleRate);
+    const buf = this.ctx.createBuffer(1, pcm.length, rate);
     buf.getChannelData(0).set(pcm16ToFloat(pcm));
     const startAt = this.schedule(buf);
     if (itemId && itemId !== this.itemId) {

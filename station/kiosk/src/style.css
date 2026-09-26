@@ -119,3 +119,34 @@ kbd { font-family: ui-monospace, Consolas, monospace; background: #26304a; borde
 /* Shopper view hides operator panels and notes. */
 body.shopper .dev, body.shopper .log li.note, body.shopper .log .time { display: none; }
 body.shopper .log li.shopper, body.shopper .log li.agent { font-size: 1.3rem; }
+
+/* Receipt (always shown on screen, printed or not), replay banner, chooser. */
+.overlay { position: fixed; inset: 0; background: rgba(5, 8, 16, 0.92); display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 24px 16px; z-index: 10; }
+.overlay[hidden] { display: none; }
+.receipt { background: #ffffff; color: #111111; width: min(640px, 100%); border-radius: 12px; padding: 24px 28px; font-size: 1.25rem; }
+.receipt-store { font-size: 2rem; font-weight: 800; text-align: center; }
+.receipt-title { text-align: center; color: #333333; margin-bottom: 12px; }
+.receipt-items { list-style: none; margin: 0; padding: 0; border-top: 2px dashed #555555; }
+.receipt-items li { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; font-size: 1.3rem; }
+.receipt-total { display: flex; justify-content: space-between; border-top: 3px solid #111111; margin-top: 8px; padding-top: 10px; font-size: 1.8rem; font-weight: 800; }
+.receipt-pickup { margin: 10px 0; font-size: 1.3rem; font-weight: 700; }
+.receipt-qr { display: flex; justify-content: center; margin: 12px 0 4px; }
+.receipt-qr svg { width: 260px; height: 260px; }
+.receipt-small { text-align: center; font-size: 1rem; color: #222222; margin: 4px 0; word-break: break-word; }
+.receipt-note { text-align: center; font-size: 1rem; color: #7a3d00; margin-top: 8px; min-height: 1.2em; }
+.receipt-actions { display: flex; gap: 16px; justify-content: center; margin-top: 16px; }
+.receipt-actions button { color: #ffffff; }
+.replay-banner { position: fixed; top: 12px; right: 16px; z-index: 11; background: #b3001b; color: #ffffff; font-size: 2.2rem; font-weight: 900; letter-spacing: 0.1em; padding: 8px 22px; border-radius: 12px; border: 4px solid #ffffff; }
+.chooser { background: var(--panel); border-radius: 16px; padding: 24px; width: min(640px, 100%); text-align: center; }
+.chooser-row { display: flex; gap: 16px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }
+.chooser-row button { font-size: 1.5rem; min-width: 160px; min-height: 72px; }
+
+/* The paper slip beside the receipt: the helper's rendering of the 58 mm thermal receipt, sliding out. */
+.receipt-wrap { display: flex; gap: 24px; align-items: flex-start; justify-content: center; flex-wrap: wrap; width: 100%; }
+.slip { background: #ffffff; padding: 10px 8px 24px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); max-height: 88vh; overflow-y: auto;
+  animation: slip-out 900ms ease-out; clip-path: polygon(0 0, 100% 0, 100% 99%, 95% 100%, 90% 99%, 85% 100%, 80% 99%, 75% 100%, 70% 99%, 65% 100%, 60% 99%, 55% 100%, 50% 99%, 45% 100%, 40% 99%, 35% 100%, 30% 99%, 25% 100%, 20% 99%, 15% 100%, 10% 99%, 5% 100%, 0 99%); }
+.slip[hidden] { display: none; }
+.slip img { display: block; width: 384px; max-width: 80vw; image-rendering: pixelated; }
+@keyframes slip-out { from { transform: translateY(-40px); opacity: 0; } to { transform: none; opacity: 1; } }
+a.button { display: inline-flex; align-items: center; min-height: 48px; padding: 10px 20px; border-radius: 12px; background: #26304a; border: 2px solid #3d4a6e; color: #ffffff; text-decoration: none; font-weight: 700; }
+a.button[hidden] { display: none; }

@@ -8,6 +8,7 @@ Frozen for the weekend. A change needs all four people at the table.
 | policy | 8001 | `0.0.0.0` |
 | merchant | 8002 | `0.0.0.0` |
 | catalog | 8003 | `0.0.0.0` |
+| printer | 8004 | `127.0.0.1` on the station laptop; the page reaches it as `/svc/printer` |
 | station | 5173 | `0.0.0.0` |
 | printer helper (`station/printer.py`) | 8004 | `127.0.0.1` on the station laptop, via the Vite proxy `/svc/printer` |
 | caregiver | 5175 | tunnel (`ngrok http 5175 --url https://<tunnel-host>`) |

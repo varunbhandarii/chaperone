@@ -86,6 +86,38 @@ Microphone and speaker pickers are in the same panel (the speaker picker needs a
    refusals are spoken verbatim without the model.
 6. `budget_left` calls `GET {policy}/budget?mandate_id=` and returns `{monthly_cap, spent, left, say}`.
 
+## After checkout: caregiver, payment, receipt
+
+- **Waiting for the caregiver.** On `approve` the model says the `asking_priya` line and the page polls
+  `GET {policy}/approvals/{id}` every second for up to 95 s; the state strip counts down (*Waiting for Priyank
+  · 85 s*). `approved` with an order: the page says `caregiver_approved` and the order goes on to payment.
+  `rejected`: the caregiver's message, or `caregiver_declined`. `expired`: `caregiver_timeout`, and the cart
+  stays. These fixed lines are spoken verbatim with `force_message`, only once the shopper and the model are
+  quiet. The button stays live: a new request cancels the wait.
+- **Paid.** The page follows the relay's event stream (`/events/stream?types=paid,reset`, same-origin through
+  the proxy; the backlog replayed on connect is skipped). On `paid` for its session it fetches
+  `GET {merchant}/orders/{id}/receipt` (or builds the receipt from its own order record), shows it full-screen,
+  posts it to the receipt helper (`POST /svc/printer/print`, `station/printer.py` on 127.0.0.1:8004), posts
+  `receipt_printed {order_id, via: "printer" | "screen"}` and says `receipt_done` or `receipt_on_screen`.
+  Without a printer the helper saves the receipt as a PDF: the page shows the rendered 58 mm slip beside the
+  large-type receipt with an **Open PDF** button, and posts `via: "screen", pdf: true`. If the helper is not
+  running, the large-type receipt alone is the copy. **Reprint** renders or prints it again.
+- **Receipt.** Store, items and prices, the total, pickup after 3 pm, order and decision ids, the paid time,
+  "Paid in the Visa sandbox. No real money.", and a QR code to `https://<TUNNEL_HOST>/s/<session_id>`
+  (`TUNNEL_HOST` from the root `.env`, or `?tunnel=`), in the session's language.
+
+## Host shortcuts
+
+| Keys | What |
+|---|---|
+| Ctrl+Shift+R | Reset: new session id, empty cart, gate, transcript and screen, a new voice conversation; the relay resets policy, merchant and the live ledger. A `reset` event from the relay (the Host page) does the same on the station |
+| Ctrl+Shift+S | Save this session (agent audio, transcripts, tool calls, refusal clip) as the cached session for its language: `sessions/cached/<lang>.json` through the receipt helper, and a copy in this browser's IndexedDB (used when the helper is not running) |
+| Ctrl+Shift+P | Replay a cached session: pick the language; the recorded voice plays and **REPLAY** shows in large type, while the rule screen, the cart tools and checkout run live against the services (events carry `replay: true`) |
+| Escape | Close the receipt or the chooser, or stop a replay (pressing the talk button also stops it) |
+
+Spoken lines: the built-in texts in `src/cart.ts` are replaced at build time by `ai/prompts/refusal.<key>.<lang>.txt`
+and, when present, `ai/prompts/lines.<lang>.json` (`{"key": "text"}`; `{total}` or `$X` stands for the total).
+
 ## Companion screen
 
 **Shopper view** hides the latency meter, hardware panel and tool notes, leaving the state strip
@@ -175,10 +207,12 @@ tool called and audio received. `--wav` saves the spoken reply. The token and ke
 - **Reachability.** On Start the page probes the relay, policy and catalog once; a service that is down is
   skipped instantly (fallback items, no rule screen) and re-probed every 30 s, so a stopped service does
   not cost a timeout on every turn. Checkout re-probes a down policy service before giving up.
-- **Ledger.** `session_started`, `heard`, `items_found`, `cart_updated`, `checkout_requested`,
-  `policy_decision` and `refusal` are posted fire-and-forget to `{relay}/events` with `type`,
-  `session_id`, `mandate_id`, `t` (integer ms) and `source: "station"`. If the relay has no ledger yet the
-  page warns once and carries on.
+- **Ledger.** `session_started`, `heard {role, text, lang, item_id}` (one line per turn on the wall),
+  `items_found {query, items}`, `cart_updated {lines, total}`, `checkout_requested {total}`,
+  `refusal {rule_id, rule_ids, spoken_key, lang}` and `receipt_printed {order_id, via}` are posted
+  fire-and-forget to `{relay}/events` with `type`, `session_id`, `mandate_id`, `t` (integer ms) and
+  `source: "station"`. `policy_decision` comes from the policy service. If the relay has no ledger the page
+  warns once and carries on.
 
 Details checked against the xAI docs (Sept 2026): the `.updated` live user transcript is only sent when
 `audio.input.transcription.model` is `grok-transcribe` (the page retries without it if the server rejects
@@ -209,7 +243,12 @@ commit, transcription events, then a scripted model: search -> `add_to_cart` -> 
 catalog (`/search` `{q, items}`, `/resolve` `{q, matches}`), policy (`/screen`, `/checkout` in the agreed
 reply shape: allow under $40, approve above, deny for gift cards; `/budget`) and ledger endpoints.
 `POST /mock/reset {"eager_checkout": true}` makes the scripted model call checkout before the read-back
-(the gate must hold it); `POST /mock/drop` closes the socket to exercise resumption. To drive the page:
+(the gate must hold it); `POST /mock/drop` closes the socket to exercise resumption. It also stands in for the
+caregiver and payment side: `GET /approvals/{id}` (expiry on read; `{"approval_ttl": 4}` in `/mock/reset`
+shortens it), `POST /mock/approvals/{id}/approve|reject`, `GET /orders/{id}/receipt`, `POST /mock/pay/{order_id}`
+(emits `paid`), the relay's `/events/stream` and `POST /reset`, and the print helper's `POST /print`
+(`{"print_ok": true}` makes it succeed) and `/cached/{lang}`. Point every service at it with
+`?relay=...&policy=...&catalog=...&merchant=...&printer=...` (all `http://127.0.0.1:8010`). To drive the page:
 
 ```bash
 .venv/Scripts/python -m uvicorn mock_realtime:app --app-dir station/kiosk/tests --port 8010

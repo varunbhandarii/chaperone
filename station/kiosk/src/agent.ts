@@ -2,7 +2,9 @@
 // rule screening in front of every tool, the search_catalog and checkout tools, refusals and the ledger.
 
 import { Capture, MIC_CONSTRAINTS, Player, createAudioContext, type CaptureBlock } from "./audio.ts";
-import { VOICE, VOICE_NAME, buildSession, languageHint, realtimeUrl, voiceFor } from "./config.ts";
+import { TUNNEL_HOST, VOICE, VOICE_NAME, buildSession, languageHint, realtimeUrl, voiceFor } from "./config.ts";
+import * as payload from "./events.ts";
+import { localReceipt, sessionUrl, type ApprovalStatus, type PlacedOrder, type Receipt } from "./receipt.ts";
 import {
   Cart,
   ItemCache,
@@ -10,10 +12,12 @@ import {
   buildCheckoutBody,
   checkoutOutcome,
   compactItem,
+  fromCents,
   money,
   newSessionId,
   readBackSay,
   sayFor,
+  toCents,
   type CartLineView,
   type CatalogItem,
   type CheckoutOutcome,
@@ -21,7 +25,24 @@ import {
 import { detectLang, guessLang, type Lang } from "./lang.ts";
 import { ChunkAccumulator, PcmRing, base64ToPcm16, median, pcm16ToBase64 } from "./pcm.ts";
 import { ruleIds, type ScreenResult } from "./screen.ts";
-import { Ledger, fetchToken, getBudget, health, loadClip, postCheckout, screenText, searchCatalog } from "./services.ts";
+import {
+  Ledger,
+  RelayStream,
+  fetchToken,
+  getApproval,
+  getBudget,
+  getReceipt,
+  health,
+  loadCachedSession,
+  loadClip,
+  postCheckout,
+  printReceipt,
+  requestReset,
+  saveCachedSession,
+  screenText,
+  searchCatalog,
+  type StreamEvent,
+} from "./services.ts";
 
 export type AgentState = "off" | "connecting" | "ready" | "listening" | "thinking" | "speaking" | "waiting";
 export type NoteKind = "info" | "tool" | "warn" | "error" | "rule";
@@ -38,6 +59,13 @@ export interface AgentUI {
   decision(result: Record<string, unknown>): void;
   cart(lines: CartLineView[], total: number): void;
   outcome(outcome: CheckoutOutcome): void;
+  /** seconds left while waiting for the caregiver, null when not waiting */
+  waiting(secondsLeft: number | null): void;
+  /** the receipt shown full-screen (always, even when it printed), null to close it */
+  receipt(receipt: Receipt | null, note?: string, files?: { png?: string; pdf?: string }): void;
+  replay(on: boolean, lang?: string): void;
+  /** a reset: new session id, empty transcript, cart, outcome and banners */
+  cleared(sessionId: string): void;
   level(rms: number): void;
   micDevice(label: string): void;
 }
@@ -76,10 +104,40 @@ interface Turn {
   finalScreened?: string;
   /** This turn's slot in shopperTexts, so a longer transcript replaces the shorter one. */
   shopperIndex?: number;
+  /** Counted toward userTurns (the read-back "yes") once it had a non-empty transcript. */
+  counted?: boolean;
+  /** The final transcript was sent to /screen after a partial refusal (for the policy's repeat memory). */
+  finalAfterRefusal?: boolean;
 }
 
 const DEFAULT_SAY = "I can't help with that purchase on this account.";
 const RECONNECT_DELAYS_MS = [500, 1000, 2000];
+/** Poll the caregiver approval for up to 95 s (the policy expires it at 90 s). */
+const APPROVAL_WAIT_MS = 95_000;
+/** Do not ask the relay to reset again for a reset event that our own key caused. */
+const RESET_ECHO_MS = 10_000;
+
+interface CachedEvent {
+  t: number;
+  kind: "shopper" | "agent_audio" | "agent_text" | "tool" | "clip";
+  text?: string;
+  lang?: string;
+  audio?: string;
+  item?: string;
+  name?: string;
+  args?: Record<string, unknown>;
+  url?: string;
+}
+
+interface CachedSession {
+  version: 1;
+  lang: string;
+  rate: number;
+  recorded_at: string;
+  events: CachedEvent[];
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const SHORT_AUDIO_MS = 100;
 const MAX_OUTBOX = 1200;
 
@@ -98,8 +156,8 @@ function safeParse(text: unknown): Record<string, unknown> {
 }
 
 export class StationAgent {
-  readonly sessionId = newSessionId();
-  readonly ledger: Ledger;
+  sessionId = newSessionId();
+  ledger: Ledger;
   private ui: AgentUI;
 
   ctx: AudioContext | null = null;
@@ -161,6 +219,17 @@ export class StationAgent {
   private userTurns = 0;
   private waitingForCaregiver = false;
   private sessionLang: Lang | undefined;
+  /** The order the station placed last, for a receipt when the merchant's is unavailable. */
+  private lastOrder: PlacedOrder | null = null;
+  private receiptsDone = new Set<string>();
+  private lastReceipt: Receipt | null = null;
+  private approvalWait: { id: string } | null = null;
+  private stream: RelayStream | null = null;
+  private lastLocalReset = -Infinity;
+  /** Recording of this session (audio, transcripts, tool calls) that can be saved as a cached session. */
+  private rec: { t0: number; events: CachedEvent[] } = { t0: performance.now(), events: [] };
+  private replaying: { gen: number } | null = null;
+  private replayGen = 0;
   private pendingForce: { text: string; at: number } | null = null;
   private deferredRefusal: { turn: Turn; result: ScreenResult } | null = null;
   private warned = new Set<string>();
@@ -190,6 +259,8 @@ export class StationAgent {
 
     this.rateReady = this.setupCapture(ctx, micDeviceId);
     void health.start();
+    this.stream = new RelayStream(["paid", "reset"], (ev) => this.onStreamEvent(ev), (m) => this.warn("stream", m));
+    void this.stream.open();
     const tokenPromise = fetchToken();
 
     let token;
@@ -258,6 +329,10 @@ export class StationAgent {
   async stop(): Promise<void> {
     this.started = false;
     health.stop();
+    this.stream?.close();
+    this.stream = null;
+    this.cancelApprovalWait("station stopped");
+    this.stopReplay();
     this.configured = false;
     this.sessionUpdateSent = false;
     this.pressed = false;
@@ -351,6 +426,7 @@ export class StationAgent {
   // ---------------------------------------------------------------- push-to-talk
 
   press(): void {
+    if (this.replaying) this.stopReplay();
     if (!this.started || this.pressed) return;
     this.pressed = true;
     this.pressStart = performance.now();
@@ -400,8 +476,8 @@ export class StationAgent {
     }
 
     this.send({ type: "input_audio_buffer.commit" });
-    this.userTurns++;
-    this.waitingForCaregiver = false;
+    // A new request cancels a caregiver wait; the gate needs a fresh read-back anyway.
+    this.cancelApprovalWait("the shopper spoke again");
     this.tRelease = tRelease;
     this.latencyKind = "voice";
     this.awaitingFirstAudio = true;
@@ -477,8 +553,7 @@ export class StationAgent {
     if (turn.lang) this.lastLang = turn.lang;
     this.recordShopper(turn, text, `text-${turn.n}`, "guess");
     this.send({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } });
-    this.userTurns++;
-    this.waitingForCaregiver = false;
+    this.cancelApprovalWait("the shopper typed again");
     if (turn.lang) this.applyLanguage(turn.lang);
     this.tRelease = performance.now();
     this.latencyKind = "typed";
@@ -532,6 +607,12 @@ export class StationAgent {
   }
 
   private recordShopper(turn: Turn, text: string, key: string, langSource: string): void {
+    // Only a turn with words counts as the read-back "yes"; an empty or noise press does not arm checkout.
+    if (!turn.counted && text.trim()) {
+      turn.counted = true;
+      this.userTurns++;
+    }
+    this.record({ kind: "shopper", text, lang: turn.lang });
     if (turn.shopperIndex === undefined) {
       turn.shopperIndex = this.shopperTexts.push(text) - 1;
     } else if (turn.shopperIndex >= this.requestStart) {
@@ -540,7 +621,7 @@ export class StationAgent {
     const langLabel = turn.lang ? `${turn.lang}${langSource === "guess" ? "?" : ""}` : "?";
     console.log(`%c[${ts()}] SHOPPER (${langLabel}): ${text}`, "color:#0a7;font-weight:bold");
     this.ui.transcript("shopper", key, text, true, langLabel);
-    this.ledger.post("heard", { role: "shopper", text, lang: turn.lang });
+    this.ledger.post("heard", payload.heard("shopper", text, turn.lang, turn.itemId ?? `${this.sessionId}-${key}`));
   }
 
   /** Screens partial transcripts while the button is held, so a blocked request is refused without waiting for the model. */
@@ -610,14 +691,7 @@ export class StationAgent {
     const ids = ruleIds(result);
     // Policy screens the checkout transcript again; a refused request must not ride along into the next one.
     this.requestStart = this.shopperTexts.length;
-    this.ledger.post("refusal", {
-      rule_ids: ids,
-      spoken_key: result.refusal?.spoken_key ?? "refusal",
-      patterns: result.refusal?.patterns ?? [],
-      judge_score: null,
-      lang: result.refusal?.lang ?? turn.lang,
-      via,
-    });
+    this.ledger.post("refusal", payload.refusal(ids, result.refusal?.spoken_key ?? "refusal", result.refusal?.lang ?? turn.lang, via));
     this.ui.note(`Refused (${ids.join(", ")}) via ${via}`, "rule");
   }
 
@@ -647,7 +721,8 @@ export class StationAgent {
         console.log(`%c[${ts()}] AGENT (clip): ${say}`, "color:#36c;font-weight:bold");
         // Keep the model's history consistent with what the shopper heard.
         this.send({ type: "conversation.item.create", item: { type: "message", role: "assistant", content: [{ type: "text", text: say }] } });
-        this.ledger.post("heard", { role: "agent", text: say, lang: result.refusal?.lang ?? turn.lang, via: "clip" });
+        this.ledger.post("heard", payload.heard("agent", say, (result.refusal?.lang as Lang | undefined) ?? turn.lang, `${this.sessionId}-refusal-${turn.n}`));
+        this.record({ kind: "clip", url, text: say });
         await this.player.playClip(clip);
         this.refreshState();
       }
@@ -743,6 +818,11 @@ export class StationAgent {
         if (turn.finalScreened !== text && turn.screenResult?.action !== "refuse") {
           turn.finalScreened = text;
           void screenText(this.sessionId, text, turn.lang, (m) => this.warn("screen", m)).then((r) => this.settleScreen(turn, r));
+        } else if (turn.screenResult?.action === "refuse" && !turn.finalAfterRefusal) {
+          // Refused on a partial: the policy's repeat-attempt memory counts only final (partial: false)
+          // transcripts, so send this one once and ignore the answer.
+          turn.finalAfterRefusal = true;
+          void screenText(this.sessionId, text, turn.lang, (m) => this.warn("screen", m));
         }
         break;
       }
@@ -766,6 +846,7 @@ export class StationAgent {
         if (this.cancelled.has(ev.response_id) || !this.player || typeof ev.delta !== "string") break;
         this.markFirstAudio(this.pendingForce ? "refusal speech" : "model");
         this.player.enqueue(base64ToPcm16(ev.delta), ev.item_id);
+        this.record({ kind: "agent_audio", audio: ev.delta, item: ev.item_id });
         this.refreshState();
         break;
       }
@@ -791,7 +872,8 @@ export class StationAgent {
         if (!text) break;
         console.log(`%c[${ts()}] AGENT: ${text}`, "color:#36c;font-weight:bold");
         this.ui.transcript("agent", key, text, true, this.lastLang);
-        this.ledger.post("heard", { role: "agent", text, lang: this.lastLang });
+        this.ledger.post("heard", payload.heard("agent", text, this.lastLang, key));
+        this.record({ kind: "agent_text", text, item: key });
         if (this.pendingForce && text === this.pendingForce.text) this.pendingForce = null;
         break;
       }
@@ -889,8 +971,12 @@ export class StationAgent {
     if (this.cancelled.has(responseId)) {
       output = { cancelled: true, note: "The shopper interrupted before this ran. Nothing was done." };
     } else {
+      this.record({ kind: "tool", name, args });
       const screen = await this.awaitScreen(turn);
-      if (screen?.action === "refuse") {
+      if (this.cancelled.has(responseId)) {
+        // The shopper pressed during the screen wait (up to 1.5 s): nothing may run, least of all a checkout.
+        output = { cancelled: true, note: "The shopper interrupted before this ran. Nothing was done." };
+      } else if (screen?.action === "refuse") {
         output = { refused: true, rule_id: screen.refusal?.rule_id ?? ruleIds(screen)[0] ?? "unknown", say: screen.refusal?.text || DEFAULT_SAY };
         if (turn && turn.refusal === "none") {
           turn.refusal = "tool";
@@ -959,14 +1045,14 @@ export class StationAgent {
     const result = await searchCatalog(query, (m) => this.warn("catalog", m));
     this.cache.add(result.items);
     this.ui.items(result.items, result.source);
-    this.ledger.post("items_found", { query, skus: result.items.map((i) => i.sku), catalog_source: result.source });
+    this.ledger.post("items_found", payload.itemsFound(query, result.items, result.source));
     return { query, source: result.source, items: result.items.map(compactItem) };
   }
 
   /** Every cart change: the version bumps (voiding an earlier read-back), cart_updated is posted, the screen redraws. */
   private cartChanged(): { lines: CartLineView[]; total: number } {
     const summary = this.cart.summary();
-    this.ledger.post("cart_updated", { cart: this.cart.priced(VOICE.merchant), version: this.cart.version });
+    this.ledger.post("cart_updated", payload.cartUpdated(summary.lines, summary.total));
     this.ui.cart(summary.lines, summary.total);
     return summary;
   }
@@ -1032,16 +1118,11 @@ export class StationAgent {
       lang: this.lastLang,
       readBack: true,
     });
-    this.ledger.post("checkout_requested", { cart, read_back: true });
+    this.ledger.post("checkout_requested", payload.checkoutRequested(cart.total));
     this.ui.note(`Checkout: ${cart.items.map((i) => `${i.qty} x ${i.name} $${i.price.toFixed(2)}`).join(", ")} = $${cart.total.toFixed(2)}`, "tool");
     const reply = await postCheckout(body, (m) => this.warn("policy", m));
     if (typeof reply.decision === "string") {
-      this.ledger.post("policy_decision", {
-        decision_id: reply.decision_id,
-        decision: reply.decision,
-        rules: reply.rules ?? [],
-        monthly_total_after: reply.monthly_total_after,
-      });
+      // policy_decision is posted by the policy service itself.
       const failed = Array.isArray(reply.rules)
         ? (reply.rules as Array<{ id?: string; passed?: boolean }>).filter((r) => r && r.passed === false).map((r) => String(r.id))
         : [];
@@ -1050,13 +1131,294 @@ export class StationAgent {
     this.ui.decision(reply);
     const outcome = checkoutOutcome(reply, totalCents, this.lang);
     this.ui.outcome(outcome);
-    if (outcome.status === "ordered") {
+    const lines = this.cart.lines();
+    if (outcome.status === "ordered" && outcome.order_id) {
+      this.lastOrder = { order_id: outcome.order_id, decision_id: outcome.decision_id, lines, totalCents, lang: this.lang };
       this.cart.clear();
       this.cartChanged();
     } else if (outcome.status === "waiting_for_caregiver") {
       this.waitingForCaregiver = true;
+      if (outcome.approval_id) this.waitForApproval(outcome.approval_id, totalCents, lines, outcome.decision_id);
     }
     return { ...outcome };
+  }
+
+  // ---------------------------------------------------------------- caregiver approval
+
+  /** Polls the approval every second; the button stays live, and a new request cancels the wait. */
+  private waitForApproval(approvalId: string, totalCents: number, lines: CartLineView[], decisionId?: string): void {
+    const wait = { id: approvalId };
+    this.approvalWait = wait;
+    const deadline = performance.now() + APPROVAL_WAIT_MS;
+    console.info(`[${ts()}] waiting for the caregiver on ${approvalId}`);
+    const tick = async (): Promise<void> => {
+      if (this.approvalWait !== wait || !this.started) return;
+      this.ui.waiting(Math.max(0, Math.ceil((deadline - performance.now()) / 1000)));
+      const status = await getApproval(approvalId);
+      if (this.approvalWait !== wait) return;
+      if (status && status.state !== "pending") return this.finishApproval(status, totalCents, lines, decisionId);
+      if (performance.now() >= deadline) return this.finishApproval({ approval_id: approvalId, state: "expired" }, totalCents, lines, decisionId);
+      setTimeout(() => void tick(), 1000);
+    };
+    void tick();
+  }
+
+  private cancelApprovalWait(reason: string): void {
+    this.waitingForCaregiver = false;
+    if (!this.approvalWait) return;
+    console.info(`[${ts()}] caregiver wait cancelled: ${reason}`);
+    this.approvalWait = null;
+    this.ui.waiting(null);
+  }
+
+  private finishApproval(status: ApprovalStatus, totalCents: number, lines: CartLineView[], decisionId?: string): void {
+    this.approvalWait = null;
+    this.waitingForCaregiver = false;
+    this.ui.waiting(null);
+    const lang = this.lang;
+    const total = money(totalCents, lang);
+    console.info(`[${ts()}] caregiver answer: ${status.state}${status.order_id ? ` (order ${status.order_id})` : ""}`);
+    if (status.state === "approved" && status.order_id) {
+      this.lastOrder = { order_id: status.order_id, decision_id: decisionId, lines, totalCents, lang };
+      this.cart.clear();
+      this.cartChanged();
+      const say = sayFor("caregiver_approved", lang, { total });
+      this.ui.outcome({ status: "ordered", say_key: "caregiver_approved", say, total: fromCents(totalCents), decision_id: decisionId, order_id: status.order_id });
+      void this.speakFixed(say);
+    } else if (status.state === "approved") {
+      const say = sayFor("checkout_unavailable", lang);
+      this.ui.outcome({ status: "error", say_key: "checkout_unavailable", say, decision_id: decisionId, error: "approved but no order was placed" });
+      void this.speakFixed(say);
+    } else if (status.state === "rejected") {
+      const say = status.message ?? sayFor("caregiver_declined", lang);
+      this.ui.outcome({ status: "declined", say_key: "caregiver_declined", say, decision_id: decisionId });
+      void this.speakFixed(say);
+    } else {
+      const say = sayFor("caregiver_timeout", lang);
+      this.ui.outcome({ status: "declined", say_key: "caregiver_timeout", say, decision_id: decisionId });
+      void this.speakFixed(say);
+    }
+    this.refreshState();
+  }
+
+  /** A fixed line, spoken verbatim (force_message) once the shopper and the model are quiet; never over them. */
+  private async speakFixed(text: string): Promise<void> {
+    if (this.replaying) return; // the recording carries its own audio
+    const t0 = performance.now();
+    while ((this.pressed || this.responseActive || this.player?.active) && performance.now() - t0 < 8000) await sleep(150);
+    if (!this.started || this.pressed || !this.configured) return; // the screen still shows it
+    this.speakVerbatim(text);
+  }
+
+  // ---------------------------------------------------------------- paid -> receipt, reset (relay stream)
+
+  private onStreamEvent(ev: StreamEvent): void {
+    if (ev.type === "paid" && ev.session_id === this.sessionId && typeof ev.order_id === "string") {
+      void this.onPaid(ev.order_id, typeof ev.t === "number" ? ev.t : Date.now());
+    } else if (ev.type === "reset") {
+      if (performance.now() - this.lastLocalReset < RESET_ECHO_MS) return; // our own reset coming back
+      void this.resetSession("reset from the relay", false);
+    }
+  }
+
+  /** paid for this session: fetch the receipt (or build it), show it, print it, say so. */
+  private async onPaid(orderId: string, paidAt: number): Promise<void> {
+    if (this.receiptsDone.has(orderId)) return;
+    this.receiptsDone.add(orderId);
+    const order = this.lastOrder?.order_id === orderId ? this.lastOrder : null;
+    const lang = order?.lang ?? this.lang;
+    const url = sessionUrl(TUNNEL_HOST, this.sessionId);
+    let receipt = await getReceipt(orderId, lang);
+    if (!receipt && order) receipt = localReceipt(order, url, paidAt);
+    if (!receipt) {
+      this.warn("receipt", `paid ${orderId}, but no receipt is available (merchant receipt endpoint down and no local order record)`);
+      return;
+    }
+    if (!receipt.session_url && url) receipt = { ...receipt, session_url: url };
+    this.lastReceipt = receipt;
+    console.info(`[${ts()}] paid ${orderId}: printing the receipt`);
+    this.ui.receipt(receipt, "Preparing your receipt...");
+    const printed = await printReceipt(receipt);
+    const onPaper = printed.ok && printed.via === "printer";
+    const files = { png: printed.pngUrl, pdf: printed.pdfUrl };
+    this.ui.receipt(
+      receipt,
+      onPaper ? `Printed in ${(printed.ms / 1000).toFixed(1)} s` : printed.ok ? "" : `Receipt on screen (${printed.reason ?? "no print helper"})`,
+      printed.ok ? files : undefined,
+    );
+    this.ledger.post("receipt_printed", payload.receiptPrinted(orderId, onPaper ? "printer" : "screen", printed.ok && printed.via === "pdf"));
+    const totalText = money(toCents(receipt.total), receipt.lang);
+    void this.speakFixed(sayFor(onPaper ? "receipt_done" : "receipt_on_screen", receipt.lang, { total: totalText }));
+  }
+
+  /** The on-screen Reprint button. */
+  async reprint(): Promise<void> {
+    if (!this.lastReceipt) return;
+    this.ui.receipt(this.lastReceipt, "Preparing your receipt...");
+    const printed = await printReceipt(this.lastReceipt);
+    const onPaper = printed.ok && printed.via === "printer";
+    this.ui.receipt(this.lastReceipt, onPaper ? "Printed again" : printed.ok ? "" : `Receipt on screen (${printed.reason ?? "no print helper"})`,
+      printed.ok ? { png: printed.pngUrl, pdf: printed.pdfUrl } : undefined);
+    if (onPaper) this.ledger.post("receipt_printed", payload.receiptPrinted(this.lastReceipt.order_id, "printer"));
+  }
+
+  /**
+   * A fresh session for the next shopper: new session id, empty cart, gate, transcript and screen, and a new
+   * voice conversation so the model does not carry the last shopper's history. `fanOut` also asks the relay
+   * to reset policy, merchant and the live ledger (the relay then posts a reset event, ignored as our echo).
+   */
+  async resetSession(reason: string, fanOut: boolean): Promise<void> {
+    const t0 = performance.now();
+    this.lastLocalReset = t0;
+    const relay = fanOut ? requestReset() : Promise.resolve(true);
+    this.cancelApprovalWait("reset");
+    this.stopReplay();
+    this.bargeIn("reset");
+    this.sessionId = newSessionId();
+    this.ledger = new Ledger(this.sessionId, VOICE.mandate_id, (m) => this.warn("ledger", m));
+    this.cart = new Cart();
+    this.gate.reset();
+    this.cache = new ItemCache();
+    this.userTurns = 0;
+    this.turns = [];
+    this.shopperTexts = [];
+    this.requestStart = 0;
+    this.lastOrder = null;
+    this.lastReceipt = null;
+    this.deferredRefusal = null;
+    this.pendingForce = null;
+    this.waitingForCaregiver = false;
+    this.rec = { t0: performance.now(), events: [] };
+    this.ui.cleared(this.sessionId);
+    console.info(`[${ts()}] RESET (${reason}): new session ${this.sessionId}`);
+    if (this.started) {
+      // A new conversation: close the old socket first (tier 0 allows 10 concurrent sessions).
+      const ws = this.ws;
+      this.ws = null;
+      this.conversationId = null;
+      this.configured = false;
+      this.sessionUpdateSent = false;
+      this.sessionLang = undefined;
+      this.responseActive = false;
+      this.currentResponseId = null;
+      this.toolBatches.clear();
+      this.outbox = [];
+      if (ws && ws.readyState <= WebSocket.OPEN) ws.close(1000, "reset");
+      try {
+        this.openSocket((await fetchToken()).value);
+      } catch (err) {
+        this.ui.status(`Reset done, but the voice session could not restart: ${err instanceof Error ? err.message : err}`, "error");
+      }
+    }
+    const relayOk = await relay;
+    const ms = Math.round(performance.now() - t0);
+    this.ui.note(`Reset in ${ms} ms${fanOut ? (relayOk ? " (relay reset policy, merchant and ledger)" : " (relay reset FAILED; spend and orders may be stale)") : ""}`, relayOk ? "info" : "error");
+    this.refreshState();
+  }
+
+  // ---------------------------------------------------------------- cached sessions
+
+  private record(ev: Omit<CachedEvent, "t">): void {
+    if (this.replaying) return;
+    this.rec.events.push({ t: Math.round(performance.now() - this.rec.t0), ...ev });
+  }
+
+  /** Saves this session's recording as the cached session for its language. */
+  async saveRecording(): Promise<void> {
+    const lang = this.lang;
+    const events = this.rec.events;
+    if (!events.some((e) => e.kind === "agent_audio")) {
+      this.ui.note("Nothing to save yet: record a full session first.", "warn");
+      return;
+    }
+    const start = events[0].t;
+    const session: CachedSession = {
+      version: 1,
+      lang,
+      rate: this.rate || 24000,
+      recorded_at: new Date().toISOString(),
+      events: events.map((e) => ({ ...e, t: e.t - start })),
+    };
+    const saved = await saveCachedSession(lang, session);
+    this.ui.note(saved.ok ? `Saved the cached ${lang} session (${events.length} events) in ${saved.where}.` : `Could not save the cached session: ${saved.error}`, saved.ok ? "info" : "error");
+  }
+
+  /**
+   * Replays a cached session through the same player and screen, labelled REPLAY. The voice is the recording,
+   * but the actions are live: the rule screen, the cart tools and checkout go to the real services again.
+   */
+  async replay(lang: Lang): Promise<void> {
+    const loaded = (await loadCachedSession(lang)) as CachedSession | null;
+    if (!loaded || !Array.isArray(loaded.events)) {
+      this.ui.note(`No cached ${lang} session. Record one and press Ctrl+Shift+S.`, "warn");
+      return;
+    }
+    if (!this.ctx || !this.player) {
+      const ctx = createAudioContext(VOICE.capture.preferred_sample_rate);
+      void ctx.resume();
+      this.ctx = ctx;
+      this.player = new Player(ctx);
+      this.player.onIdle = () => this.refreshState();
+    }
+    this.cancelApprovalWait("replay");
+    this.bargeIn("replay");
+    const run = { gen: ++this.replayGen };
+    this.replaying = run;
+    this.ledger.replay = true;
+    this.ui.replay(true, lang);
+    this.lastLang = lang as Lang;
+    console.info(`[${ts()}] REPLAY ${lang}: ${loaded.events.length} events`);
+    const t0 = performance.now();
+    let tools: Promise<unknown> = Promise.resolve();
+    let n = 0;
+    for (const ev of loaded.events) {
+      const wait = ev.t - (performance.now() - t0);
+      if (wait > 0) await sleep(wait);
+      if (this.replaying !== run) return;
+      if (ev.kind === "agent_audio" && ev.audio && this.player) {
+        this.player.enqueue(base64ToPcm16(ev.audio), ev.item, loaded.rate);
+      } else if (ev.kind === "agent_text" && ev.text) {
+        this.ui.transcript("agent", `replay-${ev.item ?? n}`, ev.text, true, lang);
+        this.ledger.post("heard", payload.heard("agent", ev.text, lang as Lang, `${this.sessionId}-replay-${ev.item ?? n}`));
+      } else if (ev.kind === "shopper" && ev.text) {
+        const turn = this.newTurn("text");
+        turn.text = ev.text;
+        turn.lang = lang as Lang;
+        this.recordShopper(turn, ev.text, `replay-shopper-${turn.n}`, "guess");
+        const text = ev.text;
+        tools = tools.then(async () => {
+          const result = await screenText(this.sessionId, text, lang as Lang, (m) => this.warn("screen", m));
+          if (result?.action === "refuse") {
+            this.ui.rules(ruleIds(result), "refuse", result.refusal?.text);
+            this.logRefusal(turn, result, "replay");
+          }
+        });
+      } else if (ev.kind === "tool" && ev.name) {
+        const name = ev.name;
+        const args = ev.args ?? {};
+        tools = tools.then(() => this.dispatchTool(name, args)).then((out) => console.info(`[${ts()}] REPLAY TOOL ${name}:`, out));
+      } else if (ev.kind === "clip" && ev.url && this.ctx && this.player) {
+        const clip = await loadClip(this.ctx, ev.url, 1500, (m) => this.warn(`clip:${ev.url}`, m));
+        if (clip && this.replaying === run) void this.player.playClip(clip);
+        if (ev.text) this.ui.transcript("agent", `replay-clip-${n}`, ev.text, true, lang);
+      }
+      n++;
+    }
+    await tools;
+    await this.player?.drained();
+    if (this.replaying === run) this.stopReplay();
+  }
+
+  stopReplay(): void {
+    if (!this.replaying) return;
+    this.replaying = null;
+    this.ledger.replay = false;
+    this.player?.stop();
+    this.ui.replay(false);
+  }
+
+  get isReplaying(): boolean {
+    return this.replaying !== null;
   }
 
   // ---------------------------------------------------------------- session resumption
