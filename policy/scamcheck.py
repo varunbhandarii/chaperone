@@ -222,8 +222,11 @@ def gather_facts(mandate_id: str, story: str, caller: dict) -> list[dict]:
         for biller in mandate.get("billers") or DEMO_BILLERS:
             account = _biller_account(biller["merchant_id"], biller["account_ref"])
             if account:
-                due = account.get("balance_due")
-                bits = [f"${due} due {account.get('due_date')}" if due and float(due) > 0 else "nothing due",
+                try:
+                    due = float(account.get("balance_due") or 0)
+                except (TypeError, ValueError):
+                    due = 0.0
+                bits = [f"${due:.2f} due {account.get('due_date')}" if due > 0 else "nothing due",
                         "past due" if account.get("past_due") else "not past due",
                         "a disconnect notice is on file" if account.get("disconnect_notice") else "no disconnect notice"]
                 facts.append({"fact": f"{account.get('biller', biller['merchant_id'])} account", "result": ", ".join(bits)})
