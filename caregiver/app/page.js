@@ -58,6 +58,11 @@ export default function Page() {
     const assertion = await startAuthentication({ optionsJSON });
     const verified = await post("/api/passkeys/verify-authentication", { mandate: MANDATE, response: assertion });
     note("assertion verified=" + verified.verified + " counter=" + verified.counter);
+    const stored = await post("/api/mandate", {
+      ...MANDATE,
+      passkey: { credential_id: verified.credential_id, public_key: verified.public_key, response: assertion },
+    });
+    note("mandate stored " + stored.mandate_id);
   }
 
   async function armAlerts() {
