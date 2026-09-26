@@ -141,7 +141,7 @@ async def confirm_payment(request: Request):
 @router.post("/api/reset")
 async def reset(request: Request):
     lan_only(request)
-    return await ledger.reset()
+    return await ledger.reset(request)
 
 
 @router.post("/api/arm-replay")

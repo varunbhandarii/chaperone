@@ -105,3 +105,10 @@ def test_public_addresses_are_refused():
 def test_host_page_is_served(client):
     r = client.get("/host")
     assert r.status_code == 200 and "Confirm payment" in r.text
+
+
+def test_host_reset_runs_the_real_reset(client):
+    r = client.post("/host/api/reset")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["merchant"] == "ok" and isinstance(body["ms"], int)
