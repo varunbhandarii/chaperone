@@ -4,7 +4,8 @@
 # nukta stripped, punctuation and danda to spaces, zero-width characters and apostrophes
 # deleted, casefolded) and then Hinglish-folded (aa->a, ee->i, oo->u, z->j, w->v, ph->f,
 # nahin->nahi) so one spelling covers the variants. Terms match whole words. Prefix a term
-# with "re:" for a regex; do not use backslash classes such as \w in regexes.
+# with "re:" for a regex. Backslash escapes (\S) survive the fold; letter ranges such as
+# [a-z] do not (z->j), so avoid them.
 #
 # Languages: en, es, hi (Devanagari) and hi_latn (Hinglish). Grok may write Hindi loanwords
 # in either script, so English loanwords also appear under hi.
@@ -14,11 +15,13 @@
 #   >= 2 distinct soft rules        -> judge
 #   exactly 1 soft rule             -> slow
 #   none                            -> proceed
-# weak_terms count only when another soft rule also fires.
+# weak_terms count only in the utterance's own language, and only when another soft rule
+# outside weak_needs_other_than also fires ("mi hija viene hoy mismo" stays slow).
 # R_code_reading turns hard when an instrument term is in the same utterance.
 
 version: 1
 soft_hits_for_judge: 2
+weak_needs_other_than: [R_urgency]
 
 instrument_terms:
   en: ["re:cards?", "gift", "voucher", "recharge", "itunes", "google play", "steam", "bitcoin"]
@@ -34,8 +37,8 @@ rules:
     terms:
       en:
         - "re:gift ?cards?"
-        - "re:(?:prepaid|reloadable|recharge) (?:debit )?cards?"
-        - "re:(?:google play|apple|itunes|steam|target|walmart|amazon|ebay) (?:gift )?cards?"
+        - "re:(?:prepaid|reloadable|recharge) (?:\\S+ )?(?:debit )?cards?"
+        - "re:(?:google play|play store|itunes|steam|razer gold) (?:gift )?cards?"
         - "re:visa gift cards?"
         - "re:prepaid visa"
         - "re:vanilla (?:visa|gift)"
@@ -47,8 +50,8 @@ rules:
         - "re:crypto(?:currency|currencies)?"
         - "re:(?:bitcoin|crypto) atm"
       es:
-        - "re:tarjetas? de regalo"
-        - "re:tarjetas? (?:de )?(?:google play|apple|itunes|steam|amazon|target|walmart)"
+        - "re:tarjetas? (?:de )?regalo"
+        - "re:tarjetas? (?:de )?(?:google play|play store|itunes|steam)"
         - "re:tarjetas? (?:prepagadas?|prepago|de recarga|recargables?)"
         - "re:tarjetas? telefonicas?"
         - "re:transferencias? (?:bancarias?|de dinero)"
@@ -60,9 +63,9 @@ rules:
         - "western union"
         - "moneygram"
       hi:
-        - "re:गिफ्ट (?:कार्ड|card)"
-        - "उपहार कार्ड"
-        - "re:(?:गूगल प्ले|आईट्यून्स|अमेज़न|अमेजन) (?:गिफ्ट )?कार्ड"
+        - "re:(?:गिफ्ट|gift) ?(?:कार्ड|card)(?:्स|स|s)?"
+        - "re:उपहार (?:कार्ड|card)(?:्स|स)?"
+        - "re:(?:गूगल प्ले|प्ले स्टोर|आईट्यून्स|स्टीम|google play|itunes) (?:(?:का|के|की) )?(?:गिफ्ट )?(?:कार्ड|card)(?:्स|स|s)?"
         - "प्रीपेड कार्ड"
         - "रिचार्ज कार्ड"
         - "बिटकॉइन"
@@ -71,11 +74,10 @@ rules:
         - "वायर ट्रांसफर"
         - "मनी ऑर्डर"
         - "वेस्टर्न यूनियन"
-        - "re:gift ?cards?"
       hi_latn:
         - "re:gift ?cards?"
         - "re:tohfa cards?"
-        - "re:(?:google play|itunes|amazon|steam) (?:gift )?cards?"
+        - "re:(?:google play|play store|itunes|steam) (?:(?:ka|ke|ki) )?(?:gift )?cards?"
         - "re:(?:prepaid|recharge) cards?"
         - "re:bitcoins?"
         - "crypto"
@@ -90,10 +92,11 @@ rules:
     detail: Someone wants card numbers, codes, a PIN or an OTP read out to them.
     terms:
       en:
-        - "re:read (?:me |him |her |them |out )?(?:the )?(?:numbers?|codes?|pin|otp)"
+        - "re:read (?:him|her|them|out) (?:the )?(?:numbers?|codes?|pin|otp)"
+        - "re:read (?:me )?(?:the )?(?:numbers?|codes?|pin) (?:on|from|off) (?:the )?(?:back|cards?|gift cards?)"
+        - "re:(?:numbers?|codes?) on the back of (?:the|that|this|those|these|each) (?:gift )?cards?"
         - "re:(?:give|tell|send) (?:him|her|them|the man|the caller) (?:the )?(?:numbers?|codes?|pin|otp)"
         - "re:scratch (?:off )?(?:the )?(?:back|silver)"
-        - "re:(?:the )?code on the back"
         - "upi pin"
       es:
         - "re:(?:leame|leale|leerle|leer|dicteme|dictele|dictarle) (?:los|el) (?:numeros?|codigos?)"
@@ -102,13 +105,12 @@ rules:
         - "re:raspe? (?:la parte de )?atras"
         - "re:raspar (?:la parte de )?atras"
       hi:
-        - "re:(?:ओटीपी|otp|कोड|नंबर|पिन) (?:बताओ|बताइए|बताना|बता दो|बता दीजिए|भेजो|भेज दो|पढ़ो|पढो|पढ़कर)"
+        - "re:(?:ओटीपी|otp|कोड|नंबर|पिन) (?:बताओ|बताइए|बताना|बता दो|बता दीजिए|बोलो|बोलिए|भेजो|भेज दो|शेयर करो|पढ़ो|पढो|पढ़कर)"
         - "पीछे का नंबर"
         - "यूपीआई पिन"
-        - "ओटीपी"
       hi_latn:
-        - "re:(?:otp|code|number|pin) (?:batao|bataiye|batana|bata do|bata dijiye|bhejo|bhej do|padho|padh kar|share karo)"
-        - "re:pichhe? ka (?:number|code)"
+        - "re:(?:otp|code|number|pin) (?:batao|bataiye|batana|bata do|bata dijiye|bolo|boliye|bhejo|bhej do|padho|padh kar|share karo|share kar do)"
+        - "re:(?:piche|pichhe|peeche|peechhe|pichey) (?:ka|ke|ki) (?:number|numbar|code)"
         - "upi pin"
 
   R_family_emergency:
@@ -167,6 +169,7 @@ rules:
         - "re:(?:held|stuck) parcel|parcel (?:is )?(?:held|stuck)"
         - "re:(?:prize|lottery) fee"
         - "re:safe account"
+        - "re:(?:will be|is being|has been|was|is) (?:suspended|cancell?ed|frozen|blocked|locked)"
       es:
         - "fianza"
         - "re:multas?"
@@ -175,6 +178,7 @@ rules:
         - "re:desbloquear"
         - "aduana"
         - "re:paquete (?:retenido|detenido)"
+        - "re:(?:esta|sera|fue) (?:suspendid[oa]|cancelad[oa]|bloquead[oa]|congelad[oa])"
       hi:
         - "re:जमानत"
         - "जुर्माना"
@@ -277,7 +281,6 @@ rules:
         - "sheriff"
         - "re:federal agent"
         - "re:social security"
-        - "medicare"
         - "re:the government"
         - "re:(?:fraud|security) department"
         - "re:(?:microsoft|apple|amazon|tech) support"
@@ -288,7 +291,6 @@ rules:
         - "policia"
         - "re:agente (?:federal|del gobierno)"
         - "re:seguro social"
-        - "medicare"
         - "re:el gobierno"
         - "re:soporte (?:tecnico|de microsoft|de apple)"
         - "microsoft"
@@ -310,6 +312,9 @@ rules:
         - "cbi"
         - "microsoft"
         - "re:bank (?:se|vale|manager)"
+    weak_terms:
+      en: ["medicare"]
+      es: ["medicare"]
 
   R_third_party_instruction:
     severity: soft

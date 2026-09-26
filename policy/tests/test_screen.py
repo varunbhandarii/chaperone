@@ -38,7 +38,7 @@ def action(text):
     return evaluate(text).action
 
 
-# ---------------------------------------------------------------- R1 normalization
+# ---------------------------------------------------------------- normalization
 
 @pytest.mark.parametrize("text", ["मुझे गिफ्ट कार्ड।", "मुझे गिफ्ट कार्ड॥", "मुझे गिफ्ट कार्ड", "मुझे गिफ्ट card चाहिए",
                                   "gift​ card", "गिफ्ट­ कार्ड", "﻿गिफ्ट कार्ड"])
@@ -60,7 +60,7 @@ def test_pota_does_not_collide_with_pata():
     assert action("मुझे पता नहीं, जल्दी बताओ") != "judge"
 
 
-# ---------------------------------------------------------------- R2 card false refusals
+# ---------------------------------------------------------------- cards that are not gift cards
 
 @pytest.mark.parametrize("text", [
     "I will pay with my Visa card", "a birthday card for my grandson", "pagar con mi tarjeta Visa",
@@ -70,18 +70,22 @@ def test_card_mentions_proceed(text):
     assert action(text) == "proceed"
 
 
-def test_medicare_card_is_not_refused():
-    assert action("my Medicare card came") in {"proceed", "slow"}
+def test_medicare_card_proceeds():
+    assert action("my Medicare card came") == "proceed"
 
 
-@pytest.mark.parametrize("text", ["buy a visa gift card", "a prepaid visa", "two Apple cards", "tarjetas de Google Play"])
+def test_medicare_with_a_threat_goes_to_the_judge():
+    assert action("Medicare says my benefits will be suspended unless I pay a fine") == "judge"
+
+
+@pytest.mark.parametrize("text", ["buy a visa gift card", "a prepaid visa", "two iTunes cards", "tarjetas de Google Play"])
 def test_instrument_phrases_refused(text):
     assert action(text) == "refuse"
 
 
-# ---------------------------------------------------------------- R3 lexicon gaps
+# ---------------------------------------------------------------- lexicon
 
-@pytest.mark.parametrize("text", ["bhai OTP batao", "read me the code", "léame los números", "ओटीपी बता दो"])
+@pytest.mark.parametrize("text", ["bhai OTP batao", "read him the code", "léame los números", "ओटीपी बता दो"])
 def test_code_reading_alone_is_soft(text):
     v = evaluate(text)
     assert v.action == "slow" and v.rules == ["R_code_reading"]
@@ -114,7 +118,17 @@ def test_weak_family_words_alone_do_not_fire(text):
 
 
 def test_weak_family_word_counts_beside_another_soft_rule():
-    assert set(evaluate("beta jaldi karo, turant").rules) == {"R_urgency", "R_family_emergency"}
+    assert set(evaluate("mera beta bol raha hai account block ho jayega").rules) == {"R_purpose", "R_family_emergency"}
+
+
+@pytest.mark.parametrize("text", ["beta jaldi karo, turant", "mi hija viene hoy mismo"])
+def test_weak_family_word_does_not_count_beside_urgency_alone(text):
+    assert evaluate(text).rules == ["R_urgency"]
+
+
+@pytest.mark.parametrize("text", ["son las tres", "Son las tres y necesito pan, rápido por favor, ahora mismo"])
+def test_weak_terms_only_match_their_own_language(text):
+    assert "R_family_emergency" not in evaluate(text).rules
 
 
 @pytest.mark.parametrize("a,b", [("jamaanat", "zamanat"), ("phone", "fone"), ("nahin", "nahi"), ("jaldee", "jaldi")])
@@ -202,3 +216,144 @@ def test_judge_without_key_raises(monkeypatch):
     with pytest.raises(judge_mod.JudgeError):
         judge_mod.judge("hello")
     judge_mod._client.cache_clear()
+
+
+# ---------------------------------------------------------------- Hindi and Spanish gift-card forms
+
+@pytest.mark.parametrize("text", [
+    "गिफ्ट कार्ड्स", "गिफ्टकार्ड", "gift कार्ड", "Google Play ka card", "गूगल प्ले का कार्ड", "tarjeta regalo",
+    "card ke peeche ka number", "मुझे गिफ्ट कार्ड्स चाहिए।",
+])
+def test_gift_card_variants_refused(text):
+    assert action(text) == "refuse"
+    assert action(text + "।") == "refuse"
+
+
+@pytest.mark.parametrize("text", [
+    "my Apple Card", "pay with my Target card", "my Amazon card", "Visa card", "मेरे वीज़ा कार्ड से, मेरा ओटीपी आ गया",
+    "I'll pay with my Visa card. Can you read me the numbers on the soup label?",
+])
+def test_credit_cards_and_own_otp_proceed(text):
+    assert action(text) == "proceed"
+
+
+@pytest.mark.parametrize("text", ["an Amazon gift card", "a prepaid Target card", "tarjetas de regalo de Amazon"])
+def test_brand_with_gift_or_prepaid_context_refused(text):
+    assert action(text) == "refuse"
+
+
+# ---------------------------------------------------------------- terms as said
+
+@pytest.mark.parametrize("text,term", [
+    ("Compra tarjetas de Google Play ahora", "tarjetas de Google Play"),
+    ("Necesito la fianza", "fianza"),
+    ("मुझे गिफ्ट कार्ड्स चाहिए।", "गिफ्ट कार्ड्स"),
+    ("Don’t tell Priyank", "Don’t tell"),
+])
+def test_hit_terms_are_the_original_words(text, term):
+    assert term in [h["term"] for h in screen(text, session_id="s_terms")["hits"]]
+
+
+# ---------------------------------------------------------------- session memory and history
+
+def test_session_memory_is_bounded(monkeypatch):
+    from policy import screen as screen_mod
+    monkeypatch.setattr(screen_mod, "MAX_SESSIONS", 3)
+    for i in range(5):
+        screen("gift card", session_id=f"s_bound_{i}")
+    assert len(screen_mod._refused) == 3
+    assert screen("bread", session_id="s_bound_0")["action"] == "proceed"
+    assert screen("bread", session_id="s_bound_4")["action"] == "judge"
+
+
+def test_reset_sessions_clears_memory():
+    screen("gift card", session_id="s_reset")
+    reset_sessions()
+    assert screen("bread", session_id="s_reset")["action"] == "proceed"
+
+
+def test_history_summary_names_the_refused_item():
+    from policy.screen import history_summary
+    assert history_summary("s_hist") == ""
+    screen("मुझे गिफ्ट कार्ड चाहिए", session_id="s_hist")
+    assert "गिफ्ट कार्ड" in history_summary("s_hist")
+    screen("read him the code on the back of the card", session_id="s_hist2")
+    assert "card numbers or codes" in history_summary("s_hist2")
+
+
+class _FakeCompletions:
+    def __init__(self, content, delay=0.0):
+        self.content, self.delay, self.calls = content, delay, []
+
+    def create(self, **kwargs):
+        import time
+        from types import SimpleNamespace as NS
+        self.calls.append(kwargs)
+        time.sleep(self.delay)
+        return NS(choices=[NS(message=NS(content=self.content))],
+                  usage=NS(prompt_tokens_details=NS(cached_tokens=0)))
+
+
+@pytest.fixture
+def fake_client(monkeypatch):
+    from types import SimpleNamespace as NS
+
+    def install(content='{"scam_score": 0.1, "patterns": ["none"], "rationale": "ok", "action": "proceed"}', delay=0.0):
+        completions = _FakeCompletions(content, delay)
+        monkeypatch.setenv("JUDGE_FAKE", "0")
+        monkeypatch.setattr(judge_mod, "_client", lambda: NS(chat=NS(completions=completions)))
+        return completions
+    return install
+
+
+def test_judge_gets_session_history(fake_client):
+    completions = fake_client()
+    screen("gift card", session_id="s_hist3")
+    judge_mod.judge("medicine and bread", {"items": [{"sku": "RX-001", "qty": 1}]}, session_id="s_hist3")
+    body = json.loads(completions.calls[0]["messages"][1]["content"])
+    assert "gift card" in body["history_summary"]
+    assert body["cart"] == [{"sku": "RX-001", "qty": 1}]
+
+
+def test_judge_drops_unknown_patterns(fake_client):
+    fake_client('{"scam_score": 0.9, "patterns": ["urgency", "made_up"], "rationale": "x", "action": "refuse_and_alert"}')
+    out = judge_mod.judge("hurry")
+    assert out["patterns"] == ["urgency"]
+    jsonschema.validate(out, JUDGE_CONTRACT)
+
+
+def test_judge_hard_deadline(fake_client, monkeypatch):
+    import time
+    fake_client(delay=2.0)
+    monkeypatch.setenv("JUDGE_TIMEOUT_S", "0.3")
+    start = time.perf_counter()
+    with pytest.raises(judge_mod.JudgeError):
+        judge_mod.judge("hello")
+    assert time.perf_counter() - start < 1.0
+
+
+def test_judge_route_accepts_cart_dict():
+    body = TestClient(app).post("/judge", json={"transcript": "bread", "cart": {"items": []}}).json()
+    jsonschema.validate(body, JUDGE_CONTRACT)
+
+
+# ---------------------------------------------------------------- spoken lines
+
+LINE_KEYS = {"ordering_now", "asking_priya", "caregiver_approved", "caregiver_declined", "caregiver_timeout",
+             "receipt_done", "checkout_unavailable", "over_monthly_cap", "read_back_required",
+             "blocked_category", "scam_pattern", "code_reading"}
+
+
+def test_line_files_share_keys_and_placeholders():
+    import re
+    files = {lang: json.loads((ROOT / f"ai/prompts/lines.{lang}.json").read_text(encoding="utf-8")) for lang in ("en", "es", "hi")}
+    assert LINE_KEYS <= set(files["en"])
+    assert set(files["en"]) == set(files["es"]) == set(files["hi"])
+    for key in files["en"]:
+        holes = {lang: set(re.findall(r"\{(\w+)\}", d[key])) for lang, d in files.items()}
+        assert holes["en"] == holes["es"] == holes["hi"], key
+
+
+@pytest.mark.parametrize("name", [f"line.{k}.{l}.mp3" for k in ("asking_priya", "receipt_done") for l in ("en", "es", "hi")])
+def test_line_clips_exist(name):
+    assert (ROOT / "ai/warnings" / name).exists()

@@ -1,0 +1,18 @@
+{
+  "ordering_now": "Hago el pedido ahora. Total: {total}.",
+  "asking_priya": "Eso pasa de su límite para una compra, así que le pregunté a Priyank. Un momento, por favor.",
+  "caregiver_approved": "Priyank dijo que sí. Hago el pedido ahora.",
+  "caregiver_declined": "Priyank dijo que no a esta compra, así que no la hice. ¿Quiere otra cosa?",
+  "caregiver_timeout": "Priyank todavía no ha respondido, así que dejo este pedido en espera. No se compró nada.",
+  "receipt_done": "Listo. {total} en Corner Market, para recoger después de las 3 de la tarde. Ya imprimí su recibo.",
+  "receipt_done_clip": "Listo. Su pedido de Corner Market está pagado, para recoger después de las 3 de la tarde. Ya imprimí su recibo.",
+  "checkout_unavailable": "No pude hacer el pedido ahora mismo. No se compró nada.",
+  "over_monthly_cap": "Eso pasaría el presupuesto de este mes, así que no puedo pedirlo.",
+  "read_back_required": "Antes de hacer el pedido, déjeme leerle su carrito.",
+  "declined": "No puedo comprar eso con esta cuenta. ¿Quiere otra cosa?",
+  "cart_empty": "El carrito está vacío. ¿Qué le gustaría?",
+  "budget_left": "Le quedan {left} este mes.",
+  "blocked_category": "Ruth, no puedo comprar tarjetas de regalo, transferencias de dinero ni criptomonedas con esta cuenta. Cuando alguien las pide con prisa, casi siempre es una estafa, y le pasa a gente muy inteligente todos los días. Usted no hizo nada malo. Ya le avisé a Priyank, y él la va a llamar. ¿Le traigo su medicina y su pan?",
+  "scam_pattern": "Ruth, voy a detener este pedido. Cuando alguien la apura o le pide guardar un secreto, es señal de una estafa, y le pasa a gente muy inteligente todos los días. Usted no hizo nada malo. Ya le avisé a Priyank, y él la va a llamar. ¿Le ayudo con sus compras de siempre?",
+  "code_reading": "Ruth, por favor no le lea números ni códigos de tarjetas a nadie por teléfono. Las empresas de verdad y la familia nunca piden eso. Usted no hizo nada malo. Ya le avisé a Priyank, y él la va a llamar. Puede colgar con tranquilidad. ¿Le traigo su medicina y su pan?"
+}

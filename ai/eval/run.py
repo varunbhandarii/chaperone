@@ -11,7 +11,8 @@ of precision, recall and false refusals. The judge runs on every script the rule
 refuse, as /checkout does (R7).
 
 JUDGE_THRESHOLD is picked on one half of the set (stratified by language and label) over a
-0.50-0.80 grid and reported on the other half.
+0.50-0.80 grid. Every row of the results table is scored on the other (held-out) half only,
+for every layer, so the rows compare like with like.
 """
 
 from __future__ import annotations
@@ -146,12 +147,12 @@ def main() -> None:
     args = ap.parse_args()
 
     scripts = yaml.safe_load((HERE / "scripts.yaml").read_text(encoding="utf-8"))["scripts"]
-    by_lang = {lang: [s for s in scripts if s["lang"] == lang] for lang in LANGS}
     rule_preds = {s["id"]: rules_prediction(s) for s in scripts}
     tune, test = split(scripts)
+    by_lang = {lang: [s for s in test if s["lang"] == lang] for lang in LANGS}
 
     rows = [(f"Rules only / {lang}", metrics(sub, rule_preds)) for lang, sub in by_lang.items()]
-    rows.append(("Rules only / all", metrics(scripts, rule_preds)))
+    rows.append(("Rules only / all", metrics(test, rule_preds)))
     lines = [
         "# Scam eval results",
         "",
@@ -159,7 +160,8 @@ def main() -> None:
         f"({sum(s['label'] == 'scam' for s in scripts)} scam, {sum(s['label'] == 'benign' for s in scripts)} benign) "
         "in English, Spanish, Hindi (Devanagari) and Hinglish, from `ai/eval/scripts.yaml`. "
         "Scam is the positive class; a refusal or a category block both count as a catch. "
-        "The judge runs on every script the rules do not refuse. Small samples: read the Wilson intervals, "
+        f"The judge runs on every script the rules do not refuse. The table scores the held-out half only "
+        f"({len(test)} scripts; the threshold is tuned on the other {len(tune)}). Small samples: read the Wilson intervals, "
         "not the point estimates. With 0 false refusals out of n, the true rate is only bounded by the upper end.",
         "",
     ]
@@ -187,7 +189,7 @@ def main() -> None:
             over = sum(ms > 3000 for ms in lat)
             label = f"Rules + {model}"
             rows += [(f"{label} / {lang}", metrics(sub, preds)) for lang, sub in by_lang.items()]
-            rows.append((f"{label} / all", metrics(scripts, preds)))
+            rows.append((f"{label} / all", metrics(test, preds)))
             held = metrics(test, preds)
             wrong = [s["id"] for s in scripts if s["expected"] != "category_block"
                      and (preds[s["id"]] != "allow") != (s["label"] == "scam")]
@@ -202,18 +204,18 @@ def main() -> None:
                 f"({args.workers} call(s) at a time).",
                 f"- Verdict flips across {args.runs} runs at the chosen threshold: {flips} of {len(res['scores'])} judged scripts.",
                 f"- Prompt cache: median cached prompt tokens per call {statistics.median(res['cached']) if res['cached'] else 0:.0f}.",
-                f"- Misclassified: {', '.join(wrong) or 'none'}.",
+                f"- Misclassified, full set: {', '.join(wrong) or 'none'}.",
                 "",
             ]
             if res["errors"]:
                 model_sections += ["Errors:", ""] + [f"- {e}" for e in res["errors"][:10]] + [""]
 
-    lines += ["## Results by layer and language", ""] + table(rows) + [""]
+    lines += ["## Results by layer and language (held-out half)", ""] + table(rows) + [""]
     lines += [
         "## Rules only",
         "",
         f"- Innocent requests for a blocked item (expected category block): {cat_ok}/{len(cat_rows)} blocked as a category.",
-        f"- Misclassified by rules alone (the judge covers these): {', '.join(misses) or 'none'}.",
+        f"- Misclassified by rules alone, full set (the judge covers these): {', '.join(misses) or 'none'}.",
         "",
     ]
     if model_sections:

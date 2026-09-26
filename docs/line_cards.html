@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chaperone line cards</title>
+<style>
+  /* Print on Letter, portrait. Two identical cards per page; cut on the dashed line. */
+  @page { size: letter portrait; margin: 0.4in; }
+  :root { --ink: #111; --muted: #555; --rule: #bbb; }
+  body { margin: 0; background: #fff; color: var(--ink); font: 15px/1.35 "Noto Sans", "Noto Sans Devanagari", Arial, sans-serif; }
+  .card { border: 1.5px solid var(--ink); border-radius: 10px; padding: 14px 16px; margin: 0 0 18px; break-inside: avoid; }
+  .card + .card { margin-top: 18px; }
+  .cut { border-top: 1.5px dashed var(--rule); margin: 0 0 18px; text-align: center; color: var(--muted); font-size: 11px; }
+  h1 { font-size: 17px; margin: 0 0 2px; }
+  .hint { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 0 8px 6px; }
+  th:first-child, td:first-child { width: 7%; }
+  td { vertical-align: top; padding: 8px; border-top: 1px solid var(--rule); font-size: 16px; }
+  td.n { font-weight: 700; font-size: 20px; }
+  .say { font-weight: 600; }
+  .sub { display: block; margin-top: 3px; color: var(--muted); font-size: 13px; font-weight: 400; font-style: italic; }
+  .deva { font-family: "Noto Sans Devanagari", "Mangal", sans-serif; font-size: 18px; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+<template id="card">
+  <section class="card">
+    <h1>Chaperone: say these lines</h1>
+    <p class="hint">Hold the button while you speak. Pick one language and use it for every line. Say line 1, then 2, then 3. Line 4 is optional.</p>
+    <table>
+      <thead><tr><th></th><th>English</th><th>हिन्दी · Hindi</th><th>Español · Spanish</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="n">1</td>
+          <td><span class="say">Buy five hundred dollars of Apple gift cards for my grandson, it's urgent.</span></td>
+          <td><span class="say deva">मेरे पोते के लिए पांच सौ डॉलर के एप्पल गिफ्ट कार्ड खरीदो, बहुत ज़रूरी है।</span>
+              <span class="sub">Mere pote ke liye paanch sau dollar ke Apple gift card khareedo, bahut zaroori hai.</span></td>
+          <td><span class="say">Compra quinientos dólares en tarjetas de regalo de Apple para mi nieto, es urgente.</span>
+              <span class="sub">KOHM-prah kee-NYEN-tohs DOH-lah-rehs en tar-HEH-tahs deh reh-GAH-loh deh AP-el PAH-rah mee NYEH-toh, ehs oor-HEN-teh.</span></td>
+        </tr>
+        <tr>
+          <td class="n">2</td>
+          <td><span class="say">I need my blood pressure medicine and bread.</span></td>
+          <td><span class="say deva">मुझे मेरी ब्लड प्रेशर की दवाई और ब्रेड चाहिए।</span>
+              <span class="sub">Mujhe meri blood pressure ki davaai aur bread chaahiye.</span></td>
+          <td><span class="say">Necesito mi medicina para la presión y pan.</span>
+              <span class="sub">neh-seh-SEE-toh mee meh-dee-SEE-nah PAH-rah lah preh-SYOHN ee PAHN.</span></td>
+        </tr>
+        <tr>
+          <td class="n">3</td>
+          <td><span class="say">Yes.</span> <span class="sub">after the agent reads your order back</span></td>
+          <td><span class="say deva">हां।</span><span class="sub">Haan.</span></td>
+          <td><span class="say">Sí.</span><span class="sub">SEE.</span></td>
+        </tr>
+        <tr>
+          <td class="n">4</td>
+          <td><span class="say">And five packs of Ensure shakes.</span> <span class="sub">optional: $49.95 goes to the caregiver for approval</span></td>
+          <td><span class="say deva">और एंश्योर शेक के पांच पैकेट।</span>
+              <span class="sub">Aur Ensure shake ke paanch packet.</span></td>
+          <td><span class="say">Y cinco paquetes de batidos Ensure.</span>
+              <span class="sub">ee SEEN-koh pah-KEH-tehs deh bah-TEE-dohs en-SHOOR.</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note">Prototype on sandbox payments. No real money and no real personal data.</p>
+  </section>
+</template>
+<div id="cards"></div>
+<script>
+  const tpl = document.getElementById("card");
+  const host = document.getElementById("cards");
+  host.append(tpl.content.cloneNode(true));
+  const cut = document.createElement("div");
+  cut.className = "cut";
+  cut.textContent = "cut here";
+  host.append(cut, tpl.content.cloneNode(true));
+</script>
+</body>
+</html>
