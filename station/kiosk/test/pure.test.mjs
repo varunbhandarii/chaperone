@@ -327,3 +327,106 @@ test("screen responses parse and expose rule ids", () => {
   assert.equal(parseScreen({ action: "maybe" }), null);
   assert.equal(parseScreen(null), null);
 });
+
+// ---------- ledger payloads (the wall's shapes) ----------
+
+import * as payload from "../src/events.ts";
+import { formatPaidAt, localReceipt, parseApproval, parseReceipt, sessionUrl, RECEIPT_LABELS } from "../src/receipt.ts";
+import { hasSay, registerSay } from "../src/cart.ts";
+
+test("ledger payloads follow the wall's shapes", () => {
+  assert.deepEqual(payload.heard("shopper", "necesito pan", "es", "item_1"), { role: "shopper", text: "necesito pan", lang: "es", item_id: "item_1" });
+  assert.deepEqual(payload.cartUpdated([{ sku: "BAK-001", name: "Bread", qty: 2, price: 3.49, line_total: 6.98 }], 6.98), {
+    lines: [{ sku: "BAK-001", name: "Bread", qty: 2, price: 3.49 }],
+    total: 6.98,
+  });
+  assert.deepEqual(payload.itemsFound("bread", [{ sku: "BAK-001", name: "Bread", category: "bakery", price: 3.49, usual: true }], "catalog").items, [
+    { sku: "BAK-001", name: "Bread", price: 3.49 },
+  ]);
+  assert.deepEqual(payload.checkoutRequested(11.49), { total: 11.49 });
+  assert.deepEqual(payload.refusal(["R1_blocked_category", "R_urgency"], "blocked_category", "es", "out_of_band"), {
+    rule_id: "R1_blocked_category",
+    rule_ids: ["R1_blocked_category", "R_urgency"],
+    spoken_key: "blocked_category",
+    lang: "es",
+    via: "out_of_band",
+  });
+  assert.deepEqual(payload.receiptPrinted("o_1", "screen"), { order_id: "o_1", via: "screen" });
+  assert.deepEqual(payload.receiptPrinted("o_1", "screen", true), { order_id: "o_1", via: "screen", pdf: true });
+  // an unknown language is left out: the relay's schema rejects lang: null
+  assert.deepEqual(payload.heard("agent", "Un momento.", undefined, "item_2"), { role: "agent", text: "Un momento.", item_id: "item_2" });
+  assert.equal("lang" in payload.refusal(["R1_blocked_category"], "blocked_category", undefined, "tool"), false);
+});
+
+// ---------- receipt and approval ----------
+
+test("merchant receipts parse; the station can build one from its own order record", () => {
+  const r = parseReceipt({ merchant: "Corner Market", items: [{ name: "Bread", qty: 1, price: 3.49 }, { bad: 1 }], total: 3.49, order_id: "o_1", decision_id: "d_1", paid_at: 1790400000, session_url: "https://t.example/s/s_1", lang: "hi" });
+  assert.equal(r.items.length, 1);
+  assert.equal(r.lang, "hi");
+  assert.equal(r.pickup, "after 3 pm");
+  assert.equal(parseReceipt({ items: [] }), null);
+  assert.equal(parseReceipt({ order_id: "o", total: 1, items: [], lang: "fr" }, "es").lang, "es");
+
+  const local = localReceipt({ order_id: "o_2", decision_id: "d_2", lines: [{ sku: "RX-001", name: "Lisinopril", qty: 1, price: 8, line_total: 8 }], totalCents: 800, lang: "es" }, "https://t.example/s/s_2", 1790400000);
+  assert.deepEqual(local.items, [{ name: "Lisinopril", qty: 1, price: 8 }]);
+  assert.equal(local.total, 8);
+  assert.equal(local.lang, "es");
+  assert.equal(sessionUrl("https://abc.ngrok-free.app/", "s_9"), "https://abc.ngrok-free.app/s/s_9");
+  assert.equal(sessionUrl("", "s_9"), undefined);
+  assert.notEqual(formatPaidAt(1790400000), "");
+  assert.equal(RECEIPT_LABELS.es.pickup("after 3 pm"), "Para recoger después de las 3 pm");
+});
+
+test("the merchant's receipt: string money, line totals with unit_price, 'after 3pm'", () => {
+  // the exact shape of GET {merchant}/orders/{id}/receipt
+  const r = parseReceipt({
+    merchant: "Corner Market",
+    items: [
+      { name: "Nature's Own Honey Wheat Bread", qty: 2, price: "6.98", unit_price: "3.49", sku: "BAK-001" },
+      { name: "Lisinopril 10 mg", qty: 1, price: "8.00", unit_price: "8.00", sku: "RX-001" },
+    ],
+    total: "14.98", currency: "USD", pickup: "after 3pm", order_id: "ord_abc", decision_id: "d_1", session_id: "s_1",
+    status: "paid", paid_at: "2026-09-26T09:15:00+00:00", paid_via: "callback", session_url: null, lang: "es",
+    sandbox_note: "Paid in the Visa sandbox. No real money.",
+  }, "en");
+  assert.ok(r);
+  assert.equal(r.total, 14.98);
+  assert.deepEqual(r.items.map((i) => [i.qty, i.price]), [[2, 3.49], [1, 8]]); // unit prices
+  assert.equal(r.session_url, undefined);
+  assert.equal(RECEIPT_LABELS.es.pickup(r.pickup), "Para recoger después de las 3 pm");
+  assert.equal(RECEIPT_LABELS.en.pickup("after 3pm"), "Pickup after 3 pm");
+  assert.equal(RECEIPT_LABELS.hi.pickup("after 3pm"), "दोपहर 3 बजे के बाद ले जाएँ");
+  assert.equal(RECEIPT_LABELS.hi.pickup("after 6:30 pm"), "शाम 6:30 बजे के बाद ले जाएँ");
+  // no unit_price, prices that add up to the total are line totals
+  const lines = parseReceipt({ order_id: "o", total: 6.98, items: [{ name: "Bread", qty: 2, price: 6.98 }] });
+  assert.equal(lines.items[0].price, 3.49);
+  // unit prices stay unit prices
+  const units = parseReceipt({ order_id: "o", total: 6.98, items: [{ name: "Bread", qty: 2, price: 3.49 }] });
+  assert.equal(units.items[0].price, 3.49);
+  assert.equal(parseReceipt({ order_id: "o", total: "n/a", items: [] }), null);
+});
+
+test("approval replies parse, with the expiry as epoch seconds, ms or ISO", () => {
+  const a = parseApproval({ approval_id: "a_1", state: "approved", expires_at: "2026-09-26T10:00:00Z", amount: 63.49, order: { order_id: "o_9" } });
+  assert.equal(a.state, "approved");
+  assert.equal(a.order_id, "o_9");
+  assert.equal(a.expires_at_ms, Date.parse("2026-09-26T10:00:00Z"));
+  assert.equal(parseApproval({ approval_id: "a_1", state: "pending", expires_at: 1790400000 }).expires_at_ms, 1790400000000);
+  assert.equal(parseApproval({ approval_id: "a_1", state: "rejected", message: " Not today, Mom " }).message, "Not today, Mom");
+  assert.equal(parseApproval({ approval_id: "a_1" }), null);
+  assert.equal(parseApproval({ approval_id: "a_1", state: "maybe" }), null);
+});
+
+test("spoken lines: the refusal, caregiver and receipt keys exist, and line files can replace them", () => {
+  for (const key of ["blocked_category", "scam_pattern", "code_reading", "over_monthly_cap", "caregiver_approved", "caregiver_declined", "caregiver_timeout", "receipt_done", "receipt_on_screen"]) {
+    assert.ok(hasSay(key), key);
+    for (const lang of ["es", "hi", "en"]) assert.ok(sayFor(key, lang, { total: "$1.00" }).length > 10, `${key} ${lang}`);
+  }
+  assert.match(sayFor("receipt_done", "es", { total: "11 dólares con 49 centavos" }), /11 dólares con 49 centavos/);
+  registerSay("receipt_done", "en", "Done. $X at Corner Market. I printed your receipt.");
+  assert.equal(sayFor("receipt_done", "en", { total: "$11.49" }), "Done. $11.49 at Corner Market. I printed your receipt.");
+  registerSay("brand_new_key", "hi", "नया");
+  assert.equal(sayFor("brand_new_key", "hi"), "नया");
+  assert.equal(sayFor("brand_new_key", "en"), sayFor("declined", "en")); // other languages fall back
+});

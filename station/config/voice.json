@@ -11,7 +11,9 @@
   "ports": {
     "relay": 8000,
     "policy": 8001,
-    "catalog": 8003
+    "merchant": 8002,
+    "catalog": 8003,
+    "printer": 8004
   },
   "mandate_id": "m_ruth_2026_09",
   "merchant": "corner_market",

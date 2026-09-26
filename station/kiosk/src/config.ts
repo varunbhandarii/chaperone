@@ -10,7 +10,7 @@ export interface VoiceConfig {
   ws_url: string;
   subprotocol_prefix: string;
   token_path: string;
-  ports: { relay: number; policy: number; catalog: number };
+  ports: { relay: number; policy: number; merchant: number; catalog: number; printer: number };
   mandate_id: string;
   merchant: string;
   capture: { preferred_sample_rate: number | null; chunk_ms: number; block_ms: number; preroll_ms: number; min_press_ms: number };
@@ -41,17 +41,27 @@ const params = new URLSearchParams(typeof location === "undefined" ? "" : locati
 const DIRECT_HOST = params.get("host");
 export const SERVICES_HOST = DIRECT_HOST || import.meta.env.VITE_SERVICES_HOST || "localhost";
 
-function serviceUrl(name: "relay" | "policy" | "catalog"): string {
+export type ServiceKey = "relay" | "policy" | "merchant" | "catalog" | "printer";
+
+function serviceUrl(name: ServiceKey): string {
   const override = params.get(name);
   if (override) return override.replace(/\/+$/, "");
-  if (DIRECT_HOST || typeof location === "undefined") return `http://${SERVICES_HOST}:${VOICE.ports[name]}`;
+  if (DIRECT_HOST || typeof location === "undefined") {
+    // The print helper always runs on the station laptop itself.
+    return `http://${name === "printer" ? "127.0.0.1" : SERVICES_HOST}:${VOICE.ports[name]}`;
+  }
   return `${location.origin}/svc/${name}`;
 }
+
+/** Public tunnel host for the receipt's QR code (?tunnel= overrides TUNNEL_HOST from the root .env). */
+export const TUNNEL_HOST = params.get("tunnel") || import.meta.env.VITE_TUNNEL_HOST || "";
 
 export const URLS = {
   relay: serviceUrl("relay"),
   policy: serviceUrl("policy"),
+  merchant: serviceUrl("merchant"),
   catalog: serviceUrl("catalog"),
+  printer: serviceUrl("printer"),
 };
 
 const VOICE_OVERRIDE = params.get("voice");

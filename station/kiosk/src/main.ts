@@ -4,6 +4,9 @@ import { health } from "./services.ts";
 import { StationAgent, type AgentState } from "./agent.ts";
 import { canSelectOutput, setOutputDevice } from "./audio.ts";
 import { SERVICES_HOST, URLS, VOICE, VOICE_NAME, WS_OVERRIDE } from "./config.ts";
+import type { Lang } from "./lang.ts";
+import { LINES_LOADED } from "./lines.ts";
+import { requestReset } from "./services.ts";
 import { createUI } from "./ui.ts";
 
 const KEY_STORAGE = "chaperone.pttKey";
@@ -69,6 +72,53 @@ function showKey(): void {
   pttHint.textContent = `hold to talk · key: ${pttKey}`;
 }
 showKey();
+
+console.info(`[lines] ${LINES_LOADED} spoken lines loaded from ai/prompts`);
+
+// ---------- Host shortcuts ----------
+// Ctrl+Shift+R  reset: new session, cart and screen; the relay resets policy, merchant and the live ledger
+// Ctrl+Shift+P  replay a cached session (chooser)
+// Ctrl+Shift+S  save this session as the cached session for its language
+// Escape        close the receipt or the chooser, or stop a replay
+
+const chooser = $("replay-chooser");
+
+async function hostReset(): Promise<void> {
+  if (agent) await agent.resetSession("Host key", true);
+  else ui.note((await requestReset()) ? "Relay reset done (station not started)." : "Relay reset failed.", "info");
+}
+
+chooser.addEventListener("click", (e) => {
+  const lang = (e.target as HTMLElement).dataset?.replay as Lang | undefined;
+  if (!lang) return;
+  chooser.hidden = true;
+  agent ??= new StationAgent(ui); // replay works without a voice session
+  void agent.replay(lang);
+});
+$("replay-cancel").addEventListener("click", () => (chooser.hidden = true));
+$("receipt-reprint").addEventListener("click", () => void agent?.reprint());
+$("receipt-close").addEventListener("click", () => ui.receipt(null));
+
+window.addEventListener(
+  "keydown",
+  (e) => {
+    if (e.key === "Escape") {
+      if (!chooser.hidden) chooser.hidden = true;
+      else if (agent?.isReplaying) agent.stopReplay();
+      else ui.receipt(null);
+      return;
+    }
+    if (!(e.ctrlKey && e.shiftKey) || e.repeat) return;
+    const k = e.key.toLowerCase();
+    if (k !== "r" && k !== "p" && k !== "s") return;
+    e.preventDefault(); // Ctrl+Shift+R would otherwise reload the page
+    e.stopImmediatePropagation();
+    if (k === "r") void hostReset();
+    else if (k === "p") chooser.hidden = false;
+    else void agent?.saveRecording();
+  },
+  { capture: true },
+);
 
 // ---------- shopper view: the companion screen without operator panels (?view=shopper) ----------
 
