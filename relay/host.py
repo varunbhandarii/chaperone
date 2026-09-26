@@ -139,19 +139,24 @@ async def confirm_payment(request: Request):
         order = next((o for o in orders if o.get("status") == "awaiting_payment"), None)
         if order is None:
             raise HTTPException(409, "no order is waiting for payment")
+        # A cart that spanned stores is one signed order per store under one decision: one press pays them all.
+        batch = [o for o in orders if o.get("status") == "awaiting_payment"
+                 and order.get("decision_id") and o.get("decision_id") == order.get("decision_id")] or [order]
         key_id, key = os.environ.get("CYBS_WEBHOOK_KEY_ID"), os.environ.get("CYBS_WEBHOOK_KEY")
-        if key_id and key:
-            body = json.dumps(envelope(order))
-            r = await client.post(f"{_merchant()}/webhooks/cybersource", content=body,
-                                  headers=headers_for(body, key_id, key))
-            path = "signed webhook"
-        else:
-            r = await client.post(f"{_merchant()}/orders/{order['order_id']}/paid", params={"via": "host_confirmed"},
-                                  headers=host_header.HEADERS)
-            path = "callback"
-    if not r.is_success:
-        raise HTTPException(502, f"merchant answered {r.status_code}: {r.text[:200]}")
-    return {"ok": True, "order_id": order["order_id"], "amount": order.get("amount"), "path": path}
+        path = "signed webhook" if key_id and key else "callback"
+        for o in batch:
+            if key_id and key:
+                body = json.dumps(envelope(o))
+                r = await client.post(f"{_merchant()}/webhooks/cybersource", content=body,
+                                      headers=headers_for(body, key_id, key))
+            else:
+                r = await client.post(f"{_merchant()}/orders/{o['order_id']}/paid", params={"via": "host_confirmed"},
+                                      headers=host_header.HEADERS)
+            if not r.is_success:
+                raise HTTPException(502, f"merchant answered {r.status_code} for {o['order_id']}: {r.text[:200]}")
+    total = sum(float(o.get("amount") or 0) for o in batch)
+    return {"ok": True, "order_id": order["order_id"], "order_ids": [o["order_id"] for o in batch],
+            "amount": f"{total:.2f}", "path": path}
 
 
 PICKUP_READY = ("paid", "preparing", "ready_for_pickup")

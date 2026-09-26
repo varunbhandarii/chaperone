@@ -118,7 +118,8 @@ def test_unsigned_order_is_refused_when_enforcing():
 def test_signed_order_goes_through_the_endpoint(monkeypatch):
     monkeypatch.setattr(verify, "jwks_lookup", lambda key_id: KEY.public_key())
     monkeypatch.setattr(verify, "fetch_decision", policy_says(ALLOWED))
-    prepared = sign_request(URL, ORDER, private_key=KEY)
+    # the prescription is sold by the pharmacy, so its order goes to the pharmacy's storefront
+    prepared = sign_request(URL, {**ORDER, "cart": {**ORDER["cart"], "merchant": "parkside_pharmacy"}}, private_key=KEY)
     response = TestClient(app).post("/orders", content=prepared.body, headers=dict(prepared.headers))
     assert response.status_code == 200, response.text
     assert all(c["passed"] for c in response.json()["verification"])
@@ -190,9 +191,27 @@ def test_decision_for_one_store_cannot_buy_at_another():
     at_parkside = {**ORDER, "cart": {**ORDER["cart"], "merchant": "parkside_pharmacy"}}
     decided = {**ALLOWED, "cart": {**ALLOWED["cart"], "merchant": "corner_market"}}
     result = check(sign_request(URL, at_parkside, private_key=KEY), verify.NonceStore(), decision=decided)
-    assert not result.ok and "was for corner_market, not parkside_pharmacy" in result.checks[-1]["detail"]
+    assert not result.ok and "share of decision" in result.checks[-1]["detail"]
     same = {**ALLOWED, "cart": {**ALLOWED["cart"], "merchant": "parkside_pharmacy"}}
     assert check(sign_request(URL, at_parkside, private_key=KEY), verify.NonceStore(), decision=same).ok
+
+
+def test_the_cart_label_cannot_move_a_line_to_another_store():
+    """The station labels every cart with its default store; each line still belongs to the store that sells it."""
+    decided = {**ALLOWED, "cart": {"merchant": "corner_market",
+                                   "items": [{"sku": "RX-001", "qty": 1, "merchant": "parkside_pharmacy"}]}}
+    at_parkside = {**ORDER, "cart": {**ORDER["cart"], "merchant": "parkside_pharmacy"}}
+    assert check(sign_request(URL, at_parkside, private_key=KEY), verify.NonceStore(), decision=decided).ok
+    at_corner = {**ORDER, "cart": {**ORDER["cart"], "merchant": "corner_market"}}
+    assert not check(sign_request(URL, at_corner, private_key=KEY), verify.NonceStore(), decision=decided).ok
+
+
+def test_a_whole_cart_order_cannot_stack_on_a_split_decision():
+    """A mixed cart at one store is refused, so a split decision can't be ordered twice over."""
+    decided = {**ALLOWED, "cart": {"merchant": "corner_market", "items": [
+        {"sku": "RX-001", "qty": 1, "merchant": "parkside_pharmacy"}, {"sku": "BAK-001", "qty": 1, "merchant": "corner_market"}]}}
+    whole = {**ORDER, "cart": {"merchant": "corner_market", "items": [{"sku": "RX-001", "qty": 1}, {"sku": "BAK-001", "qty": 1}]}}
+    assert not check(sign_request(URL, whole, private_key=KEY), verify.NonceStore(), decision=decided).ok
 
 
 def test_nonces_are_kept_per_storefront():

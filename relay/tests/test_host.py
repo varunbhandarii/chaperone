@@ -69,6 +69,23 @@ def test_confirm_payment_pays_the_latest_unpaid_order_through_the_signed_webhook
     assert client.post("/host/api/confirm-payment").status_code == 409  # nothing left to pay
 
 
+def test_confirm_payment_pays_every_store_of_one_decision(client, merchant, monkeypatch):
+    """Medicine at the pharmacy and bread at the grocery are two orders under one decision: one press pays both."""
+    monkeypatch.delenv("CYBS_WEBHOOK_KEY_ID", raising=False)
+    monkeypatch.delenv("CYBS_WEBHOOK_KEY", raising=False)
+    other = place(merchant)  # an earlier, different decision stays unpaid
+    time.sleep(0.01)
+    decision = "d_" + secrets.token_hex(6)
+    base = {"mandate_id": "m_ruth_2026_09", "session_id": "s1", "decision_id": decision}
+    rx = merchant.post("/orders", json={**base, "cart": {"merchant": "parkside_pharmacy", "items": [{"sku": "RX-001", "qty": 1}]}}).json()
+    bread = merchant.post("/orders", json={**base, "cart": {"merchant": "corner_market", "items": [{"sku": "BAK-001", "qty": 1}]}}).json()
+    r = client.post("/host/api/confirm-payment")
+    assert r.status_code == 200, r.text
+    assert sorted(r.json()["order_ids"]) == sorted([rx["order_id"], bread["order_id"]])
+    assert {merchant.get(f"/orders/{o}").json()["status"] for o in r.json()["order_ids"]} == {"paid"}
+    assert merchant.get(f"/orders/{other['order_id']}").json()["status"] == "awaiting_payment"
+
+
 def test_confirm_payment_without_a_webhook_key_uses_the_callback(client, merchant, monkeypatch):
     monkeypatch.delenv("CYBS_WEBHOOK_KEY_ID", raising=False)
     monkeypatch.delenv("CYBS_WEBHOOK_KEY", raising=False)

@@ -69,7 +69,7 @@ def test_two_stores_place_two_orders(tmp_path, monkeypatch):
     assert body["decision"] == "allow"
     assert seen == ["corner_market", "parkside_pharmacy"]
     assert [row["merchant"] for row in body["orders"]] == seen
-    assert body["order"] is None
+    assert body["order"] == body["orders"][0]  # the first store's order is the primary
 
 
 def test_demo_cart_allows_and_returns_the_merchant_link(tmp_path, monkeypatch):
@@ -82,6 +82,9 @@ def test_demo_cart_allows_and_returns_the_merchant_link(tmp_path, monkeypatch):
     body = response.json()
     assert body["decision"] == "allow"
     assert body["order"]["payment_link"] == "http://127.0.0.1:8002/pay/abc"
+    # medicine at the pharmacy and bread at the grocery: one signed order per store, the first is the primary
+    assert [o["merchant"] for o in body["orders"]] == ["parkside_pharmacy", "corner_market"]
+    assert body["order"] == body["orders"][0]
     assert body["detail"] == "unsigned mandate"
 
 
@@ -438,3 +441,39 @@ def test_reset_needs_the_host_header(tmp_path, monkeypatch):
     test_client = client(tmp_path, monkeypatch)  # temp store paths, so the real sessions/ files stay untouched
     assert test_client.post("/reset").status_code == 403
     assert test_client.post("/reset", headers={"X-Chaperone-Host": "1"}).status_code == 200
+
+
+def test_an_approved_mixed_cart_is_placed_one_order_per_store(tmp_path, monkeypatch):
+    seen = []
+
+    def merchant(body):
+        seen.append((body["cart"]["merchant"], [item["sku"] for item in body["cart"]["items"]], body["cart"]["total"]))
+        return {"order_id": "ord_" + body["cart"]["merchant"][:4], "status": "awaiting_payment", "payment_link": {"url": "http://x/pay"}}
+
+    monkeypatch.setattr("policy.main.send_signed_order", merchant)
+    api = client(tmp_path, monkeypatch)
+    payload = json.loads(json.dumps(DEMO))
+    payload["cart"]["items"] = [{"sku": "RX-001", "name": "Lisinopril", "category": "pharmacy", "qty": 1, "price": 8.0},
+                                {"sku": "BAK-001", "name": "bread", "category": "grocery", "qty": 10, "price": 3.49}]
+    approval_id = api.post("/checkout", json=payload).json()["approval"]["approval_id"]
+    code = api.get(f"/approvals/{approval_id}/host_code", headers={"X-Chaperone-Host": "1"}).json()["code"]
+    approved = api.post(f"/approvals/{approval_id}/code", json={"code": code}, headers={"X-Chaperone-Host": "1"}).json()
+    assert {store for store, _, _ in seen} == {"parkside_pharmacy", "corner_market"}
+    assert dict((store, skus) for store, skus, _ in seen) == {"parkside_pharmacy": ["RX-001"], "corner_market": ["BAK-001"]}
+    assert len(approved["orders"]) == 2 and approved["order"]["order_id"] == approved["orders"][0]["order_id"]
+
+
+def test_a_signed_v1_mandate_is_enforced_as_signed(tmp_path, monkeypatch):
+    """Stores Priyank never signed stay out; missing card rules take the (restrictive) defaults."""
+    from policy.checkout import active_mandate
+    from policy.mandate import DEFAULT_MANDATE
+    from policy.store import save_mandate
+
+    client(tmp_path, monkeypatch)
+    v1 = {key: value for key, value in DEFAULT_MANDATE.items() if key not in ("billers", "card", "trusted_contacts", "cosign")}
+    v1 = {**v1, "allowed_merchants": ["corner_market"], "allowed_categories": ["grocery", "pharmacy"]}
+    save_mandate(v1)
+    enforced, unsigned = active_mandate()
+    assert not unsigned
+    assert enforced["allowed_merchants"] == ["corner_market"] and "utility_bill" not in enforced["allowed_categories"]
+    assert enforced["card"]["blocked_mccs"] and not enforced.get("billers")

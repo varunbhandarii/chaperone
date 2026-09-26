@@ -162,3 +162,44 @@ def test_resume_needs_the_marker_and_a_live_single_use_challenge(tmp_path, monke
     late = api.post("/mandate/resume", json={"nonce": challenge["nonce"], "response": {}}, headers=marker)
     assert late.json()["detail"] == "resume challenge expired"
     assert api.get("/mandate").json()["paused"] is True
+
+
+def _plant_split(status="awaiting_payment"):
+    """Medicine at the pharmacy and bread at the grocery: two orders under one decision."""
+    now = datetime.now(timezone.utc).isoformat()
+    rx = {"order_id": "ord_rx", "status": status, "merchant": "parkside_pharmacy", "total": 8.0, "paid_at": now}
+    bread = {"order_id": "ord_bread", "status": status, "merchant": "corner_market", "total": 3.49, "paid_at": now}
+    document = {
+        "decision_id": "d_split", "mandate_id": "m_ruth_2026_09", "session_id": "s_split", "decision": "allow",
+        "created_at": now,
+        "cart": {"merchant": "corner_market", "total": 11.49, "items": [
+            {"sku": "RX-001", "name": "Lisinopril", "qty": 1, "price": 8.0, "category": "pharmacy_pickup", "merchant": "parkside_pharmacy"},
+            {"sku": "BAK-001", "name": "Bread", "qty": 1, "price": 3.49, "category": "grocery", "merchant": "corner_market"}]},
+        "order": dict(rx), "orders": [rx, bread],
+    }
+    save_decision(document)
+    return document
+
+
+def test_split_orders_cancel_refund_and_history_work_per_store(tmp_path, monkeypatch):
+    monkeypatch.setattr("policy.postpurchase.signed_post", lambda path, body: {"status": "cancelled", "link_status": "INACTIVE"}
+                        if path.endswith("/cancel") else {"id": "ref_1", "status": "PENDING"})
+    monkeypatch.setattr("policy.screen.screen", lambda *args, **kwargs: {"action": "proceed", "hits": []})
+    api = client(tmp_path, monkeypatch)
+    _plant_split()
+    add_spent_cents(1149)
+    before = load_spent_cents()
+    # cancelling the bread order restores only the bread's share
+    assert api.post("/orders/ord_bread/cancel", json={"mandate_id": "m_ruth_2026_09"}).status_code == 200
+    assert load_spent_cents() == before - 349
+    rows = {o["order_id"]: o for o in api.get("/history", params={"mandate_id": "m_ruth_2026_09"}).json()["orders"]}
+    assert rows["ord_bread"]["status"] == "cancelled" and rows["ord_rx"]["status"] == "awaiting_payment"
+    assert rows["ord_rx"]["items"] == ["1 x Lisinopril"] and rows["ord_rx"]["total"] == 8.0
+    # a refund on a split order sees only its own store's lines
+    _plant_split(status="paid")
+    body = api.post("/refunds", json={"order_id": "ord_bread", "mandate_id": "m_ruth_2026_09", "sku": "BAK-001",
+                                      "qty": 1, "confirmed": False, "transcript": "the bread was stale"}).json()
+    assert body.get("ok") is True and body["preview"]["amount"] == 3.49, body
+    wrong_store = api.post("/refunds", json={"order_id": "ord_bread", "mandate_id": "m_ruth_2026_09", "sku": "RX-001",
+                                             "qty": 1, "confirmed": False, "transcript": "return it"}).json()
+    assert wrong_store["decision"] == "deny"

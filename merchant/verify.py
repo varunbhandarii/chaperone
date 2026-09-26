@@ -140,20 +140,22 @@ async def check_decision(body: bytes, fetch=None, existing_order: dict | None = 
     decided_cart = decision.get("cart") or decision.get("priced_cart")
     decided, ordered = _cart_counts(decided_cart), _cart_counts(order.get("cart"))
     ordered_merchant = (order.get("cart") or {}).get("merchant") if isinstance(order.get("cart"), dict) else None
-    if decided == ordered:
-        decided_merchant = decided_cart.get("merchant") if isinstance(decided_cart, dict) else None
-        if decided_merchant and ordered_merchant and decided_merchant != ordered_merchant:
-            raise DecisionError(f"decision {decision_id} was for {decided_merchant}, not {ordered_merchant}")
-        return f"{decision_id} is {outcome}, cart matches"
     store = ordered_merchant or "corner_market"
+    decided_merchant = (decided_cart.get("merchant") if isinstance(decided_cart, dict) else None) or "corner_market"
     line_store = {str(line["sku"]): line["merchant"] for line in _cart_lines(decided_cart) if line.get("merchant")}
 
-    def owner(sku: str) -> str | None:
-        return line_store.get(sku) or (sku_merchant(sku) if sku_merchant else None)
+    def owner(sku: str) -> str:
+        # The store that sells the line, never the cart's own label: the station labels every cart with its
+        # default store, and a label must not let one store take another store's lines.
+        return line_store.get(sku) or (sku_merchant(sku) if sku_merchant else None) or decided_merchant
 
+    # Every order is exactly one store's share, and the merchant takes one order per decision per store, so the
+    # orders of a decision can never add up to more than it.
     share = Counter({sku: qty for sku, qty in decided.items() if owner(sku) == store})
     if not share or share != ordered:
-        raise DecisionError(f"cart differs from decision {decision_id}")
+        raise DecisionError(f"cart differs from {store}'s share of decision {decision_id}")
+    if share == decided:
+        return f"{decision_id} is {outcome}, cart matches"
     return f"{decision_id} is {outcome}, {store}'s share of the cart matches"
 
 

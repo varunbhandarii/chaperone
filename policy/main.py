@@ -131,32 +131,63 @@ def _finish_approval(document: dict, method: str) -> dict:
         return public_approval(document)
     if load_paused():  # Priyank paused after he was asked: nothing is bought
         return _close_rejected(document, approval["approval_id"], "Shopping is paused")
+    from policy.checkout import _carts_by_store
+
     mandate = load_mandate() or DEFAULT_MANDATE
-    body = {
-        "mandate_id": document["mandate_id"],
-        "decision_id": document["decision_id"],
-        "session_id": document["session_id"],
-        "approval_id": approval["approval_id"],
-        "cart": {
-            "merchant": document["cart"]["merchant"],
-            "total": document["cart"]["total"],
-            "items": [
-                {
-                    "sku": item["sku"],
-                    "name": item["name"],
-                    "category": item.get("mandate_category") or item.get("category"),
-                    "qty": item["qty"],
-                    "price": item["price"],
-                }
-                for item in document["cart"]["items"]
-            ],
-        },
-    }
     save_decision(document)
-    try:
-        merchant_order = send_signed_order(body)
-    except Exception as exc:  # noqa: BLE001 - the station speaks checkout_unavailable from order_error
-        document["order_error"] = str(exc)
+    # Like checkout: one signed order per store, each exactly that store's share of what Priyank approved.
+    orders, spent, failure = [], 0, None
+    for sub in _carts_by_store(document["cart"]):
+        body = {
+            "mandate_id": document["mandate_id"],
+            "decision_id": document["decision_id"],
+            "session_id": document["session_id"],
+            "approval_id": approval["approval_id"],
+            "cart": {
+                "merchant": sub["merchant"],
+                "total": sub["total"],
+                "items": [
+                    {
+                        "sku": item["sku"],
+                        "name": item["name"],
+                        "category": item.get("mandate_category") or item.get("category"),
+                        "qty": item["qty"],
+                        "price": item["price"],
+                    }
+                    for item in sub["items"]
+                ],
+            },
+        }
+        try:
+            merchant_order = send_signed_order(body)
+        except Exception as exc:  # noqa: BLE001 - the station speaks checkout_unavailable from order_error
+            failure = exc
+            break
+        signature = merchant_order.pop("_signature", {}) or {}
+        post_event(
+            "request_signed",
+            document["session_id"],
+            document["mandate_id"],
+            decision_id=document["decision_id"],
+            keyid=signature.get("keyid"),
+            nonce=signature.get("nonce"),
+            expires=signature.get("expires"),
+        )
+        link = merchant_order.get("payment_link") or {}
+        orders.append({
+            "order_id": merchant_order.get("order_id"),
+            "payment_link": link.get("url") or link,
+            "status": merchant_order.get("status"),
+            "merchant": sub["merchant"],
+            "total": sub["total"],
+        })
+        spent += to_cents(sub["total"])
+    if orders:
+        add_spent_cents(spent)
+        document["order"] = dict(orders[0])  # the first store's order; `orders` has every store's
+        document["orders"] = orders
+    if failure is not None and not orders:
+        document["order_error"] = str(failure)
         approval["used"] = True
         save_decision(document)
         post_event(
@@ -171,23 +202,8 @@ def _finish_approval(document: dict, method: str) -> dict:
         view = public_approval(document)
         view["order_error"] = document["order_error"]
         return view
-    signature = merchant_order.pop("_signature", {}) or {}
-    post_event(
-        "request_signed",
-        document["session_id"],
-        document["mandate_id"],
-        decision_id=document["decision_id"],
-        keyid=signature.get("keyid"),
-        nonce=signature.get("nonce"),
-        expires=signature.get("expires"),
-    )
-    add_spent_cents(to_cents(float(document["cart"]["total"])))
-    link = merchant_order.get("payment_link") or {}
-    document["order"] = {
-        "order_id": merchant_order.get("order_id"),
-        "payment_link": link.get("url") or link,
-        "status": merchant_order.get("status"),
-    }
+    if failure is not None:
+        document["order_error"] = f"placed {len(orders)} of the stores' orders: {failure}"
     approval["used"] = True
     post_event(
         "approval_result",
@@ -605,6 +621,8 @@ def card_allow(hold_id: str, request: Request):
         return allow_hold(hold_id)
     except KeyError as exc:
         raise HTTPException(404, "unknown hold") from exc
+    except PermissionError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @app.get("/card/state")

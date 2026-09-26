@@ -1320,7 +1320,7 @@ export class StationAgent {
     const lines = this.cart.lines();
     if (outcome.status === "ordered" && outcome.order_id) {
       this.lastOrder = { order_id: outcome.order_id, decision_id: outcome.decision_id, lines, totalCents, lang: this.lang };
-      this.sessionOrders.push(outcome.order_id);
+      this.sessionOrders.push(...(outcome.order_ids ?? [outcome.order_id]));
       this.cart.clear();
       this.cartChanged();
     } else if (outcome.status === "waiting_for_caregiver") {

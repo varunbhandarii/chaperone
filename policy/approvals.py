@@ -120,6 +120,7 @@ def public_approval(document: dict) -> dict:
     view = {key: approval.get(key) for key in PUBLIC_FIELDS if key not in ("message", "reason", "items") or approval.get(key)}
     view["state"] = state_of(approval)
     view["order"] = document.get("order")
+    view["orders"] = document.get("orders") or ([document["order"]] if document.get("order") else [])
     view["decision_id"] = document.get("decision_id")
     return view
 

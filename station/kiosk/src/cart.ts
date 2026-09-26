@@ -546,6 +546,8 @@ export interface CheckoutOutcome {
   total?: number;
   decision_id?: string;
   order_id?: string;
+  /** Every store's order when the cart spanned stores (one signed order per store); order_id is the first. */
+  order_ids?: string[];
   approval_id?: string;
   error?: string;
 }
@@ -556,7 +558,10 @@ export function checkoutOutcome(reply: Record<string, unknown>, totalCents: numb
   const decisionId = typeof reply.decision_id === "string" ? reply.decision_id : undefined;
   const total = money(totalCents, lang);
   if (decision === "allow") {
-    const order = (reply.order ?? null) as { order_id?: unknown } | null;
+    const listed = (Array.isArray(reply.orders) ? reply.orders : []).filter(
+      (o): o is { order_id: string } => !!o && typeof (o as { order_id?: unknown }).order_id === "string",
+    );
+    const order = (reply.order ?? listed[0] ?? null) as { order_id?: unknown } | null;
     // Allowed but the merchant never took the order (signing or merchant failure): nothing was bought.
     if (!order || typeof order.order_id !== "string") {
       return {
@@ -574,6 +579,7 @@ export function checkoutOutcome(reply: Record<string, unknown>, totalCents: numb
       total: fromCents(totalCents),
       decision_id: decisionId,
       order_id: order.order_id,
+      order_ids: listed.length ? listed.map((o) => o.order_id) : [order.order_id],
     };
   }
   if (decision === "approve") {

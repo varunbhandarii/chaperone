@@ -111,7 +111,8 @@ async function run(button, label, fn) {
 const actions = {
   pay: () => run($("pay"), "Confirm payment", async () => {
     const r = await call("POST", "/host/api/confirm-payment");
-    return `${r.order_id} ${money(r.amount)} paid via ${r.path}. Say: "marked paid in the sandbox flow".`;
+    const which = (r.order_ids || [r.order_id]).join(", ");
+    return `${which} ${money(r.amount)} paid via ${r.path}. Say: "marked paid in the sandbox flow".`;
   }),
   pickup: () => run($("pickup"), "Picked up", async () => {
     const r = await call("POST", "/host/api/picked-up");

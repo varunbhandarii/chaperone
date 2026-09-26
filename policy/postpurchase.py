@@ -19,10 +19,51 @@ PAID_OR_LATER = {"paid", "preparing", "ready_for_pickup", "picked_up", "partiall
 _EXPLAIN: dict[str, dict] = {}
 
 
+def orders_of(document: dict) -> list[dict]:
+    """Every order placed under a decision: one per store when the cart spanned stores."""
+    listed = [o for o in document.get("orders") or [] if isinstance(o, dict) and o.get("order_id")]
+    if listed:
+        return listed
+    order = document.get("order")
+    return [order] if isinstance(order, dict) and order.get("order_id") else []
+
+
+def order_entry(document: dict, order_id: str | None = None) -> dict:
+    found = orders_of(document)
+    if order_id:
+        return next((o for o in found if o.get("order_id") == order_id), {})
+    return found[0] if found else {}
+
+
+def _mirror(document: dict, entry: dict) -> None:
+    """document["order"] is the first store's order; keep it in step when that order changes."""
+    primary = document.get("order")
+    if isinstance(primary, dict) and entry and primary is not entry and primary.get("order_id") == entry.get("order_id"):
+        primary.update(entry)
+
+
+def _split(document: dict) -> bool:
+    return len(orders_of(document)) > 1
+
+
+def order_items(document: dict, entry: dict) -> list[dict]:
+    """The cart lines of one order: its store's lines when the decision was split by store."""
+    items = (document.get("cart") or {}).get("items") or []
+    if not _split(document):
+        return items
+    store = entry.get("merchant")
+    return [item for item in items if item.get("merchant") == store]
+
+
+def order_total_cents(document: dict, entry: dict) -> int:
+    if _split(document) and entry.get("total") is not None:
+        return to_cents(entry["total"])
+    return to_cents((document.get("cart") or {}).get("total") or 0)
+
+
 def find_order(order_id: str) -> dict | None:
     for document in load_decisions().values():
-        order = document.get("order") or {}
-        if order.get("order_id") == order_id:
+        if any(order.get("order_id") == order_id for order in orders_of(document)):
             return document
     return None
 
@@ -51,11 +92,12 @@ def _overlay(order: dict, live: dict) -> dict:
     return order
 
 
-def sync_order(document: dict) -> dict:
-    order = document.get("order") or {}
+def sync_order(document: dict, order_id: str | None = None) -> dict:
+    order = order_entry(document, order_id)
     live = _merchant_orders(order.get("order_id")) if order.get("order_id") else None
     if live:
         _overlay(order, live[0])
+        _mirror(document, order)
         save_decision(document)
     return order
 
@@ -92,7 +134,7 @@ def cancel_order(order_id: str, mandate_id: str) -> dict:
     document = find_order(order_id)
     if not document or document.get("mandate_id") != mandate_id:
         raise PermissionError("order is not on this mandate")
-    order = sync_order(document)
+    order = sync_order(document, order_id)
     if order.get("status") != "awaiting_payment":
         raise ValueError("only an unpaid order can be cancelled")
     order["cancel_requested"] = True
@@ -103,7 +145,8 @@ def cancel_order(order_id: str, mandate_id: str) -> dict:
     )
     order["status"] = "cancelled"
     order["link_status"] = result.get("link_status") or result.get("status")
-    add_spent_cents(-to_cents(document["cart"]["total"]))
+    _mirror(document, order)
+    add_spent_cents(-order_total_cents(document, order))  # only this store's share when the cart was split
     save_decision(document)
     return {"order_id": order_id, "status": "cancelled", "link_status": order.get("link_status")}
 
@@ -117,17 +160,19 @@ def _left_qty(document: dict, line: dict) -> int:
     return int(line.get("qty") or 0) - returned
 
 
-def _refund_line(document: dict, sku: str | None) -> dict | None:
+def _refund_line(document: dict, sku: str | None, entry: dict | None = None) -> dict | None:
     """The named line, or when none is named, the only line that can still come back."""
-    items = (document.get("cart") or {}).get("items") or []
+    items = order_items(document, entry or order_entry(document))
     if sku:
         return next((item for item in items if item.get("sku") == sku), None)
     open_lines = [item for item in items if not _is_rx(item) and _left_qty(document, item) > 0]
     return open_lines[0] if len(open_lines) == 1 else None
 
 
-def _refunded_cents(document: dict) -> int:
-    return sum(int(item.get("amount_cents") or 0) for item in document.get("refunds") or [])
+def _refunded_cents(document: dict, entry: dict | None = None) -> int:
+    order_id = (entry or {}).get("order_id")
+    return sum(int(item.get("amount_cents") or 0) for item in document.get("refunds") or []
+               if not _split(document) or item.get("order_id") in (None, order_id))
 
 
 def refund(payload: dict, today: datetime | None = None) -> dict:
@@ -136,9 +181,9 @@ def refund(payload: dict, today: datetime | None = None) -> dict:
     today = today or datetime.now(timezone.utc)
     mandate_id = payload.get("mandate_id") or ""
     document = find_order(str(payload.get("order_id") or ""))
-    order = sync_order(document) if document else {}
+    order = sync_order(document, str(payload.get("order_id") or "")) if document else {}
     owned = bool(document) and document.get("mandate_id") == mandate_id and order.get("status") in PAID_OR_LATER
-    line = _refund_line(document, payload.get("sku") or None) if document else None
+    line = _refund_line(document, payload.get("sku") or None, order) if document else None
     sku = (line or {}).get("sku")
     left = _left_qty(document, line) if line else 0
     try:
@@ -146,8 +191,8 @@ def refund(payload: dict, today: datetime | None = None) -> dict:
     except (TypeError, ValueError):
         qty = 0
     amount_cents = to_cents(line["price"]) * qty if line and 0 < qty <= left else 0
-    already = _refunded_cents(document) if document else 0
-    paid_cents = to_cents((document or {}).get("cart", {}).get("total") or 0) if document else 0
+    already = _refunded_cents(document, order) if document else 0
+    paid_cents = order_total_cents(document, order) if document else 0
     within = owned and amount_cents > 0 and already + amount_cents <= paid_cents
     if not line:
         amount_detail = "say which item"
@@ -178,7 +223,7 @@ def refund(payload: dict, today: datetime | None = None) -> dict:
     ]
     session_id = (document or {}).get("session_id") or payload.get("session_id") or "none"
     if scam:
-        post_event("caregiver_alerted", session_id, mandate_id, kind="refund", order_id=(document or {}).get("order", {}).get("order_id"),
+        post_event("caregiver_alerted", session_id, mandate_id, kind="refund", order_id=order.get("order_id"),
                    say_key=scam_key)
     say_key = scam_key if scam else ("refund_not_allowed_rx" if rx else "refund_not_possible")
     failed = [rule for rule in rules if not rule["passed"]]
@@ -213,9 +258,11 @@ def refund(payload: dict, today: datetime | None = None) -> dict:
         raise RuntimeError("merchant did not accept the refund")
     add_spent_cents(-amount_cents)
     document.setdefault("refunds", []).append({"sku": sku, "qty": qty, "amount_cents": amount_cents, "id": result.get("id"),
-                                               "status": result.get("status"), "at": today.isoformat()})
+                                               "status": result.get("status"), "at": today.isoformat(),
+                                               "order_id": order["order_id"]})
     document.pop("refund_preview", None)
     order["status"] = "refunded" if already + amount_cents >= paid_cents else "partially_refunded"
+    _mirror(document, order)
     save_decision(document)
     post_event("refund_requested", session_id, mandate_id, order_id=order["order_id"], amount=dollars(amount_cents),
                sku=sku, qty=qty, rules=rules)
@@ -233,20 +280,20 @@ def history(mandate_id: str, days: int = 30) -> dict:
         created = document.get("created_at")
         if created and datetime.fromisoformat(created) < cutoff:
             continue
-        if document.get("order"):
-            if document["order"].get("order_id") in live:
-                _overlay(document["order"], live[document["order"]["order_id"]])
-            cart = document.get("cart") or {}
+        for entry in orders_of(document):  # one row per store's order
+            if entry.get("order_id") in live:
+                _overlay(entry, live[entry["order_id"]])
             orders.append({
-                "order_id": document["order"].get("order_id"),
-                "status": document["order"].get("status"),
-                "total": cart.get("total"),
+                "order_id": entry.get("order_id"),
+                "status": entry.get("status"),
+                "total": dollars(order_total_cents(document, entry)),
+                "store": entry.get("merchant") or (document.get("cart") or {}).get("merchant"),
                 "decision_id": document.get("decision_id"),
                 "at": created,
-                "items": [f"{item.get('qty')} x {item.get('name')}" for item in cart.get("items") or []],
+                "items": [f"{item.get('qty')} x {item.get('name')}" for item in order_items(document, entry)],
             })
         for item in document.get("refunds") or []:
-            refunds.append({"order_id": (document.get("order") or {}).get("order_id"), "amount": dollars(item.get("amount_cents") or 0),
+            refunds.append({"order_id": item.get("order_id") or order_entry(document).get("order_id"), "amount": dollars(item.get("amount_cents") or 0),
                             "sku": item.get("sku"), "status": item.get("status") or "PENDING", "at": item.get("at")})
         if document.get("decision") == "deny":
             refusals.append({"decision_id": document.get("decision_id"), "say_key": document.get("say_key"), "total": (document.get("cart") or {}).get("total"), "at": created})

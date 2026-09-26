@@ -78,7 +78,8 @@ def active_mandate() -> tuple[dict, bool]:
     """The mandate the engine checks, with the caregiver's pause (stored apart from the signed file) on top."""
     stored = load_mandate()
     if stored:
-        return {**fill_v2(stored), "paused": load_paused()}, False
+        # enforce what Priyank signed: a v1 mandate is not widened to stores he never agreed to
+        return {**fill_v2(stored, widen=False), "paused": load_paused()}, False
     if os.environ.get("MANDATE_UNSIGNED_OK") == "1":
         return {**DEFAULT_MANDATE, "paused": load_paused()}, True
     raise UnsignedMandate()
@@ -238,7 +239,7 @@ def checkout(payload: dict) -> dict:
             )
             spent += to_cents(sub["total"])
         if orders:
-            order = orders[0] if len(orders) == 1 else None
+            order = orders[0]  # the first store's order; `orders` has every store's
             document["orders"] = orders
             add_spent_cents(spent)
     elif decision["decision"] == "approve":

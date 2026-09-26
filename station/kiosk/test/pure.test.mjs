@@ -265,6 +265,7 @@ test("checkout outcomes map the policy reply to what the model says", () => {
     total: 11.49,
     decision_id: "d_1",
     order_id: "o_1",
+    order_ids: ["o_1"],
   });
   const noOrder = checkoutOutcome({ decision: "allow", decision_id: "d_3", order: null, order_error: "merchant answered 401" }, 1149, "en");
   assert.equal(noOrder.status, "error");
@@ -747,4 +748,16 @@ test("the screen's scam_check action parses, with its refusal kept as the fallba
   assert.equal(r.action, "scam_check");
   assert.equal(r.refusal.audio_url, "/audio/refusal.blocked_category.es.mp3");
   assert.equal(parseScreen({ action: "maybe", hits: [], refusal: null }), null);
+});
+
+test("checkout across stores: every store's order is placed and tracked", () => {
+  const reply = { decision: "allow", decision_id: "d_1", order: { order_id: "ord_rx" },
+    orders: [{ order_id: "ord_rx", merchant: "parkside_pharmacy" }, { order_id: "ord_bread", merchant: "corner_market" }] };
+  const out = checkoutOutcome(reply, 1149, "en");
+  assert.equal(out.status, "ordered");
+  assert.equal(out.order_id, "ord_rx");
+  assert.deepEqual(out.order_ids, ["ord_rx", "ord_bread"]);
+  const onlyList = checkoutOutcome({ decision: "allow", orders: [{ order_id: "ord_x" }] }, 349, "en");
+  assert.equal(onlyList.status, "ordered");
+  assert.equal(onlyList.order_id, "ord_x");
 });
