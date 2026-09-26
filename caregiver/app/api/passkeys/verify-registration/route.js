@@ -1,11 +1,12 @@
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { cookies } from "next/headers";
+import { takeChallenge } from "@/lib/challenges";
 import { loadCredentials, origin, requireUV, rpID, saveCredentials } from "@/lib/passkeys";
 
 export async function POST(request) {
   const response = await request.json();
-  const expectedChallenge = (await cookies()).get("wa_challenge")?.value;
+  const expectedChallenge = takeChallenge((await cookies()).get("sid")?.value, "register");
   if (!expectedChallenge) return Response.json({ error: "missing challenge cookie" }, { status: 400 });
   try {
     const verified = await verifyRegistrationResponse({

@@ -34,12 +34,19 @@ export default function Page() {
   const [log, setLog] = useState("");
   const [config, setConfig] = useState(null);
   const [setupCode, setSetupCode] = useState("");
-  const [alertText, setAlertText] = useState("");
+  const [approval, setApproval] = useState(null);
 
   useEffect(() => {
     fetch("/api/config", { headers: { "ngrok-skip-browser-warning": "1" } })
       .then((response) => response.json())
       .then(setConfig);
+    const timer = setInterval(() => {
+      fetch("/api/approvals", { headers: { "ngrok-skip-browser-warning": "1" } })
+        .then((response) => response.json())
+        .then((rows) => setApproval(Array.isArray(rows) && rows.length ? rows[0] : null))
+        .catch(() => {});
+    }, 10000);
+    return () => clearInterval(timer);
   }, []);
 
   function note(line) {
@@ -65,6 +72,26 @@ export default function Page() {
     note("mandate stored " + stored.mandate_id);
   }
 
+  async function refreshApprovals() {
+    const response = await fetch("/api/approvals", { headers: { "ngrok-skip-browser-warning": "1" } });
+    const rows = await response.json();
+    setApproval(Array.isArray(rows) && rows.length ? rows[0] : null);
+  }
+
+  async function approve() {
+    const prepared = await post(`/api/approvals/${approval.approval_id}/decide`, { prepare: true });
+    const assertion = await startAuthentication({ optionsJSON: prepared.optionsJSON });
+    const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: true, response: assertion });
+    note("approval " + result.state);
+    setApproval(null);
+  }
+
+  async function reject() {
+    const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: false });
+    note("approval " + result.state);
+    setApproval(null);
+  }
+
   async function armAlerts() {
     const audio = new AudioContext();
     await audio.resume();
@@ -79,7 +106,7 @@ export default function Page() {
       if (done) break;
       const text = decoder.decode(value);
       if (text.includes("refusal") || text.includes("approval_requested") || text.includes("caregiver_alerted")) {
-        setAlertText(text);
+        refreshApprovals().catch(() => {});
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
         const beep = audio.createOscillator();
         beep.connect(audio.destination);
@@ -94,7 +121,17 @@ export default function Page() {
       <h1>Caregiver</h1>
       <p>Priyank signs Ruth&apos;s mandate. Relying party: {config ? config.rpID : "..."}</p>
       <pre style={{ whiteSpace: "pre-wrap", background: "white", padding: "1rem" }}>{JSON.stringify(MANDATE, null, 2)}</pre>
-      {alertText ? <p style={{ background: "#8c2f2f", color: "white", fontSize: "1.6rem", padding: "1rem" }}>{alertText}</p> : null}
+      {approval ? (
+        <section style={{ background: "#8c2f2f", color: "white", padding: "1rem" }}>
+          <p style={{ fontSize: "2.4rem", margin: "0.2rem 0" }}>${approval.amount}</p>
+          <p>{approval.merchant}</p>
+          <p>{approval.excerpt}</p>
+          <p>{approval.rule}</p>
+          <button style={btn} onClick={() => approve().catch((error) => note(String(error)))}>Approve with passkey</button>
+          <button style={btn} onClick={() => reject().catch((error) => note(String(error)))}>Reject</button>
+          <a href="tel:">Call Ruth</a>
+        </section>
+      ) : null}
       <p>
         <input value={setupCode} onChange={(event) => setSetupCode(event.target.value)} inputMode="numeric" placeholder="setup code" style={{ fontSize: "1.2rem", padding: "0.4rem" }} />
         <button style={btn} onClick={() => register().catch((error) => note(String(error)))}>Register passkey</button>

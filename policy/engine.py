@@ -49,6 +49,7 @@ def evaluate(
     screen_action: str | None = None,
     judge_error: str | None = None,
     signed: bool | None = None,
+    unsigned_demo: bool = False,
 ) -> dict:
     today = today or date.today()
     items = cart.get("items") or []
@@ -69,8 +70,12 @@ def evaluate(
         in_window = start <= today <= end
     except (KeyError, ValueError):
         in_window = False
-    r0_ok = is_signed and in_window
-    r0_detail = "signed and in force" if r0_ok else "unsigned or outside validity"
+    if unsigned_demo:
+        r0_ok = in_window
+        r0_detail = "unsigned (demo flag)"
+    else:
+        r0_ok = is_signed and in_window
+        r0_detail = "signed and in force" if r0_ok else "unsigned or outside validity"
 
     blocked_hit = next((cat for cat in categories if cat in blocked), None)
     r1 = _rule("R1_blocked_category", blocked_hit is None, blocked_hit or "no blocked category")
@@ -114,7 +119,12 @@ def evaluate(
     if decision == "approve":
         say = "asking_priya"
     elif decision == "deny":
-        say = "blocked_category" if not r1["passed"] else "declined"
+        if not r5["passed"]:
+            say = "over_monthly_cap"
+        elif not r1["passed"]:
+            say = "blocked_category"
+        else:
+            say = "declined"
     return {
         "decision": decision,
         "rules": rules,

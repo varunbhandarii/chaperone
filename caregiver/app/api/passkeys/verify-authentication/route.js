@@ -1,17 +1,21 @@
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
-import { loadCredentials, mandateHash, origin, requireUV, rpID, saveCredentials } from "@/lib/passkeys";
+import { cookies } from "next/headers";
+import { markMandateReady, takeChallenge } from "@/lib/challenges";
+import { loadCredentials, origin, requireUV, rpID, saveCredentials } from "@/lib/passkeys";
 
 export async function POST(request) {
-  const { mandate, response } = await request.json();
+  const { response } = await request.json();
   const credentials = loadCredentials();
   const stored = credentials.find((item) => item.id === response?.id) || credentials[0];
   if (!stored) return Response.json({ error: "register a passkey first" }, { status: 400 });
-  const hash = mandateHash(mandate);
+  const sid = (await cookies()).get("sid")?.value;
+  const expectedChallenge = takeChallenge(sid, "mandate");
+  if (!expectedChallenge) return Response.json({ error: "missing challenge" }, { status: 400 });
   try {
     const verified = await verifyAuthenticationResponse({
       response,
-      expectedChallenge: isoBase64URL.fromBuffer(hash),
+      expectedChallenge,
       expectedOrigin: origin(),
       expectedRPID: rpID(),
       requireUserVerification: requireUV(),
@@ -25,6 +29,7 @@ export async function POST(request) {
     if (!verified.verified) return Response.json({ verified: false }, { status: 400 });
     stored.counter = verified.authenticationInfo.newCounter;
     saveCredentials(credentials.map((item) => (item.id === stored.id ? stored : item)));
+    markMandateReady(sid);
     return Response.json({ verified: true, counter: stored.counter, public_key: stored.publicKey, credential_id: stored.id });
   } catch (error) {
     return Response.json({ error: String(error) }, { status: 400 });

@@ -1,6 +1,7 @@
 import { generateRegistrationOptions, verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { isoBase64URL, isoUint8Array } from "@simplewebauthn/server/helpers";
 import { cookies } from "next/headers";
+import { saveChallenge, takeChallenge } from "@/lib/challenges";
 import { consumeSetupCode, ensureSetupCode, loadCredentials, origin, requireUV, rpID } from "@/lib/passkeys";
 
 export async function POST(request) {
@@ -11,7 +12,7 @@ export async function POST(request) {
     return Response.json({ error: "setup code required" }, { status: 401 });
   }
   if (existing.length > 0) {
-    const expectedChallenge = (await cookies()).get("wa_challenge")?.value;
+    const expectedChallenge = takeChallenge((await cookies()).get("sid")?.value, "mandate");
     const match = existing.find((item) => item.id === body.assertion?.id);
     if (!expectedChallenge || !match) {
       return Response.json({ error: "registration is closed" }, { status: 403 });
@@ -45,7 +46,7 @@ export async function POST(request) {
     authenticatorSelection: { residentKey: "preferred", userVerification: "preferred" },
   });
   const jar = await cookies();
-  jar.set("wa_challenge", options.challenge, {
+  jar.set("sid", saveChallenge("register", options.challenge), {
     httpOnly: true,
     sameSite: "lax",
     secure: origin().startsWith("https"),

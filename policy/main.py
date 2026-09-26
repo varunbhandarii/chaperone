@@ -7,12 +7,14 @@ import hashlib
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
-from policy.checkout import UnsignedMandate, checkout as run_checkout
+from policy.approvals import code_mac, find_approval, public_approval, public_decision, state_of
+from policy.checkout import CartRejected, ReadBackRequired, UnsignedMandate, checkout as run_checkout
+from policy.checkout import send_signed_order
 from policy.engine import dollars
 from policy.events import post_event
 from policy.mandate import DEFAULT_MANDATE
 from policy.pricing import UnknownSku
-from policy.store import load_mandate, load_spent_cents, reset as reset_store, save_mandate
+from policy.store import load_caregiver_credential, load_mandate, load_spent_cents, reset as reset_store, save_decision, save_mandate
 from policy.verify_mandate import verify_mandate_assertion
 
 app = FastAPI(title="Chaperone policy")
@@ -31,11 +33,12 @@ def health():
 
 
 @app.get("/budget")
-def budget(mandate_id: str = DEFAULT_MANDATE["mandate_id"]):
+def budget(mandate_id: str = ""):
     del mandate_id
+    stored = load_mandate() or DEFAULT_MANDATE
     spent = load_spent_cents()
-    cap = int(round(DEFAULT_MANDATE["monthly_cap"] * 100))
-    return {"monthly_cap": DEFAULT_MANDATE["monthly_cap"], "spent": dollars(spent), "left": dollars(cap - spent)}
+    cap = int(round(float(stored["monthly_cap"]) * 100))
+    return {"monthly_cap": stored["monthly_cap"], "spent": dollars(spent), "left": dollars(cap - spent)}
 
 
 @app.post("/checkout")
@@ -48,6 +51,10 @@ def checkout(payload: dict):
         raise HTTPException(422, f"unknown sku {exc.sku}") from exc
     except UnsignedMandate as exc:
         raise HTTPException(403, "mandate is not signed") from exc
+    except CartRejected as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except ReadBackRequired as exc:
+        raise HTTPException(409, "read_back_required") from exc
 
 
 @app.get("/decisions/{decision_id}")
@@ -57,7 +64,7 @@ def decision(decision_id: str):
     found = get_decision(decision_id)
     if not found:
         raise HTTPException(404, "unknown decision")
-    return found
+    return public_decision(found)
 
 
 @app.post("/reset")
@@ -85,37 +92,174 @@ def get_mandate():
     return {"signed": False, "mandate": DEFAULT_MANDATE, "detail": "unsigned mandate"}
 
 
-@app.post("/approvals/{approval_id}/code")
-def submit_code(approval_id: str, payload: dict):
-    from policy.store import get_decision, save_decision
-
-    found = None
-    for document in __import__("policy.store", fromlist=["load_decisions"]).load_decisions().values():
-        approval = document.get("approval") or {}
-        if approval.get("approval_id") == approval_id:
-            found = document
-            break
-    if not found:
-        raise HTTPException(404, "unknown approval")
-    approval = found["approval"]
-    if approval.get("used"):
-        raise HTTPException(400, "code already used")
-    if approval.get("attempts", 0) >= 5:
-        raise HTTPException(400, "too many attempts")
-    digest = hashlib.sha256(f"{payload.get('code', '')}{approval_id}".encode()).hexdigest()
-    if digest != approval.get("code_hash"):
-        approval["attempts"] = approval.get("attempts", 0) + 1
-        if approval["attempts"] >= 5:
-            approval["used"] = True
-        save_decision(found)
-        raise HTTPException(400, "code rejected")
+def _finish_approval(document: dict, method: str) -> dict:
+    approval = document["approval"]
+    if state_of(approval) == "expired":
+        post_event(
+            "approval_result",
+            document["session_id"],
+            document["mandate_id"],
+            approval_id=approval["approval_id"],
+            approved=False,
+            method="timeout",
+        )
+        save_decision(document)
+        return public_approval(document)
+    mandate = load_mandate() or DEFAULT_MANDATE
+    body = {
+        "mandate_id": document["mandate_id"],
+        "decision_id": document["decision_id"],
+        "session_id": document["session_id"],
+        "approval_id": approval["approval_id"],
+        "cart": {
+            "merchant": document["cart"]["merchant"],
+            "total": document["cart"]["total"],
+            "items": [
+                {
+                    "sku": item["sku"],
+                    "name": item["name"],
+                    "category": item.get("mandate_category") or item.get("category"),
+                    "qty": item["qty"],
+                    "price": item["price"],
+                }
+                for item in document["cart"]["items"]
+            ],
+        },
+    }
+    save_decision(document)
+    merchant_order = send_signed_order(body)
+    merchant_order.pop("_signature", None)
+    link = merchant_order.get("payment_link") or {}
+    document["order"] = {
+        "order_id": merchant_order.get("order_id"),
+        "payment_link": link.get("url") or link,
+        "status": merchant_order.get("status"),
+    }
     approval["used"] = True
-    approval["approved"] = True
-    found["decision"] = "allow"
-    save_decision(found)
-    return {"ok": True, "decision_id": found["decision_id"]}
+    post_event(
+        "approval_result",
+        document["session_id"],
+        mandate["mandate_id"],
+        approval_id=approval["approval_id"],
+        approved=True,
+        method=method,
+    )
+    save_decision(document)
+    return public_approval(document)
+
+
+@app.get("/approvals")
+def list_approvals():
+    from policy.store import load_decisions
+
+    pending = []
+    for document in load_decisions().values():
+        if not document.get("approval"):
+            continue
+        view = public_approval(document)
+        if view["state"] == "pending":
+            pending.append(view)
+    return pending
+
+
+@app.get("/approvals/{approval_id}/challenge")
+def approval_challenge(approval_id: str):
+    from policy.approvals import challenge_bytes
+    from webauthn.helpers import bytes_to_base64url
+
+    document = find_approval(approval_id)
+    if not document:
+        raise HTTPException(404, "unknown approval")
+    return {"challenge": bytes_to_base64url(challenge_bytes(document["approval"]))}
 
 
 @app.get("/approvals/{approval_id}")
 def approval_status(approval_id: str):
-    return JSONResponse({"approval_id": approval_id})
+    document = find_approval(approval_id)
+    if not document:
+        raise HTTPException(404, "unknown approval")
+    view = public_approval(document)
+    if view["state"] == "expired" and not document["approval"].get("timeout_posted"):
+        document["approval"]["timeout_posted"] = True
+        post_event(
+            "approval_result",
+            document["session_id"],
+            document["mandate_id"],
+            approval_id=approval_id,
+            approved=False,
+            method="timeout",
+        )
+        save_decision(document)
+    return view
+
+
+@app.post("/approvals/{approval_id}/decide")
+def decide(approval_id: str, payload: dict):
+    document = find_approval(approval_id)
+    if not document:
+        raise HTTPException(404, "unknown approval")
+    approval = document["approval"]
+    if approval.get("used") or state_of(approval) != "pending":
+        raise HTTPException(400, "approval is closed")
+    if payload.get("approved") is False:
+        approval["approved"] = False
+        approval["used"] = True
+        post_event(
+            "approval_result",
+            document["session_id"],
+            document["mandate_id"],
+            approval_id=approval_id,
+            approved=False,
+            method="passkey",
+        )
+        save_decision(document)
+        return public_approval(document)
+    pinned = load_caregiver_credential()
+    if not pinned or not payload.get("response"):
+        raise HTTPException(400, "passkey assertion required")
+    from policy.approvals import challenge_bytes
+    from webauthn import verify_authentication_response
+    from webauthn.helpers import base64url_to_bytes
+
+    host = __import__("os").environ.get("TUNNEL_HOST") or "localhost"
+    origin = __import__("os").environ.get("ORIGIN") or f"https://{host}"
+    try:
+        verified = verify_authentication_response(
+            credential=payload["response"],
+            expected_challenge=challenge_bytes(approval),
+            expected_rp_id=host,
+            expected_origin=origin,
+            credential_public_key=base64url_to_bytes(pinned["public_key"]),
+            credential_current_sign_count=int(pinned.get("sign_count") or 0),
+            require_user_verification=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, "assertion rejected") from exc
+    pinned["sign_count"] = verified.new_sign_count
+    from policy.store import save_caregiver_credential
+
+    save_caregiver_credential(pinned)
+    approval["approved"] = True
+    return _finish_approval(document, "passkey")
+
+
+@app.post("/approvals/{approval_id}/code")
+def submit_code(approval_id: str, payload: dict):
+    document = find_approval(approval_id)
+    if not document:
+        raise HTTPException(404, "unknown approval")
+    approval = document["approval"]
+    if approval.get("used") or state_of(approval) != "pending":
+        raise HTTPException(400, "approval is closed")
+    if approval.get("attempts", 0) >= 5:
+        approval["used"] = True
+        save_decision(document)
+        raise HTTPException(400, "too many attempts")
+    if code_mac(str(payload.get("code", "")), approval_id) != approval.get("code_hash"):
+        approval["attempts"] = approval.get("attempts", 0) + 1
+        if approval["attempts"] >= 5:
+            approval["used"] = True
+        save_decision(document)
+        raise HTTPException(400, "code rejected")
+    approval["approved"] = True
+    return _finish_approval(document, "code")

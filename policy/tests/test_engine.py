@@ -140,6 +140,31 @@ def test_unsigned_mandate_is_denied():
     assert result["rules"][0]["passed"] is False
 
 
+def test_judge_error_without_two_soft_hits_still_allows():
+    result = evaluate(
+        cart(item(11.49)),
+        mandate(),
+        14210,
+        judge=None,
+        today=TODAY,
+        screen_action="proceed",
+        judge_error="timeout",
+    )
+    assert result["decision"] == "allow"
+    assert result["rules"][7]["detail"] == "judge unavailable"
+
+
+def test_r0_fails_outside_the_validity_window():
+    result = evaluate(cart(item(11.49)), mandate(valid_to="2020-01-01"), 14210, judge=proceed(), today=TODAY)
+    assert result["decision"] == "deny"
+    assert result["rules"][0]["passed"] is False
+
+
+def test_monthly_cap_denial_names_the_say_key():
+    result = run([item(11.49)], spent=29000, judge=proceed())
+    assert result["say_key"] == "over_monthly_cap"
+
+
 def test_judge_error_after_two_soft_hits_asks_priya():
     result = evaluate(
         cart(item(11.49)),

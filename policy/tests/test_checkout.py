@@ -87,6 +87,57 @@ def test_unknown_sku_is_rejected(tmp_path, monkeypatch):
     assert response.status_code == 422
 
 
+def test_checkout_requires_read_back(tmp_path, monkeypatch):
+    payload = json.loads(json.dumps(DEMO))
+    payload["read_back"] = False
+    response = client(tmp_path, monkeypatch).post("/checkout", json=payload)
+    assert response.status_code == 409
+
+
+def test_negative_quantity_is_rejected(tmp_path, monkeypatch):
+    payload = json.loads(json.dumps(DEMO))
+    payload["cart"]["items"][0]["qty"] = -2
+    response = client(tmp_path, monkeypatch).post("/checkout", json=payload)
+    assert response.status_code == 422
+
+
+def test_decision_lookup_hides_the_approval_code(tmp_path, monkeypatch):
+    payload = json.loads(json.dumps(DEMO))
+    payload["cart"]["items"] = [{"sku": "BAK-001", "name": "bread", "category": "grocery", "qty": 15, "price": 3.49}]
+    payload["cart"]["total"] = 52.35
+    body = client(tmp_path, monkeypatch).post("/checkout", json=payload)
+    assert body.status_code == 200, body.text
+    assert body.json()["decision"] == "approve"
+    looked = client(tmp_path, monkeypatch).get(f"/decisions/{body.json()['decision_id']}").json()
+    assert "code_hash" not in looked.get("approval", {})
+    assert "nonce" not in looked.get("approval", {})
+
+
+def test_passkey_approval_places_the_order_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "policy.main.send_signed_order",
+        lambda body: {"order_id": "ord_ok", "status": "awaiting_payment", "payment_link": {"url": "http://127.0.0.1:8002/pay/abc"}},
+    )
+    monkeypatch.setattr(
+        "webauthn.verify_authentication_response",
+        lambda **kwargs: type("V", (), {"new_sign_count": kwargs["credential_current_sign_count"] + 1})(),
+    )
+    api = client(tmp_path, monkeypatch)
+    payload = json.loads(json.dumps(DEMO))
+    payload["cart"]["items"] = [{"sku": "BAK-001", "name": "bread", "category": "grocery", "qty": 15, "price": 3.49}]
+    created = api.post("/checkout", json=payload).json()
+    approval_id = created["approval"]["approval_id"]
+    from policy.store import save_caregiver_credential
+
+    save_caregiver_credential({"credential_id": "priya", "public_key": "AQID", "sign_count": 0})
+    first = api.post(f"/approvals/{approval_id}/decide", json={"approved": True, "response": {"id": "priya"}})
+    assert first.status_code == 200, first.text
+    assert first.json()["state"] == "approved"
+    assert first.json()["order"]["order_id"] == "ord_ok"
+    again = api.post(f"/approvals/{approval_id}/decide", json={"approved": True, "response": {"id": "priya"}})
+    assert again.status_code == 400
+
+
 def test_budget_starts_at_the_baseline(tmp_path, monkeypatch):
     response = client(tmp_path, monkeypatch).get("/budget", params={"mandate_id": "m_ruth_2026_09"})
     assert response.json() == {"monthly_cap": 300.0, "spent": 142.1, "left": 157.9}
