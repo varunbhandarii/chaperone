@@ -9,7 +9,15 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["family_emergency", "urgency", "secrecy", "authority_impersonation", "code_reading", "amount_anomaly"]
+        "enum": [
+          "family_emergency",
+          "urgency",
+          "secrecy",
+          "authority_impersonation",
+          "code_reading",
+          "amount_anomaly",
+          "none"
+        ]
       }
     },
     "rationale": {
@@ -18,9 +26,18 @@
     },
     "action": {
       "type": "string",
-      "enum": ["proceed", "ask_clarifying", "refuse_and_alert"]
+      "enum": [
+        "proceed",
+        "ask_clarifying",
+        "refuse_and_alert"
+      ]
     }
   },
-  "required": ["scam_score", "patterns", "rationale", "action"],
+  "required": [
+    "scam_score",
+    "patterns",
+    "rationale",
+    "action"
+  ],
   "additionalProperties": false
 }
