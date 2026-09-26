@@ -179,7 +179,8 @@ async def mark_paid(order_id: str, via: str) -> dict:
     order = ORDERS[order_id]
     if order["status"] != "paid":
         order["status"], order["paid_at"], order["paid_via"] = "paid", time.time(), via
-        await events.emit("paid", order_id=order_id, amount=order["amount"], via=via, session_id=order["session_id"],
+        await events.emit("paid", order_id=order_id, total=order["amount"], amount=order["amount"], via=via,
+                          session_id=order["session_id"],
                           mandate_id=order["mandate_id"], decision_id=order["decision_id"])
     return order
 

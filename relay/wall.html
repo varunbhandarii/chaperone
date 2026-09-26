@@ -48,6 +48,12 @@
   .src.station { color: var(--blue); } .src.policy { color: var(--violet); } .src.merchant { color: var(--amber); }
   .src.caregiver { color: var(--green); } .src.relay { color: var(--muted); }
   .empty { color: var(--muted); padding: 12px 8px; }
+  .tag { font: 600 14px system-ui; padding: 1px 7px; border-radius: 6px; margin-right: 8px; vertical-align: 2px; }
+  .tag.replay { background: #3a2e0c; color: var(--amber); }
+  .tag.lang { background: #1b2638; color: var(--muted); }
+  .countdown { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--amber); }
+  #replayBanner { display: none; font: 700 22px system-ui; color: #111; background: var(--amber); padding: 4px 14px; border-radius: 10px; }
+  #replayBanner.on { display: inline-block; }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } #ledger li { grid-template-columns: 90px 1fr; } #ledger .src, #ledger .time { display: none; } }
 </style>
 </head>
@@ -55,6 +61,7 @@
 <header>
   <h1>Chaperone</h1>
   <span class="sub">Corner Market · Visa sandbox · no real money · <span class="dot" id="conn"></span><span id="connText">connecting</span></span>
+  <span id="replayBanner">REPLAY</span>
   <div class="month"><div class="big" id="spent">$142.10</div><div class="cap" id="cap">spent this month of $300.00</div></div>
 </header>
 <main>
@@ -91,54 +98,104 @@ function el(tag, attrs = {}, ...kids) {
   return node;
 }
 
-function failedRules(rules) {
-  return (rules || []).filter((r) => r && r.passed === false).map((r) => r.id);
+function failedRules(e) {
+  if (Array.isArray(e.rules_failed)) return e.rules_failed;
+  return (e.rules || []).filter((r) => r && r.passed === false).map((r) => r.id);
 }
 
+const lineText = (l) => `${l.qty && l.qty !== 1 ? l.qty + " × " : ""}${l.name || l.sku || ""}${l.price !== undefined ? " " + money(l.price) : ""}`;
+const epochMs = (v) => v === undefined || v === null || v === "" ? null : typeof v === "number" ? (v < 1e12 ? v * 1000 : v) : Date.parse(v);
+const clock = (ms) => ms ? new Date(ms).toLocaleTimeString([], { hour12: false }) : "";
+
+// Event payloads (contracts/events.schema.json $defs.payloads); older field names are read as a fallback.
 function summary(e) {
   switch (e.type) {
-    case "heard": return `“${e.text || e.transcript || ""}”`;
-    case "items_found": return (e.items || []).map((i) => `${i.sku} ${money(i.price)}`).join(", ") || e.query || "";
-    case "cart_updated": return `${(e.lines || e.items || []).length} lines · ${money(e.total)}`;
-    case "checkout_requested": return money(e.total);
+    case "heard": return `${e.role === "agent" || e.role === "assistant" ? "Agent" : "Shopper"}: “${e.text || e.transcript || ""}”`;
+    case "items_found": return `${e.query ? "“" + e.query + "” → " : ""}${(e.items || []).map(lineText).join(", ") || "nothing found"}`;
+    case "cart_updated": return `${(e.lines || e.items || []).map(lineText).join(", ") || "empty"} · total ${money(e.total)}`;
+    case "checkout_requested": return `checkout ${money(e.total)}`;
     case "policy_decision": {
-      const failed = failedRules(e.rules);
-      return `${(e.decision || "").toUpperCase()} ${e.decision_id || ""}${failed.length ? " · failed " + failed.join(", ") : ""}${e.total !== undefined ? " · " + money(e.total) : ""}`;
+      const failed = failedRules(e);
+      return `${(e.decision || "").toUpperCase()} ${e.decision_id || ""}${e.total !== undefined ? " · " + money(e.total) : ""}${failed.length ? " · failed " + failed.join(", ") : " · all rules pass"}`;
     }
-    case "refusal": return `${e.rule_id || e.rule || ""} ${(e.patterns || []).join(", ")}`.trim();
-    case "judge_scored": return `score ${e.scam_score ?? ""} · ${(e.patterns || []).join(", ")} · ${e.action || ""}`;
-    case "request_signed": return `keyid ${e.keyid || ""} · nonce ${short(e.nonce)} · expires ${e.expires ? new Date(e.expires * 1000).toLocaleTimeString() : ""}`;
-    case "signature_verified": return `${(e.checks || []).filter((c) => c.passed).length}/${(e.checks || []).length} checks · keyid ${e.keyid || "-"} · nonce ${short(e.nonce)}`;
+    case "refusal": return `${(e.rule_ids && e.rule_ids.length ? e.rule_ids : [e.rule_id || e.rule || ""]).join(" + ")}${e.spoken_key || e.say_key ? " · says " + (e.spoken_key || e.say_key) : ""}`;
+    case "judge_scored": return `score ${e.scam_score ?? ""} · ${(e.patterns || []).join(", ") || "no pattern"} · ${e.action || ""}`;
+    case "request_signed": return `keyid ${e.keyid || ""} · nonce ${short(e.nonce, 14)} · expires ${clock(epochMs(e.expires))}`;
+    case "signature_verified": return `${(e.checks || []).filter((c) => c.passed).length}/${(e.checks || []).length} checks · keyid ${e.keyid || "-"} · nonce ${short(e.nonce, 14)}`;
     case "signature_rejected": { const bad = (e.checks || []).find((c) => c.passed === false); return bad ? `${bad.id}: ${bad.detail}` : ""; }
     case "payment_link_created": return `${money(e.amount)} · ${e.backend === "visa" ? "Visa sandbox" : "mock"} · ${e.order_id || ""}`;
     case "order_created": return `${e.order_id || ""} ${money(e.amount)}`;
     case "card_authorized": return `AUTHORIZED · request ${e.request_id || ""}`;
     case "card_auth_failed": return `${e.status || ""} · ${e.reason || ""}`;
-    case "paid": return `${money(e.amount)} · ${e.order_id || ""} · via ${e.via || ""}`;
-    case "approval_requested": return `${money(e.amount)} · ${e.rule || ""} · ${e.approval_id || ""}`;
-    case "approval_result": return `${e.approved ? "APPROVED" : "REJECTED"} · ${e.approval_id || ""}`;
-    case "caregiver_alerted": return e.reason || e.rule_id || "";
+    case "paid": return `${money(e.total ?? e.amount)} · ${e.order_id || ""} · via ${e.via || ""}`;
+    case "approval_requested": return `${money(e.amount)} · ${e.rule || ""} · asking Priyank`;
+    case "approval_result": return `${e.approved ? "APPROVED" : "NOT APPROVED"} · ${e.method || ""} · ${e.approval_id || ""}`;
+    case "caregiver_alerted": return e.reason || e.rule_id || "Priyank alerted";
     case "mandate_signed": return `${e.mandate_id || ""} by passkey`;
-    case "receipt_printed": return e.order_id || "";
+    case "receipt_printed": return `${e.order_id || ""} · ${e.via === "screen" ? "on screen" : "printed"}`;
     case "reset": return "demo reset";
     default: return "";
   }
 }
 
+const heardRows = new Map();   // item_id -> row: one line per spoken turn
+const approvals = new Map();   // approval_id -> {row, expires, done}
+
+function sumNode(e) {
+  const node = el("span", { class: "sum" });
+  if (e.replay) node.append(el("span", { class: "tag replay" }, "REPLAY"));
+  if (e.lang && (e.type === "heard" || e.type === "refusal")) node.append(el("span", { class: "tag lang" }, e.lang));
+  node.append(document.createTextNode(summary(e)));
+  if (e.type === "approval_requested") node.append(" ", el("span", { class: "countdown" }, ""));
+  return node;
+}
+
 function addRow(e) {
   const list = $("ledger");
   if (list.firstElementChild && list.firstElementChild.classList.contains("empty")) list.innerHTML = "";
+  if (e.type === "heard" && e.item_id && heardRows.has(e.item_id)) {  // a longer transcript of the same turn
+    const row = heardRows.get(e.item_id);
+    if (row.isConnected) {
+      row.replaceChild(sumNode(e), row.querySelector(".sum"));
+      row.classList.add("new"); setTimeout(() => row.classList.remove("new"), 50);
+      return;
+    }
+  }
   const when = new Date(e.rt || e.t || Date.now()).toLocaleTimeString([], { hour12: false });
+  const bad = /(rejected|failed|refusal)/.test(e.type) || (e.type === "policy_decision" && e.decision === "deny")
+    || (e.type === "approval_result" && !e.approved);
+  const good = e.type === "paid" || (e.type === "approval_result" && e.approved);
   const row = el("li", { class: "new" },
     el("span", { class: "time" }, when),
     el("span", { class: "src " + (e.source || "") }, e.source || ""),
-    el("span", { class: "type " + (/(rejected|failed|refusal)/.test(e.type) ? "bad" : e.type === "paid" ? "ok" : "") }, e.type),
-    el("span", { class: "sum" }, summary(e)));
+    el("span", { class: "type " + (bad ? "bad" : good ? "ok" : e.type === "approval_requested" ? "warn" : "") }, e.type),
+    sumNode(e));
   list.prepend(row);
   setTimeout(() => row.classList.remove("new"), 50);
   while (list.children.length > MAX_ROWS) list.lastElementChild.remove();
   $("count").textContent = `${++total} events`;
+  if (e.type === "heard" && e.item_id) heardRows.set(e.item_id, row);
+  if (e.type === "approval_requested" && e.approval_id) {
+    approvals.set(e.approval_id, { row, expires: epochMs(e.expires_at) || (Date.now() + 90000), done: null });
+  }
+  if (e.type === "approval_result" && approvals.has(e.approval_id)) {
+    approvals.get(e.approval_id).done = e.approved ? "approved" : e.method === "timeout" ? "timed out" : "not approved";
+  }
   if (e.type === "policy_decision" && e.monthly_total_after !== undefined) lastMonthly = e.monthly_total_after;
+  if (e.replay) { $("replayBanner").classList.add("on"); clearTimeout(addRow.replayTimer); addRow.replayTimer = setTimeout(() => $("replayBanner").classList.remove("on"), 30000); }
+  if (["paid", "payment_link_created", "signature_verified", "signature_rejected", "card_authorized", "card_auth_failed"].includes(e.type)) refreshPanel();
+  if (["paid", "policy_decision", "approval_result"].includes(e.type)) refreshBudget();
+  if (e.type === "mandate_signed") refreshMandate();
+}
+
+function tickApprovals() {
+  for (const a of approvals.values()) {
+    const node = a.row.querySelector(".countdown");
+    if (!node) continue;
+    const left = Math.max(0, Math.ceil((a.expires - Date.now()) / 1000));
+    node.textContent = a.done ? `· ${a.done}` : left > 0 ? `· ${left}s left` : "· holding (no answer)";
+    node.className = "countdown " + (a.done === "approved" ? "ok" : a.done ? "bad" : "");
+  }
 }
 
 function connect() {
@@ -149,8 +206,10 @@ function connect() {
     let e;
     try { e = JSON.parse(msg.data); } catch { return; }
     if (e.type === "reset") {
-      $("ledger").innerHTML = ""; total = 0; lastMonthly = null;
+      $("ledger").innerHTML = ""; total = 0; lastMonthly = null; heardRows.clear(); approvals.clear();
       $("merchantBody").replaceChildren(document.createTextNode("No order yet."));
+      $("replayBanner").classList.remove("on");
+      refreshBudget();
     }
     addRow(e);
   };
@@ -231,6 +290,7 @@ refreshMandate(); refreshBudget(); refreshPanel();
 setInterval(refreshPanel, 1000);
 setInterval(refreshBudget, 3000);
 setInterval(refreshMandate, 5000);
+setInterval(tickApprovals, 250);
 </script>
 </body>
 </html>

@@ -2,10 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "events.schema.json",
   "title": "Ledger event",
-  "description": "POST {relay}/events. Senders set type, session_id, mandate_id, t and source; the relay adds rt and seq. An event without a session uses session_id \"none\".",
+  "description": "POST {relay}/events. Senders set type, session_id, mandate_id, t and source; the relay adds rt and seq. An event without a session uses session_id \"none\". The wall renders the payloads in $defs.payloads and ignores other fields; their types are checked, and none of them is required yet.",
   "type": "object",
   "additionalProperties": true,
-  "required": ["type", "session_id", "mandate_id", "t", "source"],
+  "required": [
+    "type",
+    "session_id",
+    "mandate_id",
+    "t",
+    "source"
+  ],
   "properties": {
     "type": {
       "enum": [
@@ -36,13 +42,444 @@
     "session_id": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{1,64}$",
-      "not": { "const": "live" },
+      "not": {
+        "const": "live"
+      },
       "description": "\"live\" is reserved: the relay's all-sessions log is sessions/live.jsonl"
     },
-    "mandate_id": { "type": "string", "minLength": 1 },
-    "t": { "type": "integer", "description": "sender clock, ms since epoch" },
-    "source": { "enum": ["station", "policy", "merchant", "caregiver", "relay"] },
-    "rt": { "type": "integer", "description": "relay receive time, ms since epoch (set by the relay)" },
-    "seq": { "type": "integer", "description": "relay sequence number, monotonically increasing (set by the relay)" }
-  }
+    "mandate_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "t": {
+      "type": "integer",
+      "description": "sender clock, ms since epoch"
+    },
+    "source": {
+      "enum": [
+        "station",
+        "policy",
+        "merchant",
+        "caregiver",
+        "relay"
+      ]
+    },
+    "rt": {
+      "type": "integer",
+      "description": "relay receive time, ms since epoch (set by the relay)"
+    },
+    "seq": {
+      "type": "integer",
+      "description": "relay sequence number, monotonically increasing (set by the relay)"
+    },
+    "replay": {
+      "type": "boolean",
+      "description": "set by the station's cached-session replay; the wall labels these REPLAY"
+    }
+  },
+  "$defs": {
+    "payloads": {
+      "heard": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "enum": [
+              "shopper",
+              "agent",
+              "user",
+              "assistant"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "lang": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string",
+            "description": "one line per turn: the wall replaces the line with the same item_id"
+          }
+        }
+      },
+      "items_found": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sku": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "qty": {
+                  "type": "integer"
+                },
+                "price": {
+                  "type": [
+                    "number",
+                    "string"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "cart_updated": {
+        "type": "object",
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sku": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "qty": {
+                  "type": "integer"
+                },
+                "price": {
+                  "type": [
+                    "number",
+                    "string"
+                  ]
+                }
+              }
+            }
+          },
+          "total": {
+            "type": [
+              "number",
+              "string"
+            ]
+          }
+        }
+      },
+      "checkout_requested": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": [
+              "number",
+              "string"
+            ]
+          }
+        }
+      },
+      "refusal": {
+        "type": "object",
+        "properties": {
+          "rule_id": {
+            "type": "string"
+          },
+          "rule_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "spoken_key": {
+            "type": "string"
+          },
+          "lang": {
+            "type": "string"
+          }
+        }
+      },
+      "policy_decision": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "enum": [
+              "allow",
+              "approve",
+              "deny"
+            ]
+          },
+          "decision_id": {
+            "type": "string"
+          },
+          "rules_failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "total": {
+            "type": [
+              "number",
+              "string"
+            ]
+          }
+        }
+      },
+      "request_signed": {
+        "type": "object",
+        "properties": {
+          "keyid": {
+            "type": "string"
+          },
+          "nonce": {
+            "type": "string"
+          },
+          "expires": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "unix seconds, or ISO 8601"
+          }
+        }
+      },
+      "approval_requested": {
+        "type": "object",
+        "properties": {
+          "approval_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "rule": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "description": "ISO 8601"
+          }
+        }
+      },
+      "approval_result": {
+        "type": "object",
+        "properties": {
+          "approval_id": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          },
+          "method": {
+            "enum": [
+              "passkey",
+              "code",
+              "timeout"
+            ]
+          }
+        }
+      },
+      "receipt_printed": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "via": {
+            "enum": [
+              "printer",
+              "screen"
+            ]
+          }
+        }
+      },
+      "paid": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "total": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "via": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "heard"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/heard"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "items_found"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/items_found"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "cart_updated"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/cart_updated"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "checkout_requested"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/checkout_requested"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "refusal"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/refusal"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "policy_decision"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/policy_decision"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "request_signed"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/request_signed"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "approval_requested"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/approval_requested"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "approval_result"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/approval_result"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "receipt_printed"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/receipt_printed"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "paid"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/paid"
+      }
+    }
+  ]
 }
