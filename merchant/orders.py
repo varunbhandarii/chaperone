@@ -6,15 +6,18 @@ POST /orders             signed order from the checkout tool -> verify -> price 
 GET  /orders[/{id}]      order state (wall, receipt)
 POST /orders/{id}/paid   callback fallback: Visa webhook or the Host marks paid
 GET  /pay/{link_id}      mock hosted payment page (MOCK_VISA=1 or fallback)
+GET  /checkout/{id}      CARD_AUTH=1: our checkout page with a real Cybersource sandbox card authorization
 GET  /panel              merchant verification panel data for the wall
 """
 
+import asyncio
 import os
 import secrets
 import time
 from contextlib import asynccontextmanager
 from html import escape
 from pathlib import Path
+from urllib.parse import parse_qs
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
@@ -24,12 +27,15 @@ from pydantic import BaseModel, Field, ValidationError
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from catalog.search import Catalog  # noqa: E402
-from merchant import events  # noqa: E402
+from merchant import card_auth, events  # noqa: E402
 from merchant.verify import verify_request  # noqa: E402
 from merchant.visa import LineItem, get_payment_links, money, new_purchase_number  # noqa: E402
 
 PUBLIC_URL = os.environ.get("MERCHANT_PUBLIC_URL", "http://192.168.8.10:8002")
 MAX_QTY = 24
+# CARD_AUTH=1: orders also get our own checkout page that runs a real sandbox card authorization
+# (merchant.card_auth) and marks the order paid only on AUTHORIZED. Default off: behavior unchanged.
+CARD_AUTH = os.environ.get("CARD_AUTH") == "1"
 
 catalog = Catalog.load()
 payment_links = get_payment_links(PUBLIC_URL)
@@ -118,6 +124,8 @@ async def create_order(request: Request):
         "currency": "USD",
         "status": "awaiting_payment",
         "payment_link": {"id": link.id, "url": link.url, "backend": link.backend, "purchase_number": link.purchase_number},
+        "checkout_url": f"{PUBLIC_URL}/checkout/{order_id}" if CARD_AUTH else None,
+        "card_auth": None,
         "verification": verification.checks,
         "created_at": time.time(),
         "paid_at": None,
@@ -173,6 +181,41 @@ async def mock_pay_submit(link_id: str):
     return HTMLResponse(render_pay_page(await mark_paid(order_id, via="mock_hosted_page")))
 
 
+def _checkout_order(order_id: str) -> dict:
+    if not CARD_AUTH:
+        raise HTTPException(404, "card authorization checkout is off (set CARD_AUTH=1)")
+    if order_id not in ORDERS:
+        raise HTTPException(404, "unknown order")
+    return ORDERS[order_id]
+
+
+@app.get("/checkout/{order_id}", response_class=HTMLResponse)
+def checkout_page(order_id: str):
+    return HTMLResponse(render_checkout_page(_checkout_order(order_id)))
+
+
+@app.post("/checkout/{order_id}", response_class=HTMLResponse)
+async def checkout_submit(order_id: str, request: Request):
+    order = _checkout_order(order_id)
+    if order["status"] == "paid":  # a double click never authorizes twice
+        return HTMLResponse(render_checkout_page(order))
+    form = {k: v[0] for k, v in parse_qs((await request.body()).decode()).items()}
+    ids = {"session_id": order["session_id"], "mandate_id": order["mandate_id"], "decision_id": order["decision_id"]}
+    result = await asyncio.to_thread(
+        card_auth.authorize, order["amount"], order["order_id"], form.get("number", ""),
+        form.get("exp_month", ""), form.get("exp_year", ""), form.get("cvv", ""),
+    )
+    order["card_auth"] = result.to_dict()
+    if result.ok:
+        await events.emit("card_authorized", order_id=order_id, request_id=result.request_id,
+                          approval_code=result.approval_code, merchant=result.merchant, **ids)
+        await mark_paid(order_id, via=f"card_auth:{result.merchant}")
+    else:  # one attempt per click, never retried automatically
+        await events.emit("card_auth_failed", order_id=order_id, status=result.status, reason=result.reason,
+                          request_id=result.request_id, merchant=result.merchant, **ids)
+    return HTMLResponse(render_checkout_page(order))
+
+
 @app.get("/panel")
 def panel():
     return {
@@ -182,6 +225,39 @@ def panel():
         "orders": list_orders()[:10],
         "events": list(events.RECENT)[-50:],
     }
+
+
+def render_checkout_page(order: dict) -> str:
+    auth = order.get("card_auth") or {}
+    if order["status"] == "paid":
+        detail = ""
+        if auth.get("ok"):
+            detail = (f"<p class=\"note\">Authorized by the Cybersource sandbox · request {escape(auth['request_id'] or '')}"
+                      f"{' · approval ' + escape(auth['approval_code']) if auth.get('approval_code') else ''}</p>")
+        action = '<p class="paid">Paid. Thank you.</p>' + detail
+    else:
+        error = ""
+        if auth and not auth.get("ok"):
+            hint = ("Payment system error. Do not retry in a loop: the Host can mark the order paid."
+                    if auth.get("status") == "SERVER_ERROR" else "Please check the card details.")
+            error = (f"<p class=\"err\">{escape(auth.get('status') or '')}: {escape(auth.get('reason') or '')}"
+                     f"<br>{hint}</p>")
+        action = (error + '<form method="post">'
+                  '<label>Card number<input name="number" value="4111 1111 1111 1111" inputmode="numeric"></label>'
+                  '<div class="row"><label>Month<input name="exp_month" value="12"></label>'
+                  '<label>Year<input name="exp_year" value="2030"></label>'
+                  '<label>CVV<input name="cvv" value="123"></label></div>'
+                  f'<button>Pay ${order["amount"]}</button></form>'
+                  '<p class="note">Cybersource sandbox · test cards only · no real money moves.</p>')
+    page = render_pay_page(order)
+    start = page.index("<table>")
+    end = page.index("</main>")
+    table_end = page.index("</table>", start) + len("</table>")
+    extra_css = ("label{display:block;margin-top:12px;font-size:16px;color:#333}"
+                 "input{display:block;width:100%;box-sizing:border-box;font-size:22px;padding:12px;margin-top:4px;"
+                 "border:1px solid #ccc;border-radius:10px}.row{display:flex;gap:10px}.row label{flex:1}"
+                 ".err{margin-top:16px;padding:14px;border-radius:12px;background:#fdecea;color:#8a1c12;font-size:17px}")
+    return page[:table_end].replace("</style>", extra_css + "</style>") + action + page[end:]
 
 
 def render_pay_page(order: dict) -> str:

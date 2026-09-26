@@ -136,7 +136,7 @@ def main():
                         break
             print(f"{term:24} {kept} items")
     OUT.parent.mkdir(exist_ok=True)
-    OUT.write_text(json.dumps(list(items.values()), indent=2) + "\n")
+    OUT.write_text(json.dumps(list(items.values()), indent=2) + "\n", encoding="utf-8")
     print(f"wrote {OUT.name}: {len(items)} items (location {loc['locationId']})")
 
 

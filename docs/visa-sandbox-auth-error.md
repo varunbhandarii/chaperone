@@ -94,6 +94,27 @@ Sources: [usd_outlet_id/usd_terminal_id thread (2026)](https://community.develop
 >
 > Could you please provision the USD outlet and terminal IDs for this sandbox account? We're using it for a prototype. Thank you!
 
+## Update, Fri 11pm: what else we checked, and a checkout that is ready the moment the account is fixed
+
+Re-tested at 10:45pm: still reason 150 on `fdiglobal` (request 7903904563506716104807), from a second laptop, so it is not machine-specific.
+
+**It is a provisioning fault, and there is no self-service fix.** Cybersource's own article says "Sandbox accounts default to Chase Paymentech. To configure a different processor, submit a Support case" ([KA-07420](https://support.visaacceptance.com/knowledgebase/knowledgearticle/?code=KA-07420)). Our account came up on `fdiglobal` without the outlet and terminal IDs, which is the fault. Self-service processor editing exists only for portfolio accounts ([000003120](https://support.visaacceptance.com/knowledgebase/knowledgearticle/?code=000003120)). The request fields people try, `pointOfSaleInformation.terminalId` and `processingInformation.processorId`, are values issued by the processor or Support, so they cannot fix it.
+
+**The fastest official route is a support case.** In the Test Business Center: Support (top right), Support Center, Support Cases, **MID Configuration Request**, then Processor Configuration, Test ([000002638](https://support.visaacceptance.com/knowledgebase/article/000002638/en-us)); if that menu is missing in ebc2test, use the email below. The stated response time is 1 to 2 business days ([contact](https://developer.cybersource.com/support/contact-us.html)), and fixes have ranged from next day to a week, so a same-day fix is unlikely. Phone: developer support 1-800-530-9095, client services 1-800-709-7779.
+
+Case text:
+
+> Merchant ID …6462 (sandbox). All card authorizations fail with reason 150 ESYSTEM "The following property is either invalid or missing: usd_outlet_id, usd_terminal_id", processor fdiglobal, both Pay by Link and REST /pts/v2/payments. Request IDs 7903886322116330804009, 7903904563506716104807. KA-07420 says sandbox accounts default to Chase Paymentech; please configure the test processor (or provision the fdiglobal outlet and terminal IDs) for this merchant.
+
+**A fresh sandbox is a long shot** (new accounts failed the same way through Sep 2026), and the Visa Acceptance and Intelligent Commerce sandbox sign-ups land in the same Test Business Center with no evidence of a different processor.
+
+**What is now in the code: `CARD_AUTH=1`.** Orders get a second URL, `checkout_url` = `/checkout/<order_id>`: our own checkout page (large type, prefilled with the Visa test card) that sends one real `POST /pts/v2/payments` authorization per click and marks the order paid only when the response is `AUTHORIZED`, recording the request id and approval code on the order and the ledger (`card_authorized`, or `card_auth_failed` with the reason). It never retries, and it refuses non-test card numbers before any request. Today it shows "Payment system error, the Host can mark the order paid" because of reason 150; **the minute Cybersource fixes the account it shows a real authorization with no code change.** It authorizes on our merchant by default; `CARD_AUTH_MERCHANT_ID/_API_KEY_ID/_SECRET_KEY` can point it at another sandbox merchant the team owns. The Pay by Link flow is unchanged, and `CARD_AUTH` is off by default.
+
+- Verify after a fix: `python -m merchant.card_auth` must print `"status": "AUTHORIZED"`.
+- Tests: `merchant/tests/test_card_auth.py` (authorized marks paid, failure stays unpaid with one attempt, double click never re-authorizes, non-test cards refused, override precedence).
+
+**Also fixed:** every catalog read and write now passes `encoding="utf-8"`. On Windows the default codec is cp1252 and `Catalog.load()` crashed on the catalog JSON, so the merchant and catalog services could not start on a Windows laptop.
+
 ## Tools
 
 - `merchant/cybs_check.py`: `python -m merchant.cybs_check` runs a $1.00 test authorization and prints `AUTHORIZED` or the exact reason. `python -m merchant.cybs_check <request_id>` explains any transaction ID from Transaction Management.

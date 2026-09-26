@@ -122,7 +122,7 @@ def load_raw():
     items = []
     for path in sorted(RAW.glob("*.json")):
         try:
-            data = json.loads(path.read_text())
+            data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as e:
             print(f"skip {path.name}: {e}")
             continue
@@ -150,7 +150,7 @@ def build():
         "group_aliases": GROUP_ALIASES,
         "items": sorted(by_sku.values(), key=lambda it: (it["group"], it["price"])),
     }
-    OUT.write_text(json.dumps(catalog, indent=2, ensure_ascii=False) + "\n")
+    OUT.write_text(json.dumps(catalog, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"wrote {OUT.relative_to(HERE.parent)}: {len(catalog['items'])} items, {len(GROUP_ALIASES)} groups")
     return catalog
 

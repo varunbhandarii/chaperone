@@ -4,40 +4,25 @@
     python -m merchant.cybs_check <request_id> # why a transaction (e.g. from Transaction Management) failed
 """
 
-import base64
-import hashlib
-import hmac
 import json
 import os
 import sys
 import time
-from email.utils import formatdate
 from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+from merchant.cybs_rest import Creds
+from merchant.cybs_rest import signed_request as _signed_request
 
-HOST = "apitest.cybersource.com"
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 def signed_request(method: str, path: str, body: str | None = None) -> httpx.Response:
-    mid = os.environ["VISA_ACCEPTANCE_MERCHANT_ID"]
-    kid = os.environ["VISA_ACCEPTANCE_API_KEY_ID"]
-    secret = base64.b64decode(os.environ["VISA_ACCEPTANCE_SECRET_KEY"])
-    headers = {"host": HOST, "date": formatdate(usegmt=True), "v-c-merchant-id": mid}
-    signed = ["host", "date", "request-target"]
-    if body is not None:
-        headers["digest"] = "SHA-256=" + base64.b64encode(hashlib.sha256(body.encode()).digest()).decode()
-        headers["content-type"] = "application/json"
-        signed.append("digest")
-    signed.append("v-c-merchant-id")
-    lines = [f"request-target: {method.lower()} {path}" if h == "request-target" else f"{h}: {headers[h]}" for h in signed]
-    sig = base64.b64encode(hmac.new(secret, "\n".join(lines).encode(), hashlib.sha256).digest()).decode()
-    headers["signature"] = (f'keyid="{kid}", algorithm="HmacSHA256", headers="{" ".join(signed)}", '
-                            f'signature="{sig}"')
-    return httpx.request(method, f"https://{HOST}{path}", headers=headers, content=body, timeout=30)
+    creds = Creds(os.environ["VISA_ACCEPTANCE_MERCHANT_ID"], os.environ["VISA_ACCEPTANCE_API_KEY_ID"],
+                  os.environ["VISA_ACCEPTANCE_SECRET_KEY"])
+    return _signed_request(creds, method, path, body)
 
 
 def explain(request_id: str, wait: float = 0) -> None:

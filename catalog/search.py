@@ -80,7 +80,7 @@ class Catalog:
 
     @classmethod
     def load(cls, catalog_path: Path = CATALOG_PATH, profile_path: Path = PROFILE_PATH) -> "Catalog":
-        return cls(json.loads(catalog_path.read_text()), json.loads(profile_path.read_text()))
+        return cls(json.loads(catalog_path.read_text(encoding="utf-8")), json.loads(profile_path.read_text(encoding="utf-8")))
 
     def _index_tokens(self, it: dict) -> tuple[set[str], set[str]]:
         own = [it["name"], it["brand"]] + [t.replace("_", " ") for t in it["tags"]]

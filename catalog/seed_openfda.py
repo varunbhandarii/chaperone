@@ -87,7 +87,7 @@ def main():
                     break
             print(f"{generic:26} {kept} items")
     OUT.parent.mkdir(exist_ok=True)
-    OUT.write_text(json.dumps(items, indent=2) + "\n")
+    OUT.write_text(json.dumps(items, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {OUT.name}: {len(items)} items")
 
 
