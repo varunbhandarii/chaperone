@@ -1,5 +1,8 @@
 """Seed groceries from the Kroger public API (one Atlanta store) into catalog/raw/kroger.json.
 
+Prices are the store's own: price.promo when a promotion is on (with price.regular kept as regular_price for
+the receipt's savings line), else price.regular. No promo today means no savings; none are invented.
+
 Needs KROGER_CLIENT_ID / KROGER_CLIENT_SECRET (developer.kroger.com, scope product.compact).
 Without them this exits and build_catalog uses the synthetic catalog only.
 
@@ -93,7 +96,8 @@ def wanted(term: str, name: str) -> bool:
 def to_item(p: dict, group: str, category: str) -> dict | None:
     offer = (p.get("items") or [{}])[0]
     price = offer.get("price") or {}
-    amount = price.get("promo") or price.get("regular")
+    regular, promo = float(price.get("regular") or 0), float(price.get("promo") or 0)  # promo is 0 when none
+    amount = promo if 0 < promo < regular else regular
     if not amount:
         return None  # not sold at this store
     name = clean(p.get("description", ""))
@@ -105,7 +109,9 @@ def to_item(p: dict, group: str, category: str) -> dict | None:
         "brand": brand,
         "category": category,
         "group": group,
-        "price": round(float(amount), 2),
+        "price": round(amount, 2),  # what we charge: the store's promo price when it has one
+        # the shelf price, only when a promo is on today; the receipt's "You saved" comes from this
+        **({"regular_price": round(regular, 2)} if amount < regular else {}),
         "size": offer.get("size", ""),
         "tags": sorted({tag for words, tag in TAG_WORDS.items() if words in text}),
         "merchant": "corner_market",

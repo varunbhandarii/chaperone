@@ -259,3 +259,27 @@ def test_post_purchase_decision_must_belong_to_the_order():
         asyncio.run(verify.check_decision(body.replace(b"m_ruth_2026_09", b"m_x"), lambda _: allow, order))
     with pytest.raises(verify.DecisionError, match="is deny"):
         asyncio.run(verify.check_decision(body, lambda _: {"decision": "deny"}, order))
+
+
+# ---- savings and loyalty (Kroger promo prices)
+
+def test_receipt_shows_real_promo_savings_and_points(client):
+    promo = next(i for i in orders.catalog.items.values() if i.get("regular_price"))
+    order = place(client, [{"sku": promo["sku"], "qty": 2}, {"sku": "BAK-001", "qty": 1}])
+    pay(client, order)
+    receipt = client.get(f"/orders/{order['order_id']}/receipt").json()
+    expected = round((promo["regular_price"] - promo["price"]) * 2, 2)
+    assert receipt["savings"] == f"{expected:.2f}"
+    assert receipt["loyalty_points"] == int(float(receipt["total"])) and receipt["pickup_code"] == order["pickup_code"]
+
+
+def test_no_savings_line_when_nothing_was_saved(client):
+    order = place(client)  # the demo items carry no promo
+    pay(client, order)
+    receipt = client.get(f"/orders/{order['order_id']}/receipt").json()
+    assert receipt["savings"] is None and receipt["loyalty_points"] == int(float(receipt["total"]))
+
+
+def test_points_only_after_payment(client):
+    order = place(client)
+    assert client.get(f"/orders/{order['order_id']}/receipt").json()["loyalty_points"] is None
