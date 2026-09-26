@@ -39,6 +39,8 @@ Signature: sig1=:<base64>:
 
 The passkey challenge is `SHA-256(jcs.canonicalize(mandate without the passkey field))` (RFC 8785). The assertion is stored beside the mandate, not inside the bytes that were hashed.
 
+The approval challenge is `SHA-256(JCS({approval_id, amount, merchant, nonce, expires_at}))`. `nonce` is 16 bytes from the server, hex encoded, and single use. Two approvals for the same amount do not share a challenge.
+
 ## Verifier checks, in order
 
 1. Recomputed body digest equals `Content-Digest`.

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "checkout.schema.json",
+  "title": "Checkout",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request", "response"],
+  "properties": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "mandate_id", "cart", "read_back"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "mandate_id": { "type": "string" },
+        "cart": { "$ref": "cart.schema.json" },
+        "transcript": { "type": "string" },
+        "lang": { "type": "string" },
+        "read_back": { "type": "boolean" }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["decision", "rules", "monthly_total_after", "decision_id", "say_key", "order", "approval"],
+      "properties": {
+        "decision": { "enum": ["allow", "approve", "deny"] },
+        "decision_id": { "type": "string" },
+        "say_key": { "type": "string" },
+        "monthly_total_after": { "type": "number" },
+        "order": { "type": ["object", "null"] },
+        "approval": { "type": ["object", "null"] }
+      }
+    }
+  }
+}

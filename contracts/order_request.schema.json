@@ -20,10 +20,11 @@
     "body": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mandate_id", "decision_id", "cart", "approval_id"],
+      "required": ["mandate_id", "decision_id", "session_id", "cart", "approval_id"],
       "properties": {
         "mandate_id": { "type": "string" },
         "decision_id": { "type": "string" },
+        "session_id": { "type": "string" },
         "cart": { "$ref": "cart.schema.json" },
         "approval_id": { "type": ["string", "null"] }
       }

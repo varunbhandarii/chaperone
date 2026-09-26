@@ -14,6 +14,19 @@ if (existsSync(envPath)) {
   }
 }
 
+const relay = process.env.RELAY_URL || "http://127.0.0.1:8000";
+const merchant = process.env.MERCHANT_PUBLIC_URL || "http://127.0.0.1:8002";
+
 /** @type {import('next').NextConfig} */
-const nextConfig = { reactStrictMode: true };
+const nextConfig = {
+  reactStrictMode: true,
+  compress: false,
+  async rewrites() {
+    return [
+      { source: "/relay/events/stream", destination: `${relay.replace(/\/$/, "")}/events/stream` },
+      { source: "/merchant/webhooks/cybersource", destination: `${merchant.replace(/\/$/, "")}/webhooks/cybersource` },
+      { source: "/merchant/webhooks/cybersource/:path*", destination: `${merchant.replace(/\/$/, "")}/webhooks/cybersource/:path*` },
+    ];
+  },
+};
 export default nextConfig;
