@@ -228,7 +228,7 @@ export class StationAgent {
   private lastOrder: PlacedOrder | null = null;
   private receiptsDone = new Set<string>();
   private lastReceipt: Receipt | null = null;
-  private approvalWait: { id: string } | null = null;
+  private approvalWait: { id: string; totalCents: number; lines: CartLineView[]; decisionId?: string } | null = null;
   private stream: RelayStream | null = null;
   private lastLocalReset = -Infinity;
   /** Recording of this session (audio, transcripts, tool calls) that can be saved as a cached session. */
@@ -622,8 +622,7 @@ export class StationAgent {
     if (!turn.counted && text.trim()) {
       turn.counted = true;
       this.userTurns++;
-      // A new request (words, not a noise press) ends a caregiver wait, and policy closes that approval.
-      this.cancelApprovalWait("the shopper made a new request", true);
+      // Words alone ("okay", "thank you") keep the caregiver wait: only a cart change closes the approval.
     }
     this.record({ kind: "shopper", text, lang: turn.lang, turn: turn.n });
     if (turn.shopperIndex === undefined) {
@@ -1189,7 +1188,7 @@ export class StationAgent {
 
   /** Polls the approval every second; the button stays live, and a new request cancels the wait. */
   private waitForApproval(approvalId: string, totalCents: number, lines: CartLineView[], decisionId?: string): void {
-    const wait = { id: approvalId };
+    const wait = { id: approvalId, totalCents, lines, decisionId };
     this.approvalWait = wait;
     const deadline = performance.now() + APPROVAL_WAIT_MS;
     let approvedAt = 0;
@@ -1222,7 +1221,16 @@ export class StationAgent {
     console.info(`[${ts()}] caregiver wait cancelled: ${reason}`);
     this.approvalWait = null;
     this.ui.waiting(null);
-    if (closeAtPolicy) void cancelApproval(wait.id);
+    if (closeAtPolicy) void this.closeApproval(wait);
+  }
+
+  /** Asks policy to close the approval; if it already closed (Priyank tapped in the same second), finish it instead. */
+  private async closeApproval(wait: NonNullable<StationAgent["approvalWait"]>): Promise<void> {
+    if (await cancelApproval(wait.id)) return;
+    const status = await getApproval(wait.id);
+    if (status && status.state !== "pending" && status.state !== "cancelled") {
+      this.finishApproval(status, wait.totalCents, wait.lines, wait.decisionId);
+    }
   }
 
   private finishApproval(status: ApprovalStatus, totalCents: number, lines: CartLineView[], decisionId?: string): void {

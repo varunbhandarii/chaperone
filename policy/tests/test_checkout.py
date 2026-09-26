@@ -239,6 +239,21 @@ def test_unchanged_cart_reuses_the_pending_approval(tmp_path, monkeypatch):
     assert second["approval"]["approval_id"] == first["approval"]["approval_id"]
 
 
+def test_approval_after_an_ordinary_purchase(tmp_path, monkeypatch):
+    # The demo order: medicine and bread first (an allow decision with no approval), then a cart over $40.
+    monkeypatch.setattr(
+        "policy.checkout.send_signed_order",
+        lambda body: {"order_id": "ord_first", "status": "awaiting_payment", "payment_link": {"url": "http://127.0.0.1:8002/pay/abc"}},
+    )
+    api = client(tmp_path, monkeypatch)
+    assert api.post("/checkout", json=DEMO).json()["decision"] == "allow"
+    payload = json.loads(json.dumps(DEMO))
+    payload["cart"]["items"] = [{"sku": "BAK-001", "name": "bread", "category": "grocery", "qty": 15, "price": 3.49}]
+    later = api.post("/checkout", json=payload)
+    assert later.status_code == 200, later.text
+    assert later.json()["decision"] == "approve" and later.json()["approval"]["approval_id"]
+
+
 def test_cancel_closes_the_approval(tmp_path, monkeypatch):
     api = client(tmp_path, monkeypatch)
     payload = json.loads(json.dumps(DEMO))

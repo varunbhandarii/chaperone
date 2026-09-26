@@ -50,7 +50,7 @@ Open the station at http://localhost:5173 (the microphone requires localhost). O
 
 The station searches `GET /search` and `GET /resolve` on the catalog, then calls `POST /screen` and `POST /checkout` on policy. Policy re-prices the cart from the catalog, runs the mandate rules, and on allow signs `POST /orders`. The merchant checks the signature and the decision id, then returns a payment link. Events go to `POST /events` on the relay. `curl -N http://localhost:8000/events/stream` shows them live.
 
-`POST /orders/{id}/paid` and `python -m merchant.simulate_payment <order_id>` mark an order paid when the sandbox card cannot. `python -m merchant.spike_link` creates the demo link. `curl -X POST http://localhost:8000/reset` clears the ledger, the monthly spend, and merchant orders.
+`POST /orders/{id}/paid` and `python -m merchant.simulate_payment <order_id>` mark an order paid when the sandbox card cannot. `python -m merchant.spike_link` creates the demo link. `curl -X POST -H "X-Chaperone-Host: 1" http://localhost:8000/reset` (from the LAN) clears the ledger, the monthly spend, and merchant orders.
 
 ## Tests
 

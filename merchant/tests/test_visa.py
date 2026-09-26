@@ -9,9 +9,10 @@ CART = [LineItem("Lisinopril 10 mg, 30 tablets (pharmacy pickup)", 1, "8.00", "R
 ENSURE = [LineItem("Ensure Max Protein Shake; Milk Chocolate", 5, "9.99", "NUT-001")]
 
 
-def fake_visa(total_back, stored_total=None, read_fails=False):
+def fake_visa(total_back, stored_total=None, read_fails=False, read_delay=0.0):
     """Cybersource through the MCP toolkit: create answers total_back, a later read answers stored_total."""
     links = VisaMcpPaymentLinks("m", "k", "s")
+    links._session = object()  # a live MCP session, so the read-back runs
     calls = {}
 
     def link(total):
@@ -22,6 +23,7 @@ def fake_visa(total_back, stored_total=None, read_fails=False):
     async def call(tool, args):
         calls[tool] = args
         if tool == "get_payment_link":
+            await asyncio.sleep(read_delay)
             if read_fails:
                 raise VisaMcpError("get_payment_link: Failed to get payment link")
             return link(stored_total if stored_total is not None else total_back)
@@ -82,3 +84,13 @@ def test_description_stays_under_the_field_limit():
     asyncio.run(links.create("P1", "40.00", "USD", many))
     line = calls["create_payment_link"]["lineItems"][0]
     assert len(line["productDescription"]) <= 250 and len(line["productName"]) <= 60
+
+
+def test_slow_read_back_keeps_the_link_within_policys_budget():
+    import time
+
+    links, _ = fake_visa("49.95", read_delay=5)
+    start = time.perf_counter()
+    link = asyncio.run(links.create("P1", "49.95", "USD", ENSURE))
+    assert link.amount == "49.95"
+    assert time.perf_counter() - start < 2.5  # the read-back gives up after 1.5 s; policy allows 5 s in all

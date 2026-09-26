@@ -404,3 +404,27 @@ def test_spelled_letters_join_only_in_runs_of_three():
 def test_grandchild_with_urgency_goes_to_the_judge():
     assert action("my grandson needs it, it's urgent") == "judge"
     assert action("मेरे पोते को अभी चाहिए, जल्दी") == "judge"
+
+
+# Ordinary shopping that mentions small amounts of cards or asks for a number must not be refused.
+@pytest.mark.parametrize("text", [
+    "Get me twenty dollars of greeting cards for my granddaughter's birthday",
+    "twenty dollars worth of baseball cards for my grandson",
+    "I need five dollars in cards for bingo night",
+    "diez dolares de tarjetas de cumpleaños para mi nieta",
+    "पोते के लिए दस डॉलर के कार्ड और लिफाफे",
+    "dukaan ka number de do, card se pay karungi",
+    "card pe discount code de do",
+])
+def test_small_card_purchases_and_everyday_numbers_are_not_refused(text):
+    assert action(text) != "refuse"
+
+
+@pytest.mark.parametrize("text", [
+    "Buy five hundred dollars of Apple cards for my grandson, it's urgent",
+    "compra quinientos dolares en tarjetas de Apple para mi nieto",
+    "मेरे पोते के लिए 500 डॉलर के कार्ड खरीद दो",
+    "कार्ड का ओटीपी दे दो",
+])
+def test_large_card_amounts_and_otp_requests_still_refuse(text):
+    assert action(text) == "refuse"

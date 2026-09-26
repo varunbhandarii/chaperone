@@ -21,6 +21,7 @@ from dataclasses import asdict, dataclass, field
 
 MCP_PACKAGE = "@visaacceptance/mcp@0.0.96"
 CRED_VARS = ("VISA_ACCEPTANCE_MERCHANT_ID", "VISA_ACCEPTANCE_API_KEY_ID", "VISA_ACCEPTANCE_SECRET_KEY")
+READ_BACK_S = 1.5  # the stored-total check after creation; policy allows the whole order 5 s
 
 
 @dataclass
@@ -207,13 +208,18 @@ class VisaMcpPaymentLinks:
         link = self._to_link(data, purchase_number, amount, currency)
         if not same_amount(link.amount, amount):
             raise VisaMcpError(f"Visa set the link total to {link.amount}, expected {amount}")
-        try:  # read the stored link back: the create answer echoes our request more than it shows the link
-            stored = await self.get(link.id)
-        except Exception as e:  # noqa: BLE001 - the create answer already matched; keep the real link
+        # Read the stored link back (the create answer echoes our request more than it shows the link), but
+        # briefly: policy gives the whole signed order 5 s, and a stalled read must not use up the decision.
+        if self._session is None:
+            return link
+        try:
+            stored = await asyncio.wait_for(self._call("get_payment_link", {"id": link.id}), READ_BACK_S)
+        except Exception as e:  # noqa: BLE001 - timeouts too; the create answer already matched, keep the link
             print(f"[visa] could not read link {link.id} back: {type(e).__name__}: {e}")
             return link
-        if stored is not None and stored.amount and not same_amount(stored.amount, amount):
-            raise VisaMcpError(f"Visa stored the link total as {stored.amount}, expected {amount}")
+        stored_total = ((stored or {}).get("orderInformation") or {}).get("amountDetails", {}).get("totalAmount")
+        if stored_total and not same_amount(stored_total, amount):
+            raise VisaMcpError(f"Visa stored the link total as {stored_total}, expected {amount}")
         return link
 
     async def get(self, link_id: str) -> PaymentLink | None:

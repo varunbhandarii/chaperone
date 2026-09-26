@@ -341,9 +341,10 @@ export async function getApproval(approvalId: string): Promise<ApprovalStatus | 
 
 /**
  * POST {policy}/approvals/{id}/cancel: the shopper moved on, so policy closes the approval and a late tap on the
- * phone cannot place the order. LAN-only at policy (the dev proxy adds no forwarding headers). Fire and forget.
+ * phone cannot place the order. LAN-only at policy (the dev proxy adds no forwarding headers). False when policy
+ * refused (the approval had already closed) or could not be reached.
  */
-export async function cancelApproval(approvalId: string): Promise<void> {
+export async function cancelApproval(approvalId: string): Promise<boolean> {
   try {
     const res = await call(`${URLS.policy}/approvals/${encodeURIComponent(approvalId)}/cancel`, {
       method: "POST",
@@ -351,8 +352,10 @@ export async function cancelApproval(approvalId: string): Promise<void> {
       signal: AbortSignal.timeout(2500),
     });
     console.info(`[approval] cancel ${approvalId}: HTTP ${res.status}`);
+    return res.ok;
   } catch (err) {
     console.warn(`[approval] cancel ${approvalId} failed: ${describe(err)}`);
+    return false;
   }
 }
 
@@ -474,7 +477,10 @@ export async function requestReset(): Promise<boolean> {
   try {
     // The header marks a deliberate Host action; a cross-site form or no-CORS fetch cannot set it.
     const res = await call(`${URLS.relay}/reset`, { method: "POST", headers: { "X-Chaperone-Host": "1" }, signal: AbortSignal.timeout(15000) });
-    return res.ok;
+    if (!res.ok) return false;
+    // The relay answers 200 with {ok: false, failed: [...]} when policy or the merchant did not reset.
+    const body = (await res.json().catch(() => ({}))) as { ok?: boolean };
+    return body.ok !== false;
   } catch {
     return false;
   }

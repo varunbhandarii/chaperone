@@ -227,7 +227,7 @@ def test_session_page_loads_fast_with_the_merchant_down(client):
 
 
 def test_session_page_lists_every_order(client):
-    """The 9am run: medicine and bread, then the approved Ensure cart, both in one session."""
+    """Medicine and bread, then the approved Ensure cart, both in one session."""
     for order_id, amount, paid in (("ord_a", "11.49", True), ("ord_b", "49.95", True), ("ord_c", "8.00", False)):
         client.post("/events", json={**event("payment_link_created", order_id=order_id, amount=amount,
                                              backend="visa"), "source": "merchant"})

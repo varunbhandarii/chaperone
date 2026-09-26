@@ -300,8 +300,9 @@ def _cart_fingerprint(cart: dict) -> tuple:
 
 def _open_approval(cart: dict, mandate_id: str) -> dict | None:
     for document in load_decisions().values():
-        approval = document.get("approval") or {}
-        if document.get("mandate_id") != mandate_id or state_of(approval) != "pending":
+        approval = document.get("approval")
+        # allow and deny decisions share the store and carry no approval
+        if not approval or document.get("mandate_id") != mandate_id or state_of(approval) != "pending":
             continue
         if _cart_fingerprint(document.get("cart") or {}) == _cart_fingerprint(cart):
             return document
