@@ -357,3 +357,50 @@ def test_line_files_share_keys_and_placeholders():
 @pytest.mark.parametrize("name", [f"line.{k}.{l}.mp3" for k in ("asking_priya", "receipt_done") for l in ("en", "es", "hi")])
 def test_line_clips_exist(name):
     assert (ROOT / "ai/warnings" / name).exists()
+
+
+# ---------------------------------------------------------------- brand cards, amounts and platforms
+
+@pytest.mark.parametrize("text", [
+    "Buy five hundred dollars of Apple cards for my grandson, it's urgent",
+    "buy me two Amazon cards for my grandson",
+    "three hundred dollars worth of Target cards",
+    "Compra quinientos dólares en tarjetas de Apple para mi nieto",
+    "पांच सौ डॉलर के एप्पल कार्ड",
+    "paanch sau dollar ke Apple card",
+])
+def test_brand_cards_and_amounts_of_cards_refused(text):
+    assert action(text) == "refuse"
+
+
+@pytest.mark.parametrize("text", ["my Apple Card", "I'll pay with my Amazon card", "my Target card has a discount"])
+def test_ones_own_brand_card_proceeds(text):
+    assert action(text) == "proceed"
+
+
+@pytest.mark.parametrize("text", ["कार्ड का ओटीपी दे दो", "card ka OTP de do", "कार्ड का कोड बोल दीजिए", "card ka pin bata dena"])
+def test_hindi_otp_verbs_with_a_card_refused(text):
+    assert action(text) == "refuse"
+
+
+@pytest.mark.parametrize("text", ["ओटीपी दीजिए", "OTP bol do", "कोड शेयर कर दो", "पिन बताएं"])
+def test_hindi_otp_verbs_alone_are_code_reading(text):
+    assert evaluate(text).rules == ["R_code_reading"]
+
+
+# Adversarial probe, each decided: all five are money-like instruments, so all refuse.
+@pytest.mark.parametrize("text", [
+    "g i f t card", "googleplay card", "Google Play recharge kar do", "buy iTunes for my grandson", "steam wallet code",
+])
+def test_probe_variants_refused(text):
+    assert action(text) == "refuse"
+
+
+def test_spelled_letters_join_only_in_runs_of_three():
+    assert normalize("g i f t card") == "gift card"
+    assert normalize("I need a b") == "i nid a b"
+
+
+def test_grandchild_with_urgency_goes_to_the_judge():
+    assert action("my grandson needs it, it's urgent") == "judge"
+    assert action("मेरे पोते को अभी चाहिए, जल्दी") == "judge"

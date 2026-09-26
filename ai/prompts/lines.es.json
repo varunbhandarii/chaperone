@@ -6,6 +6,7 @@
   "caregiver_timeout": "Priyank todavía no ha respondido, así que dejo este pedido en espera. No se compró nada.",
   "receipt_done": "Listo. {total} en Corner Market, para recoger después de las 3 de la tarde. Ya imprimí su recibo.",
   "receipt_done_clip": "Listo. Su pedido de Corner Market está pagado, para recoger después de las 3 de la tarde. Ya imprimí su recibo.",
+  "receipt_on_screen": "Listo. {total} en Corner Market, para recoger después de las 3 de la tarde. Su recibo está en la pantalla.",
   "checkout_unavailable": "No pude hacer el pedido ahora mismo. No se compró nada.",
   "over_monthly_cap": "Eso pasaría el presupuesto de este mes, así que no puedo pedirlo.",
   "read_back_required": "Antes de hacer el pedido, déjeme leerle su carrito.",

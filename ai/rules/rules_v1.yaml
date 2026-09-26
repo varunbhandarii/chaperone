@@ -15,13 +15,15 @@
 #   >= 2 distinct soft rules        -> judge
 #   exactly 1 soft rule             -> slow
 #   none                            -> proceed
-# weak_terms count only in the utterance's own language, and only when another soft rule
-# outside weak_needs_other_than also fires ("mi hija viene hoy mismo" stays slow).
+# weak_terms (grandson, nieto, pota, hospital) count only in the utterance's own language and
+# only when another soft rule also fires ("my grandson needs it, it's urgent" goes to the judge).
+# faint_terms (son, hija, beta) follow the same rules but need another soft rule outside
+# faint_needs_other_than ("mi hija viene hoy mismo" stays slow).
 # R_code_reading turns hard when an instrument term is in the same utterance.
 
 version: 1
 soft_hits_for_judge: 2
-weak_needs_other_than: [R_urgency]
+faint_needs_other_than: [R_urgency]
 
 instrument_terms:
   en: ["re:cards?", "gift", "voucher", "recharge", "itunes", "google play", "steam", "bitcoin"]
@@ -38,7 +40,11 @@ rules:
       en:
         - "re:gift ?cards?"
         - "re:(?:prepaid|reloadable|recharge) (?:\\S+ )?(?:debit )?cards?"
-        - "re:(?:google play|play store|itunes|steam|razer gold) (?:gift )?cards?"
+        - "re:(?:google ?play|play store|itunes|steam|razer gold) (?:gift )?cards?"
+        - "re:(?:apple|amazon|target|walmart|ebay|google ?play|itunes|steam) cards"
+        - "re:dollars? (?:worth )?(?:of|in) (?:\\S+ )?cards?"
+        - "re:(?:google ?play|play store|itunes|steam) (?:recharge|balance|credit|codes?|vouchers?|wallet)"
+        - "re:(?:buy|get|purchase|send) (?:\\S+ )?(?:itunes|google ?play|razer gold)"
         - "re:visa gift cards?"
         - "re:prepaid visa"
         - "re:vanilla (?:visa|gift)"
@@ -51,7 +57,8 @@ rules:
         - "re:(?:bitcoin|crypto) atm"
       es:
         - "re:tarjetas? (?:de )?regalo"
-        - "re:tarjetas? (?:de )?(?:google play|play store|itunes|steam)"
+        - "re:tarjetas? (?:de )?(?:google ?play|play store|itunes|steam)"
+        - "re:dolares (?:en|de) (?:\\S+ )?tarjetas"
         - "re:tarjetas? (?:prepagadas?|prepago|de recarga|recargables?)"
         - "re:tarjetas? telefonicas?"
         - "re:transferencias? (?:bancarias?|de dinero)"
@@ -65,7 +72,9 @@ rules:
       hi:
         - "re:(?:गिफ्ट|gift) ?(?:कार्ड|card)(?:्स|स|s)?"
         - "re:उपहार (?:कार्ड|card)(?:्स|स)?"
-        - "re:(?:गूगल प्ले|प्ले स्टोर|आईट्यून्स|स्टीम|google play|itunes) (?:(?:का|के|की) )?(?:गिफ्ट )?(?:कार्ड|card)(?:्स|स|s)?"
+        - "re:(?:गूगल प्ले|प्ले स्टोर|आईट्यून्स|स्टीम|google ?play|itunes) (?:(?:का|के|की) )?(?:गिफ्ट )?(?:कार्ड|card)(?:्स|स|s)?"
+        - "re:(?:डॉलर|dollar) (?:का|के|की|ka|ke|ki) (?:\\S+ )?(?:कार्ड|cards?)"
+        - "re:(?:गूगल प्ले|google ?play) (?:रिचार्ज|recharge)"
         - "प्रीपेड कार्ड"
         - "रिचार्ज कार्ड"
         - "बिटकॉइन"
@@ -77,7 +86,9 @@ rules:
       hi_latn:
         - "re:gift ?cards?"
         - "re:tohfa cards?"
-        - "re:(?:google play|play store|itunes|steam) (?:(?:ka|ke|ki) )?(?:gift )?cards?"
+        - "re:(?:google ?play|play store|itunes|steam) (?:(?:ka|ke|ki) )?(?:gift )?cards?"
+        - "re:dollar (?:ka|ke|ki) (?:\\S+ )?cards?"
+        - "re:(?:google ?play|play store|itunes|steam) (?:recharge|balance|codes?|voucher|wallet)"
         - "re:(?:prepaid|recharge) cards?"
         - "re:bitcoins?"
         - "crypto"
@@ -105,11 +116,11 @@ rules:
         - "re:raspe? (?:la parte de )?atras"
         - "re:raspar (?:la parte de )?atras"
       hi:
-        - "re:(?:ओटीपी|otp|कोड|नंबर|पिन) (?:बताओ|बताइए|बताना|बता दो|बता दीजिए|बोलो|बोलिए|भेजो|भेज दो|शेयर करो|पढ़ो|पढो|पढ़कर)"
+        - "re:(?:ओटीपी|otp|कोड|नंबर|पिन) (?:बताओ|बताइए|बताना|बता दो|बता दीजिए|बता देना|बताएं|बोलो|बोलिए|बोल दो|बोल दीजिए|दे दो|दीजिए|भेजो|भेज दो|शेयर करो|शेयर कर दो|पढ़ो|पढो|पढ़कर)"
         - "पीछे का नंबर"
         - "यूपीआई पिन"
       hi_latn:
-        - "re:(?:otp|code|number|pin) (?:batao|bataiye|batana|bata do|bata dijiye|bolo|boliye|bhejo|bhej do|padho|padh kar|share karo|share kar do)"
+        - "re:(?:otp|code|number|pin) (?:batao|bataiye|batana|bata do|bata dijiye|bata dena|bolo|boliye|bol do|de do|dijiye|bhejo|bhej do|padho|padh kar|share karo|share kar do)"
         - "re:(?:piche|pichhe|peeche|peechhe|pichey) (?:ka|ke|ki) (?:number|numbar|code)"
         - "upi pin"
 
@@ -148,10 +159,15 @@ rules:
         - "vakil"
         - "re:hadsa|hadse"
     weak_terms:
-      en: ["re:grand(?:son|daughter|child|kid)s?", "son", "daughter", "nephew", "niece", "hospital"]
-      es: ["re:niet[oa]s?", "re:hij[oa]s?", "re:sobrin[oa]s?", "hospital"]
-      hi: ["पोता", "पोती", "नाती", "नातिन", "बेटा", "बेटी", "अस्पताल"]
-      hi_latn: ["pota", "poti", "nati", "beta", "beti", "hospital"]
+      en: ["re:grand(?:son|daughter|child|kid)s?", "hospital"]
+      es: ["re:niet[oa]s?", "hospital"]
+      hi: ["re:पोत(?:ा|ी|े)", "re:नात(?:ी|िन)", "अस्पताल"]
+      hi_latn: ["re:pot(?:a|i|e)", "re:nati(?:n)?", "hospital"]
+    faint_terms:
+      en: ["son", "daughter", "nephew", "niece"]
+      es: ["re:hij[oa]s?", "re:sobrin[oa]s?"]
+      hi: ["बेटा", "बेटी"]
+      hi_latn: ["beta", "beti"]
 
   R_purpose:
     severity: soft

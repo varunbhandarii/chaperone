@@ -80,7 +80,25 @@ def tokens(text: str) -> list[tuple[str, int, int]]:
         end = i + 1
     if parts:
         out.append((_fold("".join(parts)), start, end))
-    return [t for t in out if t[0]]
+    return _join_spelled([t for t in out if t[0]])
+
+
+def _join_spelled(toks: list[tuple[str, int, int]]) -> list[tuple[str, int, int]]:
+    """Join a run of three or more single Latin letters ("g i f t") into one token."""
+    out: list[tuple[str, int, int]] = []
+    run: list[tuple[str, int, int]] = []
+    for tok in [*toks, ("", 0, 0)]:
+        if len(tok[0]) == 1 and "a" <= tok[0] <= "z":
+            run.append(tok)
+            continue
+        if len(run) >= 3:
+            out.append((_fold("".join(t for t, _, _ in run)), run[0][1], run[-1][2]))
+        else:
+            out.extend(run)
+        run = []
+        if tok[0]:
+            out.append(tok)
+    return out
 
 
 def normalize(text: str) -> str:
@@ -110,7 +128,7 @@ class Hit:
     lang: str
     term: str
     matched: str
-    weak: bool = False
+    strength: str = ""  # "", "weak" or "faint"
 
 
 @dataclass
@@ -131,14 +149,14 @@ class RuleSet:
         self.version = spec["version"]
         self.soft_hits_for_judge = spec["soft_hits_for_judge"]
         self.rules = spec["rules"]
-        self.weak_ignores = set(spec.get("weak_needs_other_than", []))
+        self.faint_ignores = set(spec.get("faint_needs_other_than", []))
         self._instruments = [_compile(t) for terms in spec["instrument_terms"].values() for t in terms]
-        self._terms: list[tuple[str, dict, str, str, bool, re.Pattern]] = []
+        self._terms: list[tuple[str, dict, str, str, str, re.Pattern]] = []
         for rule_id, rule in self.rules.items():
-            for key, weak in (("terms", False), ("weak_terms", True)):
+            for key, strength in (("terms", ""), ("weak_terms", "weak"), ("faint_terms", "faint")):
                 for lang, terms in rule.get(key, {}).items():
                     for term in terms:
-                        self._terms.append((rule_id, rule, lang, term, weak, _compile(term)))
+                        self._terms.append((rule_id, rule, lang, term, strength, _compile(term)))
 
     def evaluate(self, text: str, lang: str | None = None) -> Verdict:
         start = time.perf_counter()
@@ -155,17 +173,24 @@ class RuleSet:
             return text[toks[inside[0]][1]:toks[inside[-1]][2]] if inside else m.group(0)
 
         hits: list[Hit] = []
-        for rule_id, rule, term_lang, term, weak, rx in self._terms:
+        for rule_id, rule, term_lang, term, strength, rx in self._terms:
             m = rx.search(norm)
             if m:
-                hits.append(Hit(rule_id, rule["severity"], rule["pattern"], term_lang, term, original(m), weak))
+                hits.append(Hit(rule_id, rule["severity"], rule["pattern"], term_lang, term, original(m), strength))
 
-        # Weak terms (son, beta, pota, hospital, medicare) count only in the utterance's own
-        # language and only beside another soft rule that is not in weak_needs_other_than.
+        # Weak terms (grandson, pota, hospital, medicare) count only in the utterance's own language
+        # and only beside another soft rule; faint terms (son, hija, beta) also need that rule to
+        # be outside faint_needs_other_than.
         spoken = guess_lang(text, lang)
-        strong_soft = {h.rule_id for h in hits if h.severity == "soft" and not h.weak} - self.weak_ignores
-        hits = [h for h in hits if not h.weak or (
-            (spoken is None or _base_lang(h.lang) == spoken) and strong_soft - {h.rule_id})]
+        strong_soft = {h.rule_id for h in hits if h.severity == "soft" and not h.strength}
+
+        def counts(h: Hit) -> bool:
+            if not h.strength:
+                return True
+            others = strong_soft - {h.rule_id} - (self.faint_ignores if h.strength == "faint" else set())
+            return (spoken is None or _base_lang(h.lang) == spoken) and bool(others)
+
+        hits = [h for h in hits if counts(h)]
 
         if any(self.rules[h.rule_id].get("hard_with_instrument") for h in hits):
             if any(rx.search(norm) for rx in self._instruments):
@@ -195,7 +220,7 @@ _FUNCTION_WORDS = {
     lang: {normalize(w) for w in words.split()}
     for lang, words in {
         "en": "the and my is i to of for with need buy want please me it this he she they you",
-        "es": "el la los las de que y una un mi por para con necesito compra quiero esta me lo le es",
+        "es": "el la los las de que y una un mi por para con necesito compra quiero esta me es",
         "hi": "hai hain mein ko ka ki ke aur mujhe mera meri kya nahi se par pe karo kharido chahiye",
     }.items()
 }

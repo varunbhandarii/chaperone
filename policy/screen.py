@@ -60,7 +60,7 @@ def _remember(session_id: str, spoken_key: str, terms: list[str]) -> None:
 def _recall(session_id: str | None) -> dict | None:
     entry = _refused.get(session_id) if session_id else None
     if entry and time.time() - entry["t"] > SESSION_TTL_S:
-        del _refused[session_id]
+        _refused.pop(session_id, None)
         return None
     return entry
 
