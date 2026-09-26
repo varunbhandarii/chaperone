@@ -15,7 +15,7 @@ from policy.engine import dollars, evaluate, mandate_category, to_cents
 from policy.events import post_event
 from policy.mandate import DEFAULT_MANDATE
 from policy.pricing import UnknownSku, reprice
-from policy.store import add_spent_cents, get_decision, load_decisions, load_mandate, load_spent_cents, save_decision
+from policy.store import add_spent_cents, get_decision, load_decisions, load_mandate, load_paused, load_spent_cents, save_decision
 from signer.sign import sign_request
 
 JUDGE_THRESHOLD = float(os.environ.get("JUDGE_THRESHOLD", "0.6"))
@@ -71,11 +71,12 @@ class ReadBackRequired(Exception):
 
 
 def active_mandate() -> tuple[dict, bool]:
+    """The mandate the engine checks, with the caregiver's pause (stored apart from the signed file) on top."""
     stored = load_mandate()
     if stored:
-        return stored, False
+        return {**stored, "paused": load_paused()}, False
     if os.environ.get("MANDATE_UNSIGNED_OK") == "1":
-        return dict(DEFAULT_MANDATE), True
+        return {**DEFAULT_MANDATE, "paused": load_paused()}, True
     raise UnsignedMandate()
 
 
@@ -178,6 +179,10 @@ def checkout(payload: dict) -> dict:
         "order": None,
         "approval": None,
         "unsigned_mandate": unsigned,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        # for Priyank's "Why?": what Ruth said and what the screen matched
+        "ruth_said": transcript[-400:],
+        "screen_hits": screen.get("hits") or [],
     }
     if unsigned:
         document["detail"] = "unsigned mandate"

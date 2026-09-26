@@ -8,6 +8,7 @@ import type { Lang } from "./lang.ts";
 
 const refusals = import.meta.glob("../../../ai/prompts/refusal.*.txt", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 const lineFiles = import.meta.glob("../../../ai/prompts/lines.*.json", { import: "default", eager: true }) as Record<string, unknown>;
+const repeatFiles = import.meta.glob("../../../ai/prompts/repeat_triggers.json", { import: "default", eager: true }) as Record<string, unknown>;
 
 let loaded = 0;
 for (const [path, text] of Object.entries(refusals)) {
@@ -29,6 +30,14 @@ for (const [path, table] of Object.entries(lineFiles)) {
       registerSay(key, m[1] as Lang, text);
       loaded++;
     }
+  }
+}
+
+// repeat_triggers.json: {lang: [phrase, ...]}
+for (const table of Object.values(repeatFiles)) {
+  if (!table || typeof table !== "object") continue;
+  for (const phrases of Object.values(table as Record<string, unknown>)) {
+    if (Array.isArray(phrases)) registerRepeatPhrases(phrases.filter((p): p is string => typeof p === "string"));
   }
 }
 

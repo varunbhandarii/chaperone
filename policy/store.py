@@ -88,6 +88,23 @@ def load_mandate() -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def pause_path():
+    from common.config import env
+    from pathlib import Path
+
+    return Path(env("PAUSE_PATH", str(decisions_path().parent / "paused.json")))
+
+
+def load_paused() -> bool:
+    """Kept out of the mandate file: the caregiver's passkey signed the mandate, and a pause must not change it."""
+    return bool(_read(pause_path(), {}).get("paused"))
+
+
+def save_paused(paused: bool) -> None:
+    with _lock:
+        _write(pause_path(), {"paused": paused})
+
+
 def credential_path():
     from common.config import env
     from pathlib import Path
@@ -112,6 +129,8 @@ def reset() -> None:
     path = decisions_path()
     if path.exists():
         path.unlink()
+    if pause_path().exists():
+        pause_path().unlink()
     try:
         from policy.screen import reset_sessions
     except ImportError:

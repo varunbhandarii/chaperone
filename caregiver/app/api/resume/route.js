@@ -20,7 +20,7 @@ export async function POST(request) {
   const body = await request.json().catch(() => ({}));
   const response = await fetch(`${policy()}/mandate/resume`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Chaperone-Marker": actionMarker("mandate", "pause") },
     body: JSON.stringify(body),
   }).catch(() => null);
   if (!response) return Response.json({ error: "policy unavailable" }, { status: 502 });

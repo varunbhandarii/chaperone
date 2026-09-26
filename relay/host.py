@@ -174,7 +174,7 @@ async def approval_code(request: Request):
     approval_id = str(latest["approval_id"])
     try:
         async with httpx.AsyncClient(timeout=1.0) as client:
-            r = await client.get(f"{_policy()}/approvals/{approval_id}/host_code")
+            r = await client.get(f"{_policy()}/approvals/{approval_id}/host_code", headers={HOST_HEADER: "1"})
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"policy unreachable ({type(exc).__name__})") from exc
     if r.status_code == 404:

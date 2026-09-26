@@ -66,7 +66,8 @@ const REPEAT_PHRASES: string[] = [
   "no le entendi", "no entendi", "que dijo", "digalo otra vez", "otra vez por favor",
   // hi (Latin and Devanagari)
   "phir se boliye", "phir se bolo", "fir se boliye", "fir se bolo", "dobara boliye", "dobara bolo", "kya kaha",
-  "phir se", "ek baar aur", "फिर से बोलिए", "फिर से बोलो", "दोबारा बोलिए", "दोबारा बोलो", "क्या कहा", "फिर से", "एक बार और",
+  // not a bare "phir se": "phir se bread dalo" starts that way, and Grok may complete the turn early
+  "ek baar aur", "फिर से बोलिए", "फिर से बोलो", "दोबारा बोलिए", "दोबारा बोलो", "क्या कहा", "एक बार और",
 ].map(norm);
 
 const extraRepeat = new Set<string>();
@@ -119,6 +120,8 @@ export function spokenCode(code: string | undefined): string {
 export interface OrderView {
   order_id: string;
   status: string;
+  /** The pickup progress, which goes on after a partial refund while `status` says partially_refunded. */
+  fulfilment?: string;
   pickup_code?: string;
   total?: number;
   timeline: Array<{ status: string; at: string | number }>;
@@ -145,6 +148,7 @@ export function parseOrder(body: unknown): OrderView | null {
   return {
     order_id: b.order_id,
     status: b.status,
+    ...(typeof b.fulfilment === "string" ? { fulfilment: b.fulfilment } : {}),
     ...(typeof code === "string" || typeof code === "number" ? { pickup_code: String(code) } : {}),
     ...(total !== undefined ? { total } : {}),
     timeline,

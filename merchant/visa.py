@@ -25,6 +25,8 @@ from dataclasses import asdict, dataclass, field
 MCP_PACKAGE = "@visaacceptance/mcp@0.0.96"
 CRED_VARS = ("VISA_ACCEPTANCE_MERCHANT_ID", "VISA_ACCEPTANCE_API_KEY_ID", "VISA_ACCEPTANCE_SECRET_KEY")
 READ_BACK_S = 1.5  # the stored-total check after creation; policy allows the whole order 5 s
+PATCH_TIMEOUT_S = 5  # each of the cancel's PATCH and its read-back
+_RETIRING: set = set()
 
 
 @dataclass
@@ -220,7 +222,7 @@ class VisaMcpPaymentLinks:
         link = self._to_link(data, purchase_number, amount, currency)
         link.line_item = args["lineItems"][0]
         if not same_amount(link.amount, amount):
-            await self._retire(link, amount)
+            self._retire_later(link, amount)
             raise VisaMcpError(f"Visa set the link total to {link.amount}, expected {amount}")
         # Read the stored link back (the create answer echoes our request more than it shows the link), but
         # briefly: policy gives the whole signed order 5 s, and a stalled read must not use up the decision.
@@ -233,9 +235,15 @@ class VisaMcpPaymentLinks:
             return link
         stored_total = ((stored or {}).get("orderInformation") or {}).get("amountDetails", {}).get("totalAmount")
         if stored_total and not same_amount(stored_total, amount):
-            await self._retire(link, amount)
+            self._retire_later(link, amount)
             raise VisaMcpError(f"Visa stored the link total as {stored_total}, expected {amount}")
         return link
+
+    def _retire_later(self, link: PaymentLink, amount: str) -> None:
+        """Off the order's path: policy gives the whole signed order 5 s, and the mock order must not wait on it."""
+        task = asyncio.get_running_loop().create_task(self._retire(link, amount))
+        _RETIRING.add(task)
+        task.add_done_callback(_RETIRING.discard)
 
     async def _retire(self, link: PaymentLink, amount: str) -> None:
         """A link at the wrong amount must not stay payable after the order falls back to the mock."""
@@ -262,11 +270,11 @@ class VisaMcpPaymentLinks:
                                  "lineItems": [line_item] if line_item else []},
         })
         path = f"/ipl/v2/payment-links/{link_id}"
-        patched = await asyncio.to_thread(signed_request, creds, "PATCH", path, body, 10)
+        patched = await asyncio.to_thread(signed_request, creds, "PATCH", path, body, PATCH_TIMEOUT_S)
         request_id = patched.headers.get("v-c-correlation-id")
         if patched.status_code >= 400:
             raise VisaMcpError(f"PATCH {path}: HTTP {patched.status_code} {patched.text[:200]}")
-        confirmed = await asyncio.to_thread(signed_request, creds, "GET", path, None, 10)
+        confirmed = await asyncio.to_thread(signed_request, creds, "GET", path, None, PATCH_TIMEOUT_S)
         status = confirmed.json().get("status") if confirmed.status_code == 200 else None
         if status != "INACTIVE":
             raise VisaMcpError(f"link {link_id} still {status or 'unreadable'} after the PATCH")

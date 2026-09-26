@@ -144,7 +144,12 @@ def screen(text: str, lang: str | None = None, *, session_id: str | None = None,
             hits.append({"rule_id": h.rule_id, "pattern": h.pattern, "lang": h.lang, "term": h.matched})
     refusal = None
     if action == "refuse":
-        hard = next(h for h in verdict.hits if h.severity == "hard")
+        rules = default_rules().rules
+        hard_hits = [h for h in verdict.hits if h.severity == "hard"]
+        # the rule named on the wall and in "Why?" is the one whose line Ruth hears
+        hard = next((h for h in hard_hits
+                     if ((rules.get(h.rule_id) or {}).get("spoken_key") or _RULE_KEYS.get(h.rule_id)) == key),
+                    hard_hits[0])
         refusal = refusal_for(key, lang_out, hard.rule_id, verdict.patterns)
     return {"action": action, "hits": hits, "refusal": refusal}
 

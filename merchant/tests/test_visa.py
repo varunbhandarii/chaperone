@@ -137,11 +137,18 @@ def test_deactivate_fails_when_the_link_stays_active(monkeypatch):
         asyncio.run(links.deactivate("L1", "49.95", {}))
 
 
-def test_a_wrong_amount_link_is_deactivated_before_the_fallback(monkeypatch):
+def test_a_wrong_amount_link_is_deactivated_off_the_order_path(monkeypatch):
     import merchant.cybs_rest as rest
+    import merchant.visa as visa
     fake = FakeRest()
     monkeypatch.setattr(rest, "signed_request", fake)
     links, _ = fake_visa("9.99")
-    with pytest.raises(VisaMcpError, match="set the link total to 9.99"):
-        asyncio.run(links.create("P1", "49.95", "USD", ENSURE))
+
+    async def run():
+        with pytest.raises(VisaMcpError, match="set the link total to 9.99"):
+            await links.create("P1", "49.95", "USD", ENSURE)
+        assert fake.calls == []  # the order falls back at once; the link is retired after
+        await asyncio.gather(*visa._RETIRING)
+
+    asyncio.run(run())
     assert [c[0] for c in fake.calls] == ["PATCH", "GET"]

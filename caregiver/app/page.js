@@ -166,13 +166,17 @@ export default function Page() {
     const mandateResponse = await fetch("/api/mandate", { headers });
     if (mandateResponse.ok) {
       const body = await mandateResponse.json();
-      setPaused(Boolean(body.mandate && body.mandate.paused));
+      setPaused(Boolean(body.paused));
+      // Start the rules form from what Priyank last signed, so signing again never resets a limit.
+      if (body.signed && body.mandate) setMandate((prev) => ({ ...prev, ...body.mandate }));
     }
   }
 
   function changeRule(key, value) {
+    // Kept as typed ("", "40.") until signing, so an emptied field is not signed as 0.
     const number = Number(value);
-    setMandate((prev) => ({ ...prev, [key]: Number.isFinite(number) ? number : value }));
+    const typing = value.trim() === "" || value.endsWith(".");
+    setMandate((prev) => ({ ...prev, [key]: !typing && Number.isFinite(number) ? number : value }));
   }
 
   function toggleBlocked(id) {
@@ -184,11 +188,18 @@ export default function Page() {
   }
 
   async function assertMandate() {
-    const optionsJSON = await post("/api/passkeys/generate-authentication-options", { mandate });
+    const limits = ["per_purchase_cap", "monthly_cap", "approval_threshold"];
+    for (const key of limits) {
+      const value = Number(mandate[key]);
+      if (String(mandate[key]).trim() === "" || !Number.isFinite(value) || value < 0) throw new Error("Every limit needs an amount");
+    }
+    const signed = { ...mandate, ...Object.fromEntries(limits.map((key) => [key, Number(mandate[key])])) };
+    const optionsJSON = await post("/api/passkeys/generate-authentication-options", { mandate: signed });
     const assertion = await startAuthentication({ optionsJSON });
-    const verified = await post("/api/passkeys/verify-authentication", { mandate, response: assertion });
+    const verified = await post("/api/passkeys/verify-authentication", { mandate: signed, response: assertion });
+    setMandate(signed);
     await post("/api/mandate", {
-      ...mandate,
+      ...signed,
       passkey: { credential_id: verified.credential_id, public_key: verified.public_key, response: assertion },
     });
     note("rules signed");

@@ -118,6 +118,7 @@ interface Turn {
   counted?: boolean;
   /** The final transcript was sent to /screen after a partial refusal (for the policy's repeat memory). */
   finalAfterRefusal?: boolean;
+  repeated?: boolean;
 }
 
 const DEFAULT_SAY = "I can't help with that purchase on this account.";
@@ -851,7 +852,11 @@ export class StationAgent {
         if (ev.language) console.info(`[${ts()}] detected language (api): ${ev.language}`);
         this.recordShopper(turn, text, `voice-${turn.n}`, detected.source);
         if (repeat) {
-          this.repeatLast(turn);
+          // Grok can complete the same turn more than once; the last line is spoken again only once.
+          if (!turn.repeated) {
+            turn.repeated = true;
+            this.repeatLast(turn);
+          }
           break;
         }
         // Grok may complete a turn several times with a longer transcript each time ("मेरे..." then the whole
@@ -1248,8 +1253,10 @@ export class StationAgent {
     const order = await getOrder(orderId);
     if (!order) return { error: "order status unavailable", say: sayFor("store_unavailable", this.lang) };
     const code = spokenCode(order.pickup_code);
+    // After a partial refund the rest of the order is still picked up: speak its pickup progress.
+    const ready = order.status === "ready_for_pickup" || (order.status === "partially_refunded" && order.fulfilment === "ready_for_pickup");
     const say =
-      order.status === "ready_for_pickup" && code
+      ready && code
         ? sayFor("order_ready", this.lang, { code })
         : sayFor("order_status", this.lang, { status: statusWords(order.status, this.lang), code });
     this.ui.notice(statusWords(order.status, "en"), `${order.order_id}${order.pickup_code ? ` · pickup code ${order.pickup_code}` : ""}`, "ok");
@@ -1721,11 +1728,7 @@ export class StationAgent {
     this.ledger.replay = false;
     this.player?.stop();
     this.ui.replay(false);
-    if (!this.started && this.stream) {
-      // Opened for a replay without Start: Start opens its own (one stream at a time).
-      this.stream.close();
-      this.stream = null;
-    }
+    // The stream stays open: the Host's Confirm payment comes after the replay ends, and Start reuses it.
   }
 
   get isReplaying(): boolean {

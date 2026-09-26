@@ -473,9 +473,12 @@ export function hasSay(key: string): boolean {
 }
 
 /** `{name}` placeholders take `vars`; a literal "$X" in a line file stands for the total. */
+/** The shared line files name some slots differently from the station. */
+const SLOT_ALIASES: Record<string, string> = { pickup_code: "code", card_last4: "last4" };
+
 export function sayFor(key: string, lang: Lang = "en", vars: Record<string, string> = {}): string {
   const table = SAY[key] ?? SAY.declined;
-  return table[lang].replace(/\{(\w+)\}/g, (_, name: string) => vars[name] ?? "").replace(/\$X\b/g, vars.total ?? "");
+  return table[lang].replace(/\{(\w+)\}/g, (_, name: string) => vars[name] ?? vars[SLOT_ALIASES[name] ?? ""] ?? "").replace(/\$X\b/g, vars.total ?? "");
 }
 
 // ---------------------------------------------------------------- checkout outcome

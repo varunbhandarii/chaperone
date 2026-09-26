@@ -466,6 +466,7 @@ import {
   parseHistory,
   parseOrder,
   parseRefundReply,
+  registerRepeatPhrases,
   spokenCode,
   statusWords,
 } from "../src/postpurchase.ts";
@@ -573,4 +574,30 @@ test("after-payment lines exist in every language with their slots filled", () =
   }
   assert.equal(sayFor("refund_preview", "en", vars), "$3.49 back to your card ending 1-1-1-1. Shall I?");
   assert.match(sayFor("order_ready", "es", vars), /4-7-2/);
+});
+
+test("refund replies in policy's own shapes: one of preview, refund or deny", () => {
+  const rules = [{ id: "RF1_order_owned", passed: true, detail: "ready_for_pickup" }];
+  const preview = parseRefundReply({ ok: true, preview: { amount: 3.49, card_last4: "1111", items: [{ name: "Bread", qty: 1, amount: 3.49 }] }, say: "refund_preview", rules });
+  assert.equal(preview.kind, "preview");
+  const done = parseRefundReply({ ok: true, say_key: "refund_done", rules, refund: { id: "r1", status: "PENDING", refundAmountDetails: { refundAmount: "3.49" } } });
+  assert.equal(done.kind, "done");
+  assert.equal(done.amount, 3.49);
+  const rx = parseRefundReply({ ok: false, decision: "deny", say_key: "refund_not_allowed_rx", rules: [{ id: "RF4_return_window", passed: false }] });
+  assert.deepEqual(rx, { kind: "declined", say_key: "refund_not_allowed_rx", rules_failed: ["RF4_return_window"] });
+});
+
+test("shared line files may name slots pickup_code and card_last4", () => {
+  registerSay("refund_done", "en", "Done. {amount} is going back to your card ending {card_last4}.");
+  assert.equal(sayFor("refund_done", "en", { amount: "$3.49", last4: "1 1 1 1" }), "Done. $3.49 is going back to your card ending 1 1 1 1.");
+  registerSay("order_ready", "en", "Your pickup code is {pickup_code}.");
+  assert.equal(sayFor("order_ready", "en", { code: "4 2 7" }), "Your pickup code is 4 2 7.");
+});
+
+test("repeat: added phrases count, a bare phir se does not", () => {
+  assert.equal(isRepeatRequest("dobara batao"), false);
+  registerRepeatPhrases(["dobara batao"]);
+  assert.equal(isRepeatRequest("dobara batao"), true);
+  assert.equal(isRepeatRequest("phir se"), false); // how "phir se bread dalo" starts
+  assert.equal(isRepeatRequest("फिर से बोलिए"), true);
 });

@@ -102,15 +102,18 @@ def _step_detail(e: dict) -> str:
 
 
 def orders(events: list[dict]) -> list[dict]:
-    """Every order in the session, oldest first, with whether it was paid."""
+    """Every order in the session, oldest first, with whether it was paid or cancelled."""
     found: dict[str, dict] = {}
     for e in events:
         order_id = e.get("order_id")
-        if not order_id or e.get("type") not in ("payment_link_created", "paid"):
+        if not order_id or e.get("type") not in ("payment_link_created", "paid", "order_cancelled"):
             continue
-        order = found.setdefault(str(order_id), {"order_id": str(order_id), "amount": None, "paid": False, "via": None})
+        order = found.setdefault(str(order_id), {"order_id": str(order_id), "amount": None, "paid": False, "via": None,
+                                                 "cancelled": False})
         if e["type"] == "payment_link_created":
             order["amount"] = e.get("amount")
+        elif e["type"] == "order_cancelled":
+            order["cancelled"] = True
         else:
             order["paid"], order["via"] = True, e.get("via")
             order["amount"] = order["amount"] or e.get("total", e.get("amount"))
@@ -161,7 +164,8 @@ def dispute_record(session_id: str, events: list[dict], orders_: list[dict], man
         "merchant": "Corner Market (Visa sandbox, no real money)",
         "shopper_words": [pick(e, "text", "lang") for e in transcript(events)
                           if e.get("role") not in ("agent", "assistant")],
-        "mandate": mandate,
+        # the credential id is shortened: it identifies the caregiver's passkey, and the record is downloadable
+        "mandate": mandate and {**mandate, "credential_id": (str(mandate.get("credential_id") or "")[:16] or None)},
         "decisions": [pick(e, "decision_id", "decision", "rules_failed", "total", "say_key")
                       for e in events if e.get("type") == "policy_decision"],
         "refusals": [pick(e, "rule_id", "rule_ids", "spoken_key", "lang")
@@ -171,7 +175,7 @@ def dispute_record(session_id: str, events: list[dict], orders_: list[dict], man
         "signatures": [pick(e, "type", "action", "keyid", "nonce", "created", "expires", "decision_id", "order_id", "checks")
                        for e in events if e.get("type") in ("request_signed", "signature_verified", "signature_rejected")],
         "orders": [{k: v for k, v in o.items() if k not in PRIVATE_ORDER_FIELDS} | {
-                       "payment_link": {k: (o.get("payment_link") or {}).get(k) for k in ("id", "backend", "purchase_number")}}
+                       "payment_link": {"backend": (o.get("payment_link") or {}).get("backend")}}
                    for o in orders_],
         "payments": [pick(e, "order_id", "total", "via") for e in events if e.get("type") == "paid"],
         "refunds": [pick(e, "order_id", "refund_id", "status", "amount", "sku", "qty", "reconciliation_id",
@@ -237,8 +241,9 @@ def render(session_id: str, events: list[dict], receipts: list[dict] | dict | No
                   f'<br>decision {escape(str(verified.get("decision_id", "")))}</p><ul class="checks">{rows}</ul></section>')
 
     status = "".join(
-        f'<p class="status {"ok" if o["paid"] else "warn"}">'
-        f'{"Paid" if o["paid"] else "Waiting for payment"} {_money(o["amount"])}'
+        f'<p class="status {"ok" if o["paid"] else "muted" if o.get("cancelled") else "warn"}">'
+        f'{"Paid" if o["paid"] else "Cancelled, nothing charged" if o.get("cancelled") else "Waiting for payment"}'
+        f' {_money(o["amount"])}'
         f' <span class="mono small">{escape(o["order_id"])}</span></p>'
         for o in orders(events)
     )

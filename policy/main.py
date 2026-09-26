@@ -19,7 +19,7 @@ from policy.engine import dollars, to_cents
 from policy.events import post_event
 from policy.mandate import DEFAULT_MANDATE
 from policy.pricing import UnknownSku
-from policy.store import add_spent_cents, hold_decisions, load_caregiver_credential, load_mandate, load_spent_cents, reset as reset_store, save_caregiver_credential, save_decision, save_mandate
+from policy.store import add_spent_cents, hold_decisions, load_caregiver_credential, load_mandate, load_paused, load_spent_cents, reset as reset_store, save_caregiver_credential, save_decision, save_mandate, save_paused
 from policy.verify_mandate import relying_party, verify_mandate_assertion
 
 app = FastAPI(title="Chaperone policy")
@@ -101,11 +101,12 @@ def put_mandate(mandate: dict):
 @app.get("/mandate")
 def get_mandate():
     stored = load_mandate()
+    paused = load_paused()
     if stored:
-        public = {key: value for key, value in stored.items() if key != "passkey"}
+        public = {key: value for key, value in stored.items() if key not in ("passkey", "paused")}
         credential_id = (stored.get("passkey") or {}).get("credential_id")
-        return {"signed": True, "credential_id": credential_id, "mandate": public}
-    return {"signed": False, "mandate": DEFAULT_MANDATE, "detail": "unsigned mandate"}
+        return {"signed": True, "credential_id": credential_id, "mandate": public, "paused": paused}
+    return {"signed": False, "mandate": DEFAULT_MANDATE, "detail": "unsigned mandate", "paused": paused}
 
 
 def _finish_approval(document: dict, method: str) -> dict:
@@ -122,6 +123,8 @@ def _finish_approval(document: dict, method: str) -> dict:
         )
         save_decision(document)
         return public_approval(document)
+    if load_paused():  # Priyank paused after he was asked: nothing is bought
+        return _close_rejected(document, approval["approval_id"], "Shopping is paused")
     mandate = load_mandate() or DEFAULT_MANDATE
     body = {
         "mandate_id": document["mandate_id"],
@@ -334,8 +337,7 @@ PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-real-ip", "forwarded"
 
 
 def _host_header(request: Request) -> None:
-    if request.headers.get("x-chaperone-host") != "1":
-        raise HTTPException(403, "host header required")
+    host_header.require(request)
 
 
 def _lan_only(request: Request) -> None:
@@ -417,13 +419,19 @@ def submit_code(approval_id: str, payload: dict, request: Request):
 def cancel_saved_order(order_id: str, payload: dict | None = None):
     from policy.postpurchase import cancel_order
 
+    from policy.postpurchase import MerchantRefused
+
     body = payload or {}
     try:
         return cancel_order(order_id, body.get("mandate_id") or "")
     except PermissionError as exc:
         raise HTTPException(403, str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(409, str(exc)) from exc
+        raise HTTPException(409, {"error": str(exc), "say_key": "cancel_too_late"}) from exc
+    except MerchantRefused as exc:
+        if exc.status == 409:  # paid while we asked: the station says cancel_too_late
+            raise HTTPException(409, {"error": str(exc), "say_key": "cancel_too_late"}) from exc
+        raise HTTPException(502, str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(502, str(exc)) from exc
 
@@ -451,10 +459,7 @@ def mandate_pause(request: Request):
 
     if not marker_matches("mandate", request.headers.get("x-chaperone-marker", ""), "pause"):
         raise HTTPException(401, "sign in required")
-    try:
-        return pause_mandate()
-    except LookupError as exc:
-        raise HTTPException(404, str(exc)) from exc
+    return pause_mandate()
 
 
 @app.post("/mandate/resume/challenge")
@@ -468,8 +473,8 @@ def mandate_resume_challenge(request: Request):
     if not marker_matches("mandate", request.headers.get("x-chaperone-marker", ""), "pause"):
         raise HTTPException(401, "sign in required")
     stored = load_mandate()
-    if not stored:
-        raise HTTPException(404, "no mandate")
+    if not stored or not load_caregiver_credential():
+        raise HTTPException(404, "no signed mandate")
     nonce = new_nonce()
     expires_at = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
     app.state.resume = {"mandate_id": stored.get("mandate_id"), "nonce": nonce, "expires_at": expires_at}
@@ -481,32 +486,42 @@ def mandate_resume_challenge(request: Request):
 
 
 @app.post("/mandate/resume")
-def mandate_resume(payload: dict):
+def mandate_resume(payload: dict, request: Request):
+    from datetime import datetime, timezone
+
     from policy.postpurchase import resume_challenge
     from policy.verify_mandate import relying_party
     from webauthn import verify_authentication_response
     from webauthn.helpers import base64url_to_bytes
 
+    if not marker_matches("mandate", request.headers.get("x-chaperone-marker", ""), "pause"):
+        raise HTTPException(401, "sign in required")
     stored = load_mandate()
+    # one challenge, one try: it is consumed before the passkey is checked, and it expires
     challenge = getattr(app.state, "resume", None)
+    app.state.resume = None
     if not stored or not challenge or payload.get("nonce") != challenge.get("nonce"):
         raise HTTPException(400, "resume challenge missing")
+    if datetime.fromisoformat(challenge["expires_at"]) < datetime.now(timezone.utc):
+        raise HTTPException(400, "resume challenge expired")
+    pinned = load_caregiver_credential() or {}
     host, origin = relying_party()
     try:
-        verify_authentication_response(
+        verified = verify_authentication_response(
             credential=payload.get("response") or {},
             expected_challenge=resume_challenge(challenge["nonce"], challenge["expires_at"], stored.get("mandate_id") or ""),
             expected_rp_id=host,
             expected_origin=origin,
-            credential_public_key=base64url_to_bytes((load_caregiver_credential() or {}).get("public_key") or ""),
-            credential_current_sign_count=int((load_caregiver_credential() or {}).get("sign_count") or 0),
+            credential_public_key=base64url_to_bytes(pinned.get("public_key") or ""),
+            credential_current_sign_count=int(pinned.get("sign_count") or 0),
             require_user_verification=True,
         )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(400, str(exc)) from exc
-    stored["paused"] = False
-    save_mandate(stored)
-    post_event("mandate_resumed", "none", stored.get("mandate_id") or "none")
+    pinned["sign_count"] = verified.new_sign_count
+    save_caregiver_credential(pinned)
+    save_paused(False)
+    post_event("mandate_resumed", "none", stored.get("mandate_id") or "none", method="passkey")
     return {"paused": False, "mandate_id": stored.get("mandate_id")}
 
 
