@@ -2,9 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "events.schema.json",
   "title": "Ledger event",
+  "description": "POST {relay}/events. Senders set type, session_id, mandate_id, t and source; the relay adds rt and seq. An event without a session uses session_id \"none\".",
   "type": "object",
   "additionalProperties": true,
-  "required": ["type", "session_id", "mandate_id", "t"],
+  "required": ["type", "session_id", "mandate_id", "t", "source"],
   "properties": {
     "type": {
       "enum": [
@@ -19,15 +20,24 @@
         "refusal",
         "request_signed",
         "signature_verified",
+        "signature_rejected",
         "payment_link_created",
+        "order_created",
+        "card_authorized",
+        "card_auth_failed",
         "paid",
         "receipt_printed",
-        "caregiver_alerted"
+        "caregiver_alerted",
+        "mandate_signed",
+        "judge_scored",
+        "reset"
       ]
     },
     "session_id": { "type": "string", "minLength": 1 },
     "mandate_id": { "type": "string", "minLength": 1 },
-    "t": { "type": "string", "minLength": 1 },
-    "rt": { "type": "string" }
+    "t": { "type": "integer", "description": "sender clock, ms since epoch" },
+    "source": { "enum": ["station", "policy", "merchant", "caregiver", "relay"] },
+    "rt": { "type": "integer", "description": "relay receive time, ms since epoch (set by the relay)" },
+    "seq": { "type": "integer", "description": "relay sequence number, monotonically increasing (set by the relay)" }
   }
 }

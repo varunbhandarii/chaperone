@@ -136,6 +136,16 @@ def same_product(a: str, b: str) -> bool:
     return norm(a).startswith(norm(b)) or norm(b).startswith(norm(a))
 
 
+# Store category -> the category the caregiver's mandate talks about. Policy re-derives it
+# from here and ignores whatever the station sends.
+MANDATE_CATEGORY = {
+    "bakery": "grocery", "beverages": "grocery", "dairy": "grocery", "nutrition": "grocery",
+    "pantry": "grocery", "produce": "grocery",
+    "otc_medicine": "pharmacy", "pharmacy_pickup": "pharmacy",
+    "gift_card": "gift_card", "prepaid_card": "prepaid_card",
+}
+
+
 def build():
     by_sku = {}
     for it in load_raw():
@@ -144,6 +154,10 @@ def build():
             by_sku[it["sku"]] = it
     for it in SYNTHETIC:
         by_sku[it["sku"]] = it
+    for it in by_sku.values():
+        if it["category"] not in MANDATE_CATEGORY:
+            raise SystemExit(f"{it['sku']}: category {it['category']!r} has no mandate_category mapping")
+        it["mandate_category"] = MANDATE_CATEGORY[it["category"]]
     catalog = {
         "merchant": MERCHANT,
         "currency": "USD",

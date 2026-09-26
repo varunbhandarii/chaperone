@@ -54,7 +54,7 @@ def test_authorized_card_marks_order_paid(card_auth_on):
         assert after["status"] == "paid" and after["paid_via"] == "card_auth:ours"
         assert after["card_auth"]["request_id"] == "7903900000000000000001"
         assert calls[0][:2] == ("11.49", order["order_id"])  # amount comes from our catalog, not the form
-        events = [e["event"] for e in client.get("/panel").json()["events"]]
+        events = [e["type"] for e in client.get("/panel").json()["events"]]
         assert events[-2:] == ["card_authorized", "paid"]
 
 
@@ -67,7 +67,7 @@ def test_failed_authorization_keeps_order_unpaid_and_is_not_retried(card_auth_on
         assert "Host can mark the order paid" in page.text
         assert len(calls) == 1
         assert client.get(f"/orders/{order['order_id']}").json()["status"] == "awaiting_payment"
-        assert client.get("/panel").json()["events"][-1]["event"] == "card_auth_failed"
+        assert client.get("/panel").json()["events"][-1]["type"] == "card_auth_failed"
 
 
 def test_paid_order_never_authorizes_twice(card_auth_on):

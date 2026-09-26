@@ -202,7 +202,8 @@
       "substitute_key": "cetirizine",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Antihistamine"
+      "purpose": "Purpose Antihistamine",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-01CB43CF",
@@ -218,7 +219,8 @@
       "substitute_key": "loratadine",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Antihistamine"
+      "purpose": "Purpose Antihistamine",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-023A46F0",
@@ -234,7 +236,8 @@
       "substitute_key": "loratadine",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Antihistamine"
+      "purpose": "Purpose Antihistamine",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-0038BC38",
@@ -250,7 +253,8 @@
       "substitute_key": "loratadine",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Antihistamine"
+      "purpose": "Purpose Antihistamine",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-0502F197",
@@ -266,7 +270,8 @@
       "substitute_key": "cetirizine",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Antihistamine"
+      "purpose": "Purpose Antihistamine",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-0643EA78",
@@ -282,7 +287,8 @@
       "substitute_key": "cetirizine",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Antihistamine"
+      "purpose": "Purpose Antihistamine",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "KR-0000000004132",
@@ -294,7 +300,8 @@
       "size": "1 each",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0000000004131",
@@ -306,7 +313,8 @@
       "size": "1 lb",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0000000004017",
@@ -318,7 +326,8 @@
       "size": "1 lb",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0000000004130",
@@ -330,7 +339,8 @@
       "size": "1 lb",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0000000004134",
@@ -342,7 +352,8 @@
       "size": "1 lb",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0000000003507",
@@ -354,7 +365,8 @@
       "size": "1 lb",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0000000003283",
@@ -366,7 +378,8 @@
       "size": "1 lb",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111091829",
@@ -380,7 +393,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111070112",
@@ -394,7 +408,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111014902",
@@ -408,7 +423,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111091825",
@@ -422,7 +438,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0073231300266",
@@ -434,7 +451,8 @@
       "size": "3 lb",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111070110",
@@ -448,7 +466,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111063956",
@@ -462,7 +481,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111018189",
@@ -476,7 +496,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0000000004011",
@@ -488,7 +509,8 @@
       "size": "1 lb",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "PRO-001",
@@ -502,7 +524,8 @@
         "soft"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0000000094011",
@@ -516,7 +539,8 @@
         "organic"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "PRO-002",
@@ -531,7 +555,8 @@
         "organic"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111016103",
@@ -545,7 +570,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111010642",
@@ -559,7 +585,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111010646",
@@ -573,7 +600,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111010647",
@@ -587,7 +615,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111012057",
@@ -601,7 +630,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111071789",
@@ -615,7 +645,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111010643",
@@ -629,7 +660,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111010649",
@@ -643,7 +675,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111010641",
@@ -657,7 +690,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111086503",
@@ -671,7 +705,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003940001880",
@@ -683,7 +718,8 @@
       "size": "15 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004430010632",
@@ -695,7 +731,8 @@
       "size": "16 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111085713",
@@ -710,7 +747,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111082428",
@@ -726,7 +764,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111011472",
@@ -740,7 +779,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111013233",
@@ -755,7 +795,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111008485",
@@ -769,7 +810,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111008486",
@@ -783,7 +825,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111008450",
@@ -797,7 +840,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007294560136",
@@ -809,7 +853,8 @@
       "size": "20 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111008449",
@@ -823,7 +868,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007225001137",
@@ -835,7 +881,8 @@
       "size": "20 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111008415",
@@ -849,7 +896,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111008489",
@@ -864,7 +912,8 @@
         "whole_grain"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "BAK-002",
@@ -880,7 +929,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "BAK-003",
@@ -896,7 +946,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "BAK-005",
@@ -911,7 +962,8 @@
         "white"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "BAK-001",
@@ -926,7 +978,8 @@
         "wheat"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007016295870",
@@ -938,7 +991,8 @@
       "size": "20 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003967707213",
@@ -950,7 +1004,8 @@
       "size": "24 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "BAK-004",
@@ -965,7 +1020,8 @@
         "high_fiber"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001376402722",
@@ -979,7 +1035,8 @@
         "organic"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111086705",
@@ -993,7 +1050,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003000057322",
@@ -1005,7 +1063,8 @@
       "size": "11.7 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003000006322",
@@ -1017,7 +1076,8 @@
       "size": "13 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001600012254",
@@ -1029,7 +1089,8 @@
       "size": "12 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001600012479",
@@ -1041,7 +1102,8 @@
       "size": "10.8 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001600012399",
@@ -1053,7 +1115,8 @@
       "size": "10.5 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001600012222",
@@ -1065,7 +1128,8 @@
       "size": "11.5 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001600015128",
@@ -1077,7 +1141,8 @@
       "size": "10.4 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001600027532",
@@ -1089,7 +1154,8 @@
       "size": "10.7 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0088491212971",
@@ -1101,7 +1167,8 @@
       "size": "11 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0088491235915",
@@ -1113,7 +1180,8 @@
       "size": "12 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001600012025",
@@ -1125,7 +1193,8 @@
       "size": "11.7 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001600015163",
@@ -1137,7 +1206,8 @@
       "size": "10.6 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001600012685",
@@ -1149,7 +1219,8 @@
       "size": "27 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001600012495",
@@ -1161,7 +1232,8 @@
       "size": "27.2 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111050204",
@@ -1175,7 +1247,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111058287",
@@ -1189,7 +1262,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111050158",
@@ -1203,7 +1277,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111058678",
@@ -1217,7 +1292,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111058627",
@@ -1231,7 +1307,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111050170",
@@ -1245,7 +1322,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111050174",
@@ -1259,7 +1337,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111058718",
@@ -1273,7 +1352,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111050159",
@@ -1287,7 +1367,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111050183",
@@ -1301,7 +1382,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111009434",
@@ -1315,7 +1397,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004610040092",
@@ -1327,7 +1410,8 @@
       "size": "8 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0002100060464",
@@ -1339,7 +1423,8 @@
       "size": "16 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111015121",
@@ -1353,7 +1438,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0022626600000",
@@ -1367,7 +1453,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0081363602065",
@@ -1379,7 +1466,8 @@
       "size": "48 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111007451",
@@ -1393,7 +1481,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111010742",
@@ -1407,7 +1496,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111010738",
@@ -1421,7 +1511,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001291934269",
@@ -1435,7 +1526,8 @@
         "organic"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001291901206",
@@ -1447,7 +1539,8 @@
       "size": "12 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001291912231",
@@ -1459,7 +1552,8 @@
       "size": "12 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0078260516110",
@@ -1471,7 +1565,8 @@
       "size": "10 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0002550030401",
@@ -1483,7 +1578,8 @@
       "size": "9.6 ounces",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111003531",
@@ -1498,7 +1594,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0076211120605",
@@ -1510,7 +1607,8 @@
       "size": "12 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0081006334306",
@@ -1522,7 +1620,8 @@
       "size": "10 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111015000",
@@ -1536,7 +1635,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004300009422",
@@ -1548,7 +1648,8 @@
       "size": "27.5 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0002550030407",
@@ -1560,7 +1661,8 @@
       "size": "25.9 ounces",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111013313",
@@ -1572,7 +1674,8 @@
       "size": "16 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111009773",
@@ -1586,7 +1689,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111009090",
@@ -1600,7 +1704,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111014941",
@@ -1615,7 +1720,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111001979",
@@ -1629,7 +1735,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111001980",
@@ -1644,7 +1751,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004400000057",
@@ -1656,7 +1764,8 @@
       "size": "16 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004400002681",
@@ -1668,7 +1777,8 @@
       "size": "13.6 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004400001777",
@@ -1680,7 +1790,8 @@
       "size": "11 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004400000055",
@@ -1694,7 +1805,8 @@
         "low_sodium"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004400005495",
@@ -1708,7 +1820,8 @@
         "whole_grain"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004400002477",
@@ -1720,7 +1833,8 @@
       "size": "9 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003010000133",
@@ -1732,7 +1846,8 @@
       "size": "16 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0068670010141",
@@ -1744,7 +1859,8 @@
       "size": "2 ct / 7.3 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004400004483",
@@ -1756,7 +1872,8 @@
       "size": "24 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111060906",
@@ -1770,7 +1887,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "EGG-003",
@@ -1785,7 +1903,8 @@
         "small_pack"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111060903",
@@ -1799,7 +1918,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111060904",
@@ -1813,7 +1933,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111060905",
@@ -1827,7 +1948,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "EGG-001",
@@ -1841,7 +1963,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111060933",
@@ -1855,7 +1978,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111079770",
@@ -1869,7 +1993,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "EGG-002",
@@ -1881,7 +2006,8 @@
       "size": "12 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0071514150349",
@@ -1893,7 +2019,8 @@
       "size": "12 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111079772",
@@ -1908,7 +2035,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111060980",
@@ -1922,7 +2050,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111089310",
@@ -1936,7 +2065,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111016520",
@@ -1951,7 +2081,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111015097",
@@ -1965,7 +2096,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0071514111357",
@@ -1977,7 +2109,8 @@
       "size": "18 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111006479",
@@ -1992,7 +2125,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111060914",
@@ -2006,7 +2140,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "GFT-003",
@@ -2020,7 +2155,8 @@
         "gift_card"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "gift_card"
     },
     {
       "sku": "GFT-001",
@@ -2034,7 +2170,8 @@
         "gift_card"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "gift_card"
     },
     {
       "sku": "GFT-002",
@@ -2048,7 +2185,8 @@
         "gift_card"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "gift_card"
     },
     {
       "sku": "FDA-018B02E8",
@@ -2064,7 +2202,8 @@
       "substitute_key": "famotidine",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Acid reducer"
+      "purpose": "Purpose Acid reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-0108B97F",
@@ -2080,7 +2219,8 @@
       "substitute_key": "calcium",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Antacid"
+      "purpose": "Purpose Antacid",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-036EF1ED",
@@ -2096,7 +2236,8 @@
       "substitute_key": "calcium",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Antacid"
+      "purpose": "Purpose Antacid",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-05C03FD8",
@@ -2112,7 +2253,8 @@
       "substitute_key": "famotidine",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Acid reducer"
+      "purpose": "Purpose Acid reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-07A924F1",
@@ -2128,7 +2270,8 @@
       "substitute_key": "famotidine",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Acid reducer"
+      "purpose": "Purpose Acid reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-021E1A7F",
@@ -2144,7 +2287,8 @@
       "substitute_key": "calcium",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "PURPOSE Antacid"
+      "purpose": "PURPOSE Antacid",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "KR-0002500000024",
@@ -2156,7 +2300,8 @@
       "size": "11.5 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111015687",
@@ -2170,7 +2315,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111048480",
@@ -2184,7 +2330,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004850020571",
@@ -2196,7 +2343,8 @@
       "size": "46 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0002500013678",
@@ -2208,7 +2356,8 @@
       "size": "46 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0002500013680",
@@ -2220,7 +2369,8 @@
       "size": "46 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0002500013682",
@@ -2232,7 +2382,8 @@
       "size": "46 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0002500004789",
@@ -2244,7 +2395,8 @@
       "size": "59 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111015691",
@@ -2259,7 +2411,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0002500013025",
@@ -2271,7 +2424,8 @@
       "size": "4 pk / 8 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004850001833",
@@ -2283,7 +2437,8 @@
       "size": "89 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004850001830",
@@ -2295,7 +2450,8 @@
       "size": "89 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111048482",
@@ -2309,7 +2465,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0002500013663",
@@ -2321,7 +2478,8 @@
       "size": "76 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0002500013665",
@@ -2333,7 +2491,8 @@
       "size": "76 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "DAI-002",
@@ -2348,7 +2507,8 @@
         "small_pack"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111040601",
@@ -2362,7 +2522,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111041661",
@@ -2376,7 +2537,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111050574",
@@ -2390,7 +2552,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111040101",
@@ -2404,7 +2567,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111041660",
@@ -2418,7 +2582,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111042315",
@@ -2432,7 +2597,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "DAI-001",
@@ -2446,7 +2612,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111082556",
@@ -2461,7 +2628,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111050573",
@@ -2475,7 +2643,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111042852",
@@ -2490,7 +2659,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111042850",
@@ -2505,7 +2675,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111016338",
@@ -2520,7 +2691,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "DAI-003",
@@ -2534,7 +2706,8 @@
         "lactose_free"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0009396651300",
@@ -2548,7 +2721,8 @@
         "organic"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "DAI-004",
@@ -2562,7 +2736,8 @@
         "organic"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111042908",
@@ -2577,7 +2752,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "NUT-003",
@@ -2592,7 +2768,8 @@
         "high_protein"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007440701",
@@ -2604,7 +2781,8 @@
       "size": "6 pk / 8 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007440705",
@@ -2616,7 +2794,8 @@
       "size": "6 bottles / 8 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007466897",
@@ -2628,7 +2807,8 @@
       "size": "4 ct / 11 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007467166",
@@ -2640,7 +2820,8 @@
       "size": "4 ct / 11 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007464116",
@@ -2652,7 +2833,8 @@
       "size": "8 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007464118",
@@ -2664,7 +2846,8 @@
       "size": "8 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007468170",
@@ -2676,7 +2859,8 @@
       "size": "4 ct / 11 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007466891",
@@ -2688,7 +2872,8 @@
       "size": "4 pk / 11 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "NUT-001",
@@ -2702,7 +2887,8 @@
         "protein"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "NUT-004",
@@ -2717,7 +2903,8 @@
         "diabetes_friendly"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007440707",
@@ -2729,7 +2916,8 @@
       "size": "6 pk / 8 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007440702",
@@ -2741,7 +2929,8 @@
       "size": "6 pk / 8 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007440718",
@@ -2753,7 +2942,8 @@
       "size": "6 bottles / 8 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007453623",
@@ -2765,7 +2955,8 @@
       "size": "16 pk / 8 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007007467725",
@@ -2777,7 +2968,8 @@
       "size": "12 pk / 11 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "NUT-002",
@@ -2792,7 +2984,8 @@
         "bulk"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111007268",
@@ -2806,7 +2999,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111007191",
@@ -2820,7 +3014,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111007330",
@@ -2835,7 +3030,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111007301",
@@ -2849,7 +3045,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003000056728",
@@ -2861,7 +3058,8 @@
       "size": "8 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003000056828",
@@ -2873,7 +3071,8 @@
       "size": "8 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003000056729",
@@ -2885,7 +3084,8 @@
       "size": "8 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003000056849",
@@ -2897,7 +3097,8 @@
       "size": "8 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003000056731",
@@ -2909,7 +3110,8 @@
       "size": "10 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003000056855",
@@ -2923,7 +3125,8 @@
         "reduced_sugar"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "PAN-003",
@@ -2939,7 +3142,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111010264",
@@ -2954,7 +3158,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111010302",
@@ -2969,7 +3174,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "PAN-001",
@@ -2984,7 +3190,8 @@
         "heart_healthy"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "PAN-002",
@@ -2999,7 +3206,8 @@
         "easy_prep"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003000031504",
@@ -3011,7 +3219,8 @@
       "size": "20 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003000056831",
@@ -3023,7 +3232,8 @@
       "size": "20 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "FDA-00146B91",
@@ -3039,7 +3249,8 @@
       "substitute_key": "acetaminophen",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Pain reliever/fever reducer"
+      "purpose": "Purpose Pain reliever/fever reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-00BD8490",
@@ -3055,7 +3266,8 @@
       "substitute_key": "naproxen",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purposes Pain reliever/fever reducer"
+      "purpose": "Purposes Pain reliever/fever reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-00EF5B30",
@@ -3071,7 +3283,8 @@
       "substitute_key": "naproxen",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purposes Pain reliever/fever reducer"
+      "purpose": "Purposes Pain reliever/fever reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-00D9AB0D",
@@ -3087,7 +3300,8 @@
       "substitute_key": "aspirin",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Active ingredient (in each tablet) Purpose Aspirin 325 mg (NSAID*) ............................. *nonsteroidal anti-inﬂammatory drug Pain reliever"
+      "purpose": "Active ingredient (in each tablet) Purpose Aspirin 325 mg (NSAID*) ............................. *nonsteroidal anti-inﬂammatory drug Pain reliever",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "OTC-004",
@@ -3103,7 +3317,8 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
-      "substitute_key": "acetaminophen"
+      "substitute_key": "acetaminophen",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "OTC-002",
@@ -3120,7 +3335,8 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
-      "substitute_key": "ibuprofen"
+      "substitute_key": "ibuprofen",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-00653B7C",
@@ -3136,7 +3352,8 @@
       "substitute_key": "ibuprofen",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Pain reliever/fever reducer"
+      "purpose": "Purpose Pain reliever/fever reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-0005AAFA",
@@ -3152,7 +3369,8 @@
       "substitute_key": "acetaminophen",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Pain reliever/fever reducer"
+      "purpose": "Purpose Pain reliever/fever reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-024C5054",
@@ -3168,7 +3386,8 @@
       "substitute_key": "aspirin",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Pain reliever"
+      "purpose": "Purpose Pain reliever",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-0035A4FD",
@@ -3184,7 +3403,8 @@
       "substitute_key": "acetaminophen",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Pain reliever/fever reducer"
+      "purpose": "Purpose Pain reliever/fever reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-006ADF23",
@@ -3200,7 +3420,8 @@
       "substitute_key": "ibuprofen",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purposes Pain reliever/fever reducer"
+      "purpose": "Purposes Pain reliever/fever reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-01746BB6",
@@ -3216,7 +3437,8 @@
       "substitute_key": "naproxen",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purposes Pain reliever/fever reducer"
+      "purpose": "Purposes Pain reliever/fever reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "OTC-003",
@@ -3231,7 +3453,8 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
-      "substitute_key": "acetaminophen"
+      "substitute_key": "acetaminophen",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-009DDE4C",
@@ -3247,7 +3470,8 @@
       "substitute_key": "ibuprofen",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purposes Pain reliever/fever reducer"
+      "purpose": "Purposes Pain reliever/fever reducer",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "OTC-001",
@@ -3263,7 +3487,8 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
-      "substitute_key": "ibuprofen"
+      "substitute_key": "ibuprofen",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "FDA-0058175F",
@@ -3279,7 +3504,8 @@
       "substitute_key": "aspirin",
       "merchant": "corner_market",
       "source": "openfda",
-      "purpose": "Purpose Pain reliever"
+      "purpose": "Purpose Pain reliever",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "KR-0001111001618",
@@ -3293,7 +3519,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111001652",
@@ -3307,7 +3534,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111001649",
@@ -3321,7 +3549,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111001619",
@@ -3335,7 +3564,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004530000549",
@@ -3347,7 +3577,8 @@
       "size": "16.3 ounces",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005150025516",
@@ -3359,7 +3590,8 @@
       "size": "16 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005150025565",
@@ -3371,7 +3603,8 @@
       "size": "16 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111079156",
@@ -3386,7 +3619,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111009853",
@@ -3400,7 +3634,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005150024177",
@@ -3412,7 +3647,8 @@
       "size": "28 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111073932",
@@ -3426,7 +3662,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005150072001",
@@ -3438,7 +3675,8 @@
       "size": "40 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005150024321",
@@ -3450,7 +3688,8 @@
       "size": "40 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111012605",
@@ -3465,7 +3704,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005150024769",
@@ -3477,7 +3717,8 @@
       "size": "80 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "PPD-001",
@@ -3491,7 +3732,8 @@
         "prepaid"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "prepaid_card"
     },
     {
       "sku": "RX-001",
@@ -3508,7 +3750,8 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
-      "note": "Ready for pickup, $8.00 copay"
+      "note": "Ready for pickup, $8.00 copay",
+      "mandate_category": "pharmacy"
     },
     {
       "sku": "KR-0001111001950",
@@ -3522,7 +3765,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111089875",
@@ -3536,7 +3780,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111084726",
@@ -3550,7 +3795,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001740014031",
@@ -3562,7 +3808,8 @@
       "size": "8.8 onz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001740014000",
@@ -3574,7 +3821,8 @@
       "size": "8.8 onz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001740010077",
@@ -3586,7 +3834,8 @@
       "size": "14 onz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001740010675",
@@ -3598,7 +3847,8 @@
       "size": "32 onz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001740011805",
@@ -3610,7 +3860,8 @@
       "size": "14 onz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111015341",
@@ -3624,7 +3875,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111084703",
@@ -3638,7 +3890,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001740010695",
@@ -3650,7 +3903,8 @@
       "size": "2 lbr",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001740010932",
@@ -3662,7 +3916,8 @@
       "size": "5 lbr",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111015343",
@@ -3676,7 +3931,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001740010951",
@@ -3688,7 +3944,8 @@
       "size": "5 lbr",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001115203470",
@@ -3700,7 +3957,8 @@
       "size": "5 lb",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111016039",
@@ -3714,7 +3972,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "SOU-004",
@@ -3728,7 +3987,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111086545",
@@ -3743,7 +4003,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111004523",
@@ -3757,7 +4018,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111016047",
@@ -3772,7 +4034,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "SOU-001",
@@ -3786,7 +4049,8 @@
         "easy_open"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100001251",
@@ -3798,7 +4062,8 @@
       "size": "10.75 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111004970",
@@ -3813,7 +4078,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100002457",
@@ -3825,7 +4091,8 @@
       "size": "10.5 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100028800",
@@ -3837,7 +4104,8 @@
       "size": "16.3 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100001047",
@@ -3849,7 +4117,8 @@
       "size": "10.5 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100016680",
@@ -3863,7 +4132,8 @@
         "low_sodium"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100029114",
@@ -3877,7 +4147,8 @@
         "low_sodium"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100029113",
@@ -3891,7 +4162,8 @@
         "low_sodium"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100016681",
@@ -3905,7 +4177,8 @@
         "low_sodium"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "SOU-002",
@@ -3921,7 +4194,8 @@
         "easy_open"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111004963",
@@ -3937,7 +4211,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111008602",
@@ -3953,7 +4228,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004119691401",
@@ -3965,7 +4241,8 @@
       "size": "19 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004119601088",
@@ -3977,7 +4254,8 @@
       "size": "19 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100003885",
@@ -3989,7 +4267,8 @@
       "size": "18.6 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004119680548",
@@ -4003,7 +4282,8 @@
         "low_sodium"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004119674074",
@@ -4017,7 +4297,8 @@
         "low_sodium"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004119613648",
@@ -4031,7 +4312,8 @@
         "low_sodium"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004119613649",
@@ -4045,7 +4327,8 @@
         "low_sodium"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004119641942",
@@ -4059,7 +4342,8 @@
         "low_sodium"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "SOU-003",
@@ -4074,7 +4358,8 @@
         "ready_to_eat"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111014281",
@@ -4089,7 +4374,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005260329011",
@@ -4103,7 +4389,8 @@
         "organic"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005260328919",
@@ -4117,7 +4404,8 @@
         "organic"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100012938",
@@ -4129,7 +4417,8 @@
       "size": "4 ct / 10.75 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100028207",
@@ -4141,7 +4430,8 @@
       "size": "4 ct / 10.5 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0005100027358",
@@ -4153,7 +4443,8 @@
       "size": "4 ct / 7 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007795869041",
@@ -4165,7 +4456,8 @@
       "size": "16 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111016537",
@@ -4177,7 +4469,8 @@
       "size": "100 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111011754",
@@ -4189,7 +4482,8 @@
       "size": "100 bags",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004790030319",
@@ -4201,7 +4495,8 @@
       "size": "24 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007231000123",
@@ -4213,7 +4508,8 @@
       "size": "1.18 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007231000189",
@@ -4225,7 +4521,8 @@
       "size": "20 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007231000161",
@@ -4237,7 +4534,8 @@
       "size": "20 ct / 1.73 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007231000177",
@@ -4249,7 +4547,8 @@
       "size": "20 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007231001091",
@@ -4263,7 +4562,8 @@
         "caffeine_free"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001115605805",
@@ -4275,7 +4575,8 @@
       "size": "24 ct / 6 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007024221110",
@@ -4287,7 +4588,8 @@
       "size": "6oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "BEV-002",
@@ -4301,7 +4603,8 @@
         "caffeine_free"
       ],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0079452200425",
@@ -4313,7 +4616,8 @@
       "size": "24 ct / 6 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0001111016584",
@@ -4327,7 +4631,8 @@
         "store_brand"
       ],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0004790030329",
@@ -4339,7 +4644,8 @@
       "size": "48 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "BEV-001",
@@ -4351,7 +4657,8 @@
       "size": "100 ct",
       "tags": [],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0079452200418",
@@ -4363,7 +4670,8 @@
       "size": "12 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "BEV-003",
@@ -4375,7 +4683,8 @@
       "size": "250 g",
       "tags": [],
       "merchant": "corner_market",
-      "source": "synthetic"
+      "source": "synthetic",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007047000300",
@@ -4387,7 +4696,8 @@
       "size": "6 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007047000307",
@@ -4399,7 +4709,8 @@
       "size": "6 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0089824800107",
@@ -4411,7 +4722,8 @@
       "size": "5.3 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003663204258",
@@ -4423,7 +4735,8 @@
       "size": "5.3 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003663202635",
@@ -4435,7 +4748,8 @@
       "size": "4 ct / 4 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0085006540380",
@@ -4447,7 +4761,8 @@
       "size": "7.5 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0085006540378",
@@ -4459,7 +4774,8 @@
       "size": "7.5 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007835557010",
@@ -4471,7 +4787,8 @@
       "size": "24 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003663201953",
@@ -4483,7 +4800,8 @@
       "size": "5.3 oz., 4 pack",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0081829001626",
@@ -4495,7 +4813,8 @@
       "size": "4 pk / 5.3 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0007047040389",
@@ -4507,7 +4826,8 @@
       "size": "8 ct / 6 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0089470001014",
@@ -4519,7 +4839,8 @@
       "size": "32 oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003663204264",
@@ -4531,7 +4852,8 @@
       "size": "4 ct / 5.3 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003663204266",
@@ -4543,7 +4865,8 @@
       "size": "4 ct / 5.3 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     },
     {
       "sku": "KR-0003663201944",
@@ -4555,7 +4878,8 @@
       "size": "32 fl oz",
       "tags": [],
       "merchant": "corner_market",
-      "source": "kroger"
+      "source": "kroger",
+      "mandate_category": "grocery"
     }
   ]
 }
