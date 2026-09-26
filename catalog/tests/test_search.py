@@ -92,12 +92,13 @@ def test_suggestions_stay_close_to_the_product():
 
 
 def test_real_listing_of_a_demo_product_is_deduped():
-    names = [it["name"].lower() for it in catalog.items.values() if it["group"] == "bread"]
+    names = [it["name"].lower() for it in catalog.items.values()
+             if it["group"] == "bread" and it["merchant"] == "corner_market"]
     assert sum(n.startswith("nature's own honey wheat bread") for n in names) == 1
 
 
 def test_every_item_has_a_mandate_category():
-    allowed = {"grocery", "pharmacy", "gift_card", "prepaid_card"}
+    allowed = {"grocery", "pharmacy", "household", "gift_card", "prepaid_card"}
     assert all(it.get("mandate_category") in allowed for it in catalog.items.values())
 
 
@@ -127,3 +128,59 @@ def test_unknown_medicine_is_not_answered_with_another():
 def test_specific_medicine_words_still_rank():
     assert all(i["group"] == "allergy" for i in catalog.search("allergy medicine", 5))
     assert all(i["group"] == "pain_relief" for i in catalog.search("dard ki dawai", 5))
+
+
+# stores
+def test_items_belong_to_their_store():
+    assert catalog.items["RX-001"]["merchant"] == "parkside_pharmacy"
+    assert catalog.items["OTC-001"]["merchant"] == "parkside_pharmacy"
+    assert catalog.items["BAK-001"]["merchant"] == "corner_market"
+    assert catalog.items["HOM-005"]["merchant"] == "main_street_home"
+    assert catalog.items["GFT-001"]["merchant"] == "corner_market"  # stocked so R1 refuses it, never sold
+    parkside_grocery = [it for it in catalog.items.values()
+                        if it["merchant"] == "parkside_pharmacy" and it["mandate_category"] == "grocery"]
+    assert 15 <= len(parkside_grocery) <= 25
+    assert not any(it["brand"] == "Kroger" for it in parkside_grocery)
+
+
+def test_every_result_names_its_store_and_where_else_it_is_sold():
+    top = catalog.search("bread", 1)[0]
+    assert top["sku"] == "BAK-001" and top["store"] == "Corner Market" and top["merchant"] == "corner_market"
+    assert top["elsewhere"] == [{"merchant": "parkside_pharmacy", "store": "Parkside Pharmacy", "sku": "PK-BAK-001",
+                                 "price": catalog.items["PK-BAK-001"]["price"]}]
+    assert all({"merchant", "store", "elsewhere", "usual"} <= set(it) for it in catalog.search("milk"))
+
+
+def test_one_product_at_two_stores_is_one_result_at_the_better_price():
+    skus = [it["sku"] for it in catalog.search("ensure vanilla", 20)]
+    assert not ({"NUT-001", "PK-NUT-001"} <= set(skus))
+    shake = next(it for it in catalog.search("ensure vanilla", 20) if it["sku"] in ("NUT-001", "PK-NUT-001"))
+    assert shake["price"] <= shake["elsewhere"][0]["price"]
+
+
+def test_store_filter_by_id_or_name():
+    for store in ("parkside_pharmacy", "Parkside Pharmacy", "parkside"):
+        found = catalog.search("bread", 10, store)
+        assert found and all(it["merchant"] == "parkside_pharmacy" for it in found)
+        assert found[0]["usual"]  # her usual bread, at Parkside's price
+    assert catalog.search("bread", 10, "main_street_home") == []
+
+
+def test_household_items_are_found_in_three_languages():
+    for q in ("paper towels", "toilet paper", "pilas", "detergente", "bolsas de basura"):
+        found = catalog.search(q, 3)
+        assert found and all(it["merchant"] == "main_street_home" for it in found), q
+
+
+def test_usual_first_then_price_and_no_brand_takes_the_whole_list():
+    found = catalog.search("milk", 6)
+    prices = [it["price"] for it in found if not it["usual"]]
+    brands = [it["brand"] for it in found[:4]]
+    assert max(brands.count(b) for b in set(brands)) <= 2
+    assert found[0]["usual"] or prices[0] == min(prices[:3])
+
+
+def test_suggestion_at_another_store_says_so():
+    alts = catalog.suggest("NUT-001")
+    parkside = next((a for a in alts if a["sku"] == "PK-NUT-001"), None)
+    assert parkside and "at Parkside Pharmacy" in parkside["reasons"]

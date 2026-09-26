@@ -1,6 +1,18 @@
 # Visa sandbox: card authorization fails with reason 150 (usd_outlet_id, usd_terminal_id)
 
-Status: **open, waiting on Cybersource** · Found: Fri Sep 25 2026, ~9:55pm
+Status: **closed: won't fix, the demo keeps the mock paid step** · Found: Fri Sep 25 2026, ~9:55pm
+
+**Decision (Sat Sep 26, ~2:50pm):** a Visa mentor told us not to pursue the processor fix and to keep the mock
+payment step. The demo uses real Pay by Link pages at the right total (confirmed on the hosted page: $49.95 for
+five Ensure, $11.49 for medicine and bread), a real `INACTIVE` on cancel, and the Host's **Confirm payment** for
+the paid step ("marked paid in the sandbox flow"). Don't retry card payments on the hosted page; every attempt
+fails the same way. Still failing as of Sep 26 18:34 GMT: request `7904476728146353004011` ($49.95, Pay by Link)
+and `7904329513516873604807` (14:29 GMT), both reason 150, `fdiglobal`, `usd_outlet_id, usd_terminal_id`.
+
+**Cancel is real (Sep 26):** `PATCH /ipl/v2/payment-links/{id}` with `status: INACTIVE` moves a live sandbox link
+`ACTIVE → INACTIVE`, and a `GET` of the same link confirms `INACTIVE`. PATCH correlation ids:
+`64bbe6f1-084d-4c95-a2e5-f8692d4dcae2`, `addbb116-57d3-4d01-9ac4-28f95faeba47` (spike) and
+`d608ac0b-b8d8-42b9-94f2-240aacc1ca8e` (through the merchant's cancel route, 0.81 s).
 
 ## TL;DR
 
@@ -122,7 +134,7 @@ Case text:
 
 ## Related gotchas found along the way (already handled in `merchant/visa.py`)
 
-- **Pay by Link charges only the first line item.** A 2-item $11.49 cart became an $8.00 link, so we send the cart as one line ("Corner Market order (N items)") and reject any link whose total differs from ours.
+- **Pay by Link prices one unit of the first line.** A 2-item $11.49 cart became an $8.00 link, and one line of 5 x $9.99 became $9.99. Every cart now goes up as one line, quantity 1 at the cart total ("Corner Market order (N items)" or "5 x Ensure ..."), and a link whose created or stored total differs from ours is deactivated and rejected.
 - **A `;` in a line-item description fails the whole request** with "Failed to create payment link", so descriptions are sanitized.
 - **`@visaacceptance/mcp` 0.0.96 truncates `--secret-key=` values containing `=`**, so creds go in env vars.
 - **The MCP calls production unless `VISA_ACCEPTANCE_ENVIRONMENT=SANDBOX` is set**, so we always set it.

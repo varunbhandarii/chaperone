@@ -7,8 +7,11 @@ Needs KROGER_CLIENT_ID / KROGER_CLIENT_SECRET (developer.kroger.com, scope produ
 Without them this exits and build_catalog uses the synthetic catalog only.
 
     python -m catalog.seed_kroger && python -m catalog.build_catalog
+    python -m catalog.seed_kroger --household   # only HOUSEHOLD_TERMS -> raw/kroger_household.json (Main Street
+                                                # Home); the grocery file and its prices stay as they are
 """
 
+import argparse
 import base64
 import json
 import os
@@ -24,6 +27,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 # Production app -> api.kroger.com; a Certification (test) app -> https://api-ce.kroger.com/v1
 API = os.environ.get("KROGER_API", "https://api.kroger.com/v1")
 OUT = Path(__file__).parent / "raw" / "kroger.json"
+OUT_HOUSEHOLD = Path(__file__).parent / "raw" / "kroger_household.json"
 PER_TERM = 15
 
 # search term -> (group, category); groups must exist in build_catalog.GROUP_ALIASES
@@ -49,12 +53,33 @@ TERMS = {
     "low sodium soup": ("soup", "pantry"),
 }
 
+# Main Street Home's shelf; build_catalog assigns category household to main_street_home.
+HOUSEHOLD_TERMS = {
+    "paper towels": ("paper_towels", "household"),
+    "toilet paper": ("toilet_paper", "household"),
+    "batteries": ("batteries", "household"),
+    "light bulbs": ("light_bulbs", "household"),
+    "dish soap": ("dish_soap", "household"),
+    "laundry detergent": ("laundry_detergent", "household"),
+    "trash bags": ("trash_bags", "household"),
+}
+
 # Kroger search is fuzzy ("bananas" returns banana peppers and smoothies); keep only real matches.
-MUST_CONTAIN = {"bananas": "banana", "apples": "apple", "eggs": "egg", "milk": "milk"}
+# A tuple means any one of the words.
+MUST_CONTAIN = {"bananas": "banana", "apples": "apple", "eggs": "egg", "milk": "milk",
+                "paper towels": "towel", "toilet paper": ("bath tissue", "toilet"), "batteries": "batter",
+                "light bulbs": "bulb", "dish soap": "dish", "laundry detergent": "detergent",
+                "trash bags": ("trash", "garbage", "bag")}
 EXCLUDE_WORDS = {
     "bananas": ["pepper", "smoothie", "chip", "trail", "dried", "protein", "yogurt", "pouch", "boat", "sunscreen",
                 "juice", "nectar", "drink", "bread", "muffin", "pudding", "almond", "snaps", "crispy", "kids"],
     "apples": ["caramel", "juice", "sauce", "chip", "cider", "vinegar", "pie", "drink", "snack"],
+    "paper towels": ["holder", "dispenser"],
+    "toilet paper": ["holder", "cleaner", "wipes"],
+    "batteries": ["charger", "tester", "cake mix", "batter mix", "pancake"],
+    "light bulbs": ["fixture"],
+    "dish soap": ["dispenser", "brush", "rack"],
+    "laundry detergent": ["dispenser"],
 }
 
 TAG_WORDS = {
@@ -88,7 +113,8 @@ def clean(text: str) -> str:
 
 def wanted(term: str, name: str) -> bool:
     lower = name.lower()
-    if term in MUST_CONTAIN and MUST_CONTAIN[term] not in lower:
+    must = MUST_CONTAIN.get(term)
+    if must and not any(w in lower for w in ((must,) if isinstance(must, str) else must)):
         return False
     return not any(w in lower for w in EXCLUDE_WORDS.get(term, []))
 
@@ -120,6 +146,10 @@ def to_item(p: dict, group: str, category: str) -> dict | None:
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--household", action="store_true", help="seed only HOUSEHOLD_TERMS into kroger_household.json")
+    args = ap.parse_args()
+    terms, out = (HOUSEHOLD_TERMS, OUT_HOUSEHOLD) if args.household else (TERMS, OUT)
     client_id, secret = os.environ.get("KROGER_CLIENT_ID"), os.environ.get("KROGER_CLIENT_SECRET")
     if not client_id or not secret:
         sys.exit("KROGER_CLIENT_ID / KROGER_CLIENT_SECRET not set; synthetic catalog only")
@@ -128,7 +158,7 @@ def main():
     with httpx.Client(headers=headers, timeout=15) as client:
         loc = nearest_location(client, os.environ.get("KROGER_ZIP", "30308"))
         print(f"store: {loc['name']} ({loc['locationId']}) {loc['address']['addressLine1']}")
-        for term, (group, category) in TERMS.items():
+        for term, (group, category) in terms.items():
             r = client.get(f"{API}/products", params={"filter.term": term, "filter.locationId": loc["locationId"],
                                                       "filter.limit": 50})
             r.raise_for_status()
@@ -141,9 +171,9 @@ def main():
                     if kept == PER_TERM:
                         break
             print(f"{term:24} {kept} items")
-    OUT.parent.mkdir(exist_ok=True)
-    OUT.write_text(json.dumps(list(items.values()), indent=2) + "\n", encoding="utf-8")
-    print(f"wrote {OUT.name}: {len(items)} items (location {loc['locationId']})")
+    out.parent.mkdir(exist_ok=True)
+    out.write_text(json.dumps(list(items.values()), indent=2) + "\n", encoding="utf-8")
+    print(f"wrote {out.name}: {len(items)} items (location {loc['locationId']})")
 
 
 if __name__ == "__main__":

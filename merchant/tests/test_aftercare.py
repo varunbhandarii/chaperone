@@ -283,3 +283,17 @@ def test_no_savings_line_when_nothing_was_saved(client):
 def test_points_only_after_payment(client):
     order = place(client)
     assert client.get(f"/orders/{order['order_id']}/receipt").json()["loyalty_points"] is None
+
+
+def test_points_shrink_with_a_refund(client):
+    order = place(client)  # $8.00 + 2 x $3.49 = $14.98 -> 14 points
+    pay(client, order)
+    assert client.get(f"/orders/{order['order_id']}/receipt").json()["loyalty_points"] == 14
+    client.post(f"/orders/{order['order_id']}/refunds", json=action(order, sku="BAK-001", qty=2))
+    assert client.get(f"/orders/{order['order_id']}/receipt").json()["loyalty_points"] == 8
+
+
+def test_wall_shows_points_only_once_paid():
+    from pathlib import Path
+    wall = (Path(__file__).resolve().parents[2] / "relay" / "wall.html").read_text(encoding="utf-8")
+    assert "paid && order.loyalty_points > 0" in wall

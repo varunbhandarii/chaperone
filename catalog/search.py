@@ -2,7 +2,11 @@
 
     python -m uvicorn catalog.search:app --host 0.0.0.0 --port 8003
 
-GET /search?q=bread          ranked items; the shopper's usual brand is flagged
+GET /search?q=bread[&store=parkside_pharmacy]
+                             ranked items across every store; each names its merchant and store, flags the
+                             shopper's usual product and lists the same product elsewhere[]. Ordering: the
+                             strongest matches first, and among those the usual first, then the lowest price.
+                             One product sold at two stores is one result (the better offer), not two.
 GET /resolve?q=my blood pressure medicine and bread
                              profile phrases -> saved items (pharmacy pickup, usual bread)
 GET /suggest?sku=BAK-001     discovery: alternatives in the same group with spoken-friendly reasons
@@ -15,6 +19,8 @@ import unicodedata
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
+
+from common import merchants
 
 HERE = Path(__file__).parent
 CATALOG_PATH = HERE / "catalog.json"
@@ -53,6 +59,10 @@ GENERIC_WORDS = [
 ]
 GENERIC_WEIGHT = 0.5
 PROFILE_GROUP_BONUS = 4
+# Matches within this much of the best score count as equally relevant, so price (not a word or two more in a
+# long Kroger title) decides among them. Wider would let a brand-only hit ("Peter Pan" for "pan") in.
+STRONG_MARGIN = 1
+SAME_BRAND_ON_TOP = 2  # then other brands get a turn: a list of ten store-brand items isn't a comparison
 
 
 def normalize(text: str) -> str:
@@ -88,6 +98,11 @@ class Catalog:
         self.group_aliases = {g: [normalize(a) for a in aliases] for g, aliases in catalog["group_aliases"].items()}
         self.profile = profile
         self.usual_skus = {u["sku"] for u in profile.get("usuals", [])}
+        # Her usual is a product, whichever store sells it.
+        self.usual_products = {self.items[s].get("product_key", s) for s in self.usual_skus if s in self.items}
+        self.copies: dict[str, list[str]] = {}
+        for sku, it in self.items.items():
+            self.copies.setdefault(it.get("product_key", sku), []).append(sku)
         self.prefer_tags = set(profile.get("preferences", {}).get("prefer_tags", []))
         # (own words: name/brand/tags, group words: category + shopper aliases shared by the whole group)
         self._index = {sku: self._index_tokens(it) for sku, it in self.items.items()}
@@ -102,10 +117,30 @@ class Catalog:
         group = [it["category"].replace("_", " "), it["group"].replace("_", " ")] + self.group_aliases.get(it["group"], [])
         return {t for w in own for t in tokens(w)}, {t for w in group for t in tokens(w)}
 
-    def view(self, it: dict) -> dict:
-        return {**it, "usual": it["sku"] in self.usual_skus}
+    def is_usual(self, it: dict) -> bool:
+        return it.get("product_key", it["sku"]) in self.usual_products
 
-    def search(self, q: str, limit: int = 10) -> list[dict]:
+    def view(self, it: dict) -> dict:
+        merchant = it.get("merchant", merchants.DEFAULT)
+        elsewhere = [{"merchant": o["merchant"], "store": merchants.name(o["merchant"]), "sku": o["sku"],
+                      "price": o["price"]}
+                     for o in (self.items[s] for s in self.copies.get(it.get("product_key", it["sku"]), []))
+                     if o["sku"] != it["sku"]]
+        return {**it, "merchant": merchant, "store": merchants.name(merchant), "usual": self.is_usual(it),
+                "elsewhere": sorted(elsewhere, key=lambda o: o["price"])}
+
+    @staticmethod
+    def store_id(store: str | None) -> str | None:
+        """A merchant id or a store's display name ("Parkside Pharmacy"); None for no filter."""
+        if not store:
+            return None
+        wanted = normalize(store).replace(" ", "_")
+        for m in merchants.all_merchants():  # "parkside", "Parkside Pharmacy" and "parkside_pharmacy" all work
+            if any(name.startswith(wanted) for name in (m["id"], normalize(m["name"]).replace(" ", "_"))):
+                return m["id"]
+        return wanted
+
+    def search(self, q: str, limit: int = 10, store: str | None = None) -> list[dict]:
         qn = normalize(q)
         qtokens = tokens(q)
         specific = [t for t in qtokens if t not in GENERIC]
@@ -115,8 +150,11 @@ class Catalog:
             self.items[u["sku"]]["group"] for u in self.profile.get("usuals", []) if u["sku"] in self.items
             and any(" " in normalize(p) and contains_phrase(qn, normalize(p)) for p in u["phrases"])
         }
+        store_id = self.store_id(store)
         scored = []
         for sku, it in self.items.items():
+            if store_id and it.get("merchant", merchants.DEFAULT) != store_id:
+                continue
             own, group = self._index[sku]
             if it["category"] in GIFT_LIKE_CATEGORIES:
                 own = set()  # "apples" must not surface the Apple Gift Card; only gift-card words find these
@@ -134,11 +172,37 @@ class Catalog:
                 score += PROFILE_GROUP_BONUS
             weak = GENERIC_WEIGHT * sum((t in own) + (t in group) for t in generic)
             if score > 0 or weak > 0:
-                scored.append((score, weak, sku in self.usual_skus, -it["price"], it))
+                scored.append((score + weak, score, it))
         if specific or profile_groups:  # "my blood pressure medicine" or "cough medicine" must not list every OTC
-            scored = [s for s in scored if s[0] > 0]  # item; only a bare "medicine" does
-        scored.sort(key=lambda s: (s[0] + s[1], s[2], s[3]), reverse=True)
-        return [self.view(s[4]) for s in scored[:limit]]
+            scored = [s for s in scored if s[1] > 0]  # item; only a bare "medicine" does
+        if not scored:
+            return []
+        best = max(s[0] for s in scored)
+        # Strong matches first; among them her usual, then the lowest price, then the closer match.
+        scored.sort(key=lambda s: (s[0] < best - STRONG_MARGIN, not self.is_usual(s[2]), s[2]["price"], -s[0],
+                                   "store_brand" in s[2]["tags"]))
+        results, seen = [], set()
+        for _, _, it in scored:  # one result per product: its best offer, with the other stores in elsewhere
+            key = it.get("product_key", it["sku"])
+            if key not in seen:
+                seen.add(key)
+                results.append(it)
+        return [self.view(it) for it in self._mix_brands(results, best, scored)[:limit]]
+
+    def _mix_brands(self, results: list[dict], best: float, scored) -> list[dict]:
+        """At most SAME_BRAND_ON_TOP strong results per brand before every other strong brand has had a turn."""
+        strong_skus = {it["sku"] for total, _, it in scored if total >= best - STRONG_MARGIN}
+        head, held, count = [], [], {}
+        for it in results:
+            if it["sku"] not in strong_skus:
+                break
+            brand = it["brand"].lower()
+            if count.get(brand, 0) < SAME_BRAND_ON_TOP or self.is_usual(it):
+                count[brand] = count.get(brand, 0) + 1
+                head.append(it)
+            else:
+                held.append(it)
+        return head + held + results[len(head) + len(held):]
 
     def resolve(self, q: str) -> list[dict]:
         """Profile phrases found in the utterance, longest phrase first, one hit per saved item."""
@@ -178,8 +242,10 @@ class Catalog:
             diff = round(base["price"] - it["price"], 2)
             if diff > 0:
                 reasons.append(f"${diff:.2f} cheaper")
-            if it["sku"] in self.usual_skus:
+            if self.is_usual(it):
                 reasons.append("your usual")
+            if it.get("merchant") != base.get("merchant"):
+                reasons.append(f"at {merchants.name(it.get('merchant'))}")
             if not reasons:
                 continue
             # Prefer the closest product (chicken noodle -> chicken noodle, not cream of mushroom).
@@ -201,8 +267,18 @@ def health():
 
 
 @app.get("/search")
-def search(q: str = Query(..., min_length=1), limit: int = Query(10, ge=1, le=50)):
-    return {"q": q, "items": catalog.search(q, limit)}
+def search(q: str = Query(..., min_length=1), limit: int = Query(10, ge=1, le=50), store: str | None = None):
+    return {"q": q, "store": catalog.store_id(store), "items": catalog.search(q, limit, store)}
+
+
+@app.get("/stores")
+def stores():
+    """The storefronts the agent can buy from, with how many items each sells."""
+    counts: dict[str, int] = {}
+    for it in catalog.items.values():
+        counts[it.get("merchant", merchants.DEFAULT)] = counts.get(it.get("merchant", merchants.DEFAULT), 0) + 1
+    return {"stores": [{"merchant": m["id"], "store": m["name"], "kind": m["kind"], "items": counts.get(m["id"], 0)}
+                       for m in merchants.storefronts()]}
 
 
 @app.get("/resolve")

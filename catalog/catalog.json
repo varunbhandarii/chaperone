@@ -185,6 +185,60 @@
       "reloadable card",
       "tarjeta prepagada",
       "prepaid"
+    ],
+    "paper_towels": [
+      "paper towels",
+      "paper towel",
+      "toallas de papel",
+      "papel de cocina",
+      "kitchen towel"
+    ],
+    "toilet_paper": [
+      "toilet paper",
+      "bath tissue",
+      "papel higienico",
+      "papel de bano",
+      "toilet roll"
+    ],
+    "batteries": [
+      "batteries",
+      "battery",
+      "pilas",
+      "baterias",
+      "बैटरी"
+    ],
+    "light_bulbs": [
+      "light bulb",
+      "light bulbs",
+      "bulb",
+      "bulbs",
+      "bombilla",
+      "bombillo",
+      "foco",
+      "focos",
+      "बल्ब"
+    ],
+    "dish_soap": [
+      "dish soap",
+      "dishwashing liquid",
+      "jabon de platos",
+      "lavaplatos",
+      "bartan sabun"
+    ],
+    "laundry_detergent": [
+      "laundry detergent",
+      "detergent",
+      "detergente",
+      "jabon de ropa",
+      "kapde dhone ka sabun",
+      "washing powder"
+    ],
+    "trash_bags": [
+      "trash bags",
+      "garbage bags",
+      "bolsas de basura",
+      "kachre ki thaili",
+      "bin bags"
     ]
   },
   "items": [
@@ -200,9 +254,10 @@
         "cetirizine"
       ],
       "substitute_key": "cetirizine",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Antihistamine",
+      "product_key": "FDA-03C0A599",
       "mandate_category": "pharmacy"
     },
     {
@@ -217,9 +272,10 @@
         "loratadine"
       ],
       "substitute_key": "loratadine",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Antihistamine",
+      "product_key": "FDA-01CB43CF",
       "mandate_category": "pharmacy"
     },
     {
@@ -234,9 +290,10 @@
         "loratadine"
       ],
       "substitute_key": "loratadine",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Antihistamine",
+      "product_key": "FDA-023A46F0",
       "mandate_category": "pharmacy"
     },
     {
@@ -251,9 +308,10 @@
         "loratadine"
       ],
       "substitute_key": "loratadine",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Antihistamine",
+      "product_key": "FDA-0038BC38",
       "mandate_category": "pharmacy"
     },
     {
@@ -268,9 +326,10 @@
         "cetirizine"
       ],
       "substitute_key": "cetirizine",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Antihistamine",
+      "product_key": "FDA-0502F197",
       "mandate_category": "pharmacy"
     },
     {
@@ -285,9 +344,10 @@
         "cetirizine"
       ],
       "substitute_key": "cetirizine",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Antihistamine",
+      "product_key": "FDA-0643EA78",
       "mandate_category": "pharmacy"
     },
     {
@@ -301,6 +361,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0000000004132",
       "mandate_category": "grocery"
     },
     {
@@ -314,6 +375,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0000000004131",
       "mandate_category": "grocery"
     },
     {
@@ -327,6 +389,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0000000004017",
       "mandate_category": "grocery"
     },
     {
@@ -340,6 +403,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0000000004130",
       "mandate_category": "grocery"
     },
     {
@@ -353,6 +417,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0000000004134",
       "mandate_category": "grocery"
     },
     {
@@ -366,6 +431,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0000000003507",
       "mandate_category": "grocery"
     },
     {
@@ -379,6 +445,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0000000003283",
       "mandate_category": "grocery"
     },
     {
@@ -394,6 +461,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111091829",
       "mandate_category": "grocery"
     },
     {
@@ -409,6 +477,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111070112",
       "mandate_category": "grocery"
     },
     {
@@ -424,6 +493,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111014902",
       "mandate_category": "grocery"
     },
     {
@@ -439,6 +509,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111091825",
       "mandate_category": "grocery"
     },
     {
@@ -452,6 +523,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0073231300266",
       "mandate_category": "grocery"
     },
     {
@@ -467,6 +539,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111070110",
       "mandate_category": "grocery"
     },
     {
@@ -482,6 +555,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111063956",
       "mandate_category": "grocery"
     },
     {
@@ -497,6 +571,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111018189",
       "mandate_category": "grocery"
     },
     {
@@ -510,6 +585,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0000000004011",
       "mandate_category": "grocery"
     },
     {
@@ -525,6 +601,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "PRO-001",
       "mandate_category": "grocery"
     },
     {
@@ -540,6 +617,23 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0000000094011",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-PRO-001",
+      "name": "Bananas",
+      "brand": "Fresh",
+      "category": "produce",
+      "group": "bananas",
+      "price": 0.99,
+      "size": "1 lb",
+      "tags": [
+        "soft"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "PRO-001",
       "mandate_category": "grocery"
     },
     {
@@ -556,6 +650,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "PRO-002",
       "mandate_category": "grocery"
     },
     {
@@ -571,7 +666,239 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111016103",
       "mandate_category": "grocery"
+    },
+    {
+      "sku": "KR-0003980014518",
+      "name": "Energizer Max AA Alkaline Batteries",
+      "brand": "Energizer",
+      "category": "household",
+      "group": "batteries",
+      "price": 6.99,
+      "size": "1 ea",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003980014518",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003980014514",
+      "name": "Energizer Max AAA Alkaline Batteries",
+      "brand": "Energizer",
+      "category": "household",
+      "group": "batteries",
+      "price": 6.99,
+      "size": "1",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003980014514",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004122600009",
+      "name": "Kroger Alkaline AA Batteries",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "batteries",
+      "price": 7.99,
+      "size": "8 pk",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004122600009",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004122600010",
+      "name": "Kroger Alkaline AAA Batteries",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "batteries",
+      "price": 7.99,
+      "size": "8 pk",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004122600010",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003980014523",
+      "name": "Energizer Max 9V Alkaline Batteries",
+      "brand": "Energizer",
+      "category": "household",
+      "group": "batteries",
+      "price": 9.99,
+      "regular_price": 11.99,
+      "size": "2 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003980014523",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003980014529",
+      "name": "Energizer Max D Alkaline Batteries",
+      "brand": "Energizer",
+      "category": "household",
+      "group": "batteries",
+      "price": 9.99,
+      "regular_price": 11.99,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003980014529",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003980014526",
+      "name": "Energizer Max C Alkaline Batteries",
+      "brand": "Energizer",
+      "category": "household",
+      "group": "batteries",
+      "price": 9.99,
+      "regular_price": 11.99,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003980014526",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "HOM-003",
+      "name": "Duracell Coppertop AA Batteries, 8 Pack",
+      "brand": "Duracell",
+      "category": "household",
+      "group": "batteries",
+      "price": 11.99,
+      "size": "8 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "synthetic",
+      "product_key": "HOM-003",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004133343001",
+      "name": "Duracell Coppertop D Alkaline Batteries, 4 Pack",
+      "brand": "Duracell",
+      "category": "household",
+      "group": "batteries",
+      "price": 12.99,
+      "size": "4 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004133343001",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003980014520",
+      "name": "Energizer Max AA Alkaline Batteries",
+      "brand": "Energizer",
+      "category": "household",
+      "group": "batteries",
+      "price": 16.99,
+      "size": "1",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003980014520",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003980014516",
+      "name": "Energizer Max AAA Alkaline Batteries",
+      "brand": "Energizer",
+      "category": "household",
+      "group": "batteries",
+      "price": 16.99,
+      "size": "1",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003980014516",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004133370464",
+      "name": "Duracell Coppertop AA Alkaline Batteries, 16 Pack",
+      "brand": "Duracell",
+      "category": "household",
+      "group": "batteries",
+      "price": 21.99,
+      "size": "16 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004133370464",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004133374064",
+      "name": "Duracell - Copper Top AAA Alkaline Batteries - 16 Count",
+      "brand": "Duracell",
+      "category": "household",
+      "group": "batteries",
+      "price": 21.99,
+      "size": "16 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004133374064",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003980014524",
+      "name": "Energizer Max 9V Alkaline Batteries",
+      "brand": "Energizer",
+      "category": "household",
+      "group": "batteries",
+      "price": 21.99,
+      "size": "1",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003980014524",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003980014521",
+      "name": "Energizer Max AA Alkaline Batteries",
+      "brand": "Energizer",
+      "category": "household",
+      "group": "batteries",
+      "price": 23.99,
+      "size": "1 ea",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003980014521",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004133327035",
+      "name": "Duracell - Copper Top AA Alkaline Batteries- 24 Count",
+      "brand": "Duracell",
+      "category": "household",
+      "group": "batteries",
+      "price": 29.99,
+      "size": "24 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004133327035",
+      "mandate_category": "household"
     },
     {
       "sku": "KR-0001111010642",
@@ -587,6 +914,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111010642",
       "mandate_category": "grocery"
     },
     {
@@ -603,6 +931,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111010646",
       "mandate_category": "grocery"
     },
     {
@@ -619,6 +948,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111010647",
       "mandate_category": "grocery"
     },
     {
@@ -635,6 +965,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111012057",
       "mandate_category": "grocery"
     },
     {
@@ -651,6 +982,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111071789",
       "mandate_category": "grocery"
     },
     {
@@ -667,6 +999,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111010643",
       "mandate_category": "grocery"
     },
     {
@@ -683,6 +1016,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111010649",
       "mandate_category": "grocery"
     },
     {
@@ -699,6 +1033,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111010641",
       "mandate_category": "grocery"
     },
     {
@@ -714,6 +1049,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111086503",
       "mandate_category": "grocery"
     },
     {
@@ -727,6 +1063,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003940001880",
       "mandate_category": "grocery"
     },
     {
@@ -741,6 +1078,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004430010632",
       "mandate_category": "grocery"
     },
     {
@@ -757,6 +1095,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111085713",
       "mandate_category": "grocery"
     },
     {
@@ -774,6 +1113,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111082428",
       "mandate_category": "grocery"
     },
     {
@@ -789,6 +1129,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111011472",
       "mandate_category": "grocery"
     },
     {
@@ -805,6 +1146,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111013233",
       "mandate_category": "grocery"
     },
     {
@@ -820,6 +1162,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111008485",
       "mandate_category": "grocery"
     },
     {
@@ -835,6 +1178,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111008486",
       "mandate_category": "grocery"
     },
     {
@@ -850,6 +1194,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111008450",
       "mandate_category": "grocery"
     },
     {
@@ -864,6 +1209,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007294560136",
       "mandate_category": "grocery"
     },
     {
@@ -879,6 +1225,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111008449",
       "mandate_category": "grocery"
     },
     {
@@ -893,6 +1240,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007225001137",
       "mandate_category": "grocery"
     },
     {
@@ -909,6 +1257,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111008415",
       "mandate_category": "grocery"
     },
     {
@@ -926,6 +1275,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111008489",
       "mandate_category": "grocery"
     },
     {
@@ -943,6 +1293,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "BAK-002",
       "mandate_category": "grocery"
     },
     {
@@ -960,6 +1311,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "BAK-003",
       "mandate_category": "grocery"
     },
     {
@@ -976,6 +1328,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "BAK-005",
       "mandate_category": "grocery"
     },
     {
@@ -992,6 +1345,41 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "BAK-001",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-BAK-001",
+      "name": "Nature's Own Honey Wheat Bread",
+      "brand": "Nature's Own",
+      "category": "bakery",
+      "group": "bread",
+      "price": 3.99,
+      "size": "20 oz",
+      "tags": [
+        "soft",
+        "wheat"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "BAK-001",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-BAK-005",
+      "name": "Nature's Own Butterbread",
+      "brand": "Nature's Own",
+      "category": "bakery",
+      "group": "bread",
+      "price": 3.99,
+      "size": "20 oz",
+      "tags": [
+        "soft",
+        "white"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "BAK-005",
       "mandate_category": "grocery"
     },
     {
@@ -1005,6 +1393,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007016295870",
       "mandate_category": "grocery"
     },
     {
@@ -1018,6 +1407,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003967707213",
       "mandate_category": "grocery"
     },
     {
@@ -1034,6 +1424,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "BAK-004",
       "mandate_category": "grocery"
     },
     {
@@ -1049,6 +1440,24 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001376402722",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-BAK-004",
+      "name": "Dave's Killer Bread 21 Whole Grains",
+      "brand": "Dave's Killer Bread",
+      "category": "bakery",
+      "group": "bread",
+      "price": 6.99,
+      "size": "27 oz",
+      "tags": [
+        "whole_grain",
+        "high_fiber"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "BAK-004",
       "mandate_category": "grocery"
     },
     {
@@ -1064,6 +1473,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111086705",
       "mandate_category": "grocery"
     },
     {
@@ -1078,6 +1488,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003000057322",
       "mandate_category": "grocery"
     },
     {
@@ -1092,6 +1503,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003000006322",
       "mandate_category": "grocery"
     },
     {
@@ -1105,6 +1517,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001600012254",
       "mandate_category": "grocery"
     },
     {
@@ -1118,6 +1531,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001600012479",
       "mandate_category": "grocery"
     },
     {
@@ -1131,6 +1545,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001600012399",
       "mandate_category": "grocery"
     },
     {
@@ -1144,6 +1559,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001600012222",
       "mandate_category": "grocery"
     },
     {
@@ -1157,6 +1573,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001600015128",
       "mandate_category": "grocery"
     },
     {
@@ -1170,6 +1587,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001600027532",
       "mandate_category": "grocery"
     },
     {
@@ -1183,6 +1601,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0088491212971",
       "mandate_category": "grocery"
     },
     {
@@ -1196,6 +1615,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0088491235915",
       "mandate_category": "grocery"
     },
     {
@@ -1209,6 +1629,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001600012025",
       "mandate_category": "grocery"
     },
     {
@@ -1222,6 +1643,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001600015163",
       "mandate_category": "grocery"
     },
     {
@@ -1236,6 +1658,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001600012685",
       "mandate_category": "grocery"
     },
     {
@@ -1250,6 +1673,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001600012495",
       "mandate_category": "grocery"
     },
     {
@@ -1265,6 +1689,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111050204",
       "mandate_category": "grocery"
     },
     {
@@ -1280,6 +1705,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111058287",
       "mandate_category": "grocery"
     },
     {
@@ -1295,6 +1721,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111050158",
       "mandate_category": "grocery"
     },
     {
@@ -1310,6 +1737,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111058678",
       "mandate_category": "grocery"
     },
     {
@@ -1325,6 +1753,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111058627",
       "mandate_category": "grocery"
     },
     {
@@ -1340,6 +1769,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111050170",
       "mandate_category": "grocery"
     },
     {
@@ -1355,6 +1785,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111050174",
       "mandate_category": "grocery"
     },
     {
@@ -1370,6 +1801,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111058718",
       "mandate_category": "grocery"
     },
     {
@@ -1385,6 +1817,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111050159",
       "mandate_category": "grocery"
     },
     {
@@ -1400,6 +1833,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111050183",
       "mandate_category": "grocery"
     },
     {
@@ -1415,6 +1849,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111058720",
       "mandate_category": "grocery"
     },
     {
@@ -1430,6 +1865,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111009434",
       "mandate_category": "grocery"
     },
     {
@@ -1443,6 +1879,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0002100060464",
       "mandate_category": "grocery"
     },
     {
@@ -1458,6 +1895,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111015121",
       "mandate_category": "grocery"
     },
     {
@@ -1473,6 +1911,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0022626600000",
       "mandate_category": "grocery"
     },
     {
@@ -1487,6 +1926,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0081363602065",
       "mandate_category": "grocery"
     },
     {
@@ -1503,6 +1943,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111007451",
       "mandate_category": "grocery"
     },
     {
@@ -1518,6 +1959,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111010742",
       "mandate_category": "grocery"
     },
     {
@@ -1533,6 +1975,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111010738",
       "mandate_category": "grocery"
     },
     {
@@ -1549,6 +1992,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001291934269",
       "mandate_category": "grocery"
     },
     {
@@ -1563,6 +2007,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001291901206",
       "mandate_category": "grocery"
     },
     {
@@ -1577,6 +2022,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001291912231",
       "mandate_category": "grocery"
     },
     {
@@ -1591,6 +2037,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0078260516110",
       "mandate_category": "grocery"
     },
     {
@@ -1604,6 +2051,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0002550030401",
       "mandate_category": "grocery"
     },
     {
@@ -1620,6 +2068,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111003531",
       "mandate_category": "grocery"
     },
     {
@@ -1634,6 +2083,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0076211120605",
       "mandate_category": "grocery"
     },
     {
@@ -1648,6 +2098,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0081006334306",
       "mandate_category": "grocery"
     },
     {
@@ -1663,6 +2114,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111015000",
       "mandate_category": "grocery"
     },
     {
@@ -1676,6 +2128,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004300009422",
       "mandate_category": "grocery"
     },
     {
@@ -1690,6 +2143,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0002550030407",
       "mandate_category": "grocery"
     },
     {
@@ -1703,6 +2157,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111013313",
       "mandate_category": "grocery"
     },
     {
@@ -1718,6 +2173,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111009773",
       "mandate_category": "grocery"
     },
     {
@@ -1734,6 +2190,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111009090",
       "mandate_category": "grocery"
     },
     {
@@ -1751,6 +2208,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111014941",
       "mandate_category": "grocery"
     },
     {
@@ -1766,6 +2224,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111001979",
       "mandate_category": "grocery"
     },
     {
@@ -1782,6 +2241,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111001980",
       "mandate_category": "grocery"
     },
     {
@@ -1796,6 +2256,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004400000057",
       "mandate_category": "grocery"
     },
     {
@@ -1810,6 +2271,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004400002681",
       "mandate_category": "grocery"
     },
     {
@@ -1824,6 +2286,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004400001777",
       "mandate_category": "grocery"
     },
     {
@@ -1840,6 +2303,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004400000055",
       "mandate_category": "grocery"
     },
     {
@@ -1856,6 +2320,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004400005495",
       "mandate_category": "grocery"
     },
     {
@@ -1870,6 +2335,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004400002477",
       "mandate_category": "grocery"
     },
     {
@@ -1884,6 +2350,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003010000133",
       "mandate_category": "grocery"
     },
     {
@@ -1898,6 +2365,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0068670010141",
       "mandate_category": "grocery"
     },
     {
@@ -1911,7 +2379,237 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004400004483",
       "mandate_category": "grocery"
+    },
+    {
+      "sku": "KR-0082785400712",
+      "name": "Ajax Ultra Liquid Dish Soap Triple Action Mess Free Easy Flip Cap Orange Scent 12.4 fl oz",
+      "brand": "Ajax",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 1.39,
+      "size": "12.4 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0082785400712",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111014699",
+      "name": "Simple Truth Lemongrass Clementine Liquid Dish Soap",
+      "brand": "Simple Truth",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 2.49,
+      "size": "19 fl oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111014699",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111002735",
+      "name": "Kroger Ultra Concentrated Liquid Dish Soap Clean Scent",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 2.99,
+      "size": "28 fl oz",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111002735",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003500045038",
+      "name": "Palmolive Ultra Antibacterial Orange Scent Dishwashing Liquid Dish Soap",
+      "brand": "Palmolive",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 2.99,
+      "size": "20 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003500045038",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077209403",
+      "name": "Dawn Ultra Original Scent Liquid Dish Soap",
+      "brand": "Precious",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 3.49,
+      "size": "18 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077209403",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077220704",
+      "name": "Dawn Ultra Dish Soap Dishwashing Liquid Apple Blossom",
+      "brand": "Dawn",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 3.49,
+      "size": "18 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077220704",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "HOM-005",
+      "name": "Dawn Ultra Original Dish Soap",
+      "brand": "Dawn",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 3.49,
+      "size": "19.4 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "synthetic",
+      "product_key": "HOM-005",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0073291344986",
+      "name": "Seventh Generation Dish Liquid Soap Free & Clear Dish Liquid Soap Dish Soap for sensitive skin",
+      "brand": "Seventh Generation",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 4.19,
+      "size": "19 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0073291344986",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077222229",
+      "name": "Dawn Platinum EZ Squeeze Dish Soap Dishwashing Liquid Tough Grease Removal Fresh Rain",
+      "brand": "Dawn",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 4.99,
+      "regular_price": 5.99,
+      "size": "24 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077222229",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077220712",
+      "name": "Dawn Ultra Dish Soap Dishwashing Liquid Apple Blossom",
+      "brand": "Dawn",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 4.99,
+      "size": "22 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077220712",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077222259",
+      "name": "Dawn Platinum Dish Soap Dishwashing Liquid Tough Grease Removal Fresh Rain",
+      "brand": "Dawn",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 5.49,
+      "size": "24 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077222259",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077216468",
+      "name": "Dawn Ultra Dish Soap Liquid, Dishwashing Liquid, Grease Removal, Original, 30.8oz",
+      "brand": "Dawn",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 5.49,
+      "size": "30.8 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077216468",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077222230",
+      "name": "Dawn Platinum Dish Soap Dishwashing Liquid Tough Grease Removal Fresh Rain",
+      "brand": "Dawn",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 6.29,
+      "size": "30 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077222230",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077201158",
+      "name": "Dawn Ultra Original Scent Liquid Dish Soap",
+      "brand": "Dawn",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 6.29,
+      "size": "38 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077201158",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077219188",
+      "name": "Dawn Ultra Original 67 fl oz RFL Ultra Refill Jug Dish Soap Dishwashing Liquid Original",
+      "brand": "Dawn",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 10.79,
+      "size": "67 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077219188",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077222227",
+      "name": "Dawn Platinum Refill Jug Dish Soap Dishwashing Liquid Tough Grease Removal Fresh Rain",
+      "brand": "Dawn",
+      "category": "household",
+      "group": "dish_soap",
+      "price": 10.99,
+      "size": "51.5 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077222227",
+      "mandate_category": "household"
     },
     {
       "sku": "KR-0001111060906",
@@ -1926,6 +2624,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111060906",
       "mandate_category": "grocery"
     },
     {
@@ -1942,6 +2641,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "EGG-003",
       "mandate_category": "grocery"
     },
     {
@@ -1957,6 +2657,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111060903",
       "mandate_category": "grocery"
     },
     {
@@ -1972,6 +2673,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111060904",
       "mandate_category": "grocery"
     },
     {
@@ -1987,6 +2689,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111060905",
       "mandate_category": "grocery"
     },
     {
@@ -2002,6 +2705,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "EGG-001",
       "mandate_category": "grocery"
     },
     {
@@ -2017,6 +2721,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111060933",
       "mandate_category": "grocery"
     },
     {
@@ -2032,6 +2737,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111079770",
       "mandate_category": "grocery"
     },
     {
@@ -2045,6 +2751,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "EGG-002",
       "mandate_category": "grocery"
     },
     {
@@ -2058,6 +2765,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0071514150349",
       "mandate_category": "grocery"
     },
     {
@@ -2074,6 +2782,21 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111079772",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-EGG-002",
+      "name": "Eggland's Best Large Eggs",
+      "brand": "Eggland's Best",
+      "category": "dairy",
+      "group": "eggs",
+      "price": 4.99,
+      "size": "12 ct",
+      "tags": [],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "EGG-002",
       "mandate_category": "grocery"
     },
     {
@@ -2089,6 +2812,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111060980",
       "mandate_category": "grocery"
     },
     {
@@ -2104,6 +2828,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111089310",
       "mandate_category": "grocery"
     },
     {
@@ -2121,6 +2846,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111016520",
       "mandate_category": "grocery"
     },
     {
@@ -2136,6 +2862,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111015097",
       "mandate_category": "grocery"
     },
     {
@@ -2149,6 +2876,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0071514111357",
       "mandate_category": "grocery"
     },
     {
@@ -2165,6 +2893,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111006479",
       "mandate_category": "grocery"
     },
     {
@@ -2180,6 +2909,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111060914",
       "mandate_category": "grocery"
     },
     {
@@ -2195,6 +2925,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "GFT-003",
       "mandate_category": "gift_card"
     },
     {
@@ -2210,6 +2941,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "GFT-001",
       "mandate_category": "gift_card"
     },
     {
@@ -2225,6 +2957,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "GFT-002",
       "mandate_category": "gift_card"
     },
     {
@@ -2239,9 +2972,10 @@
         "famotidine"
       ],
       "substitute_key": "famotidine",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Acid reducer",
+      "product_key": "FDA-018B02E8",
       "mandate_category": "pharmacy"
     },
     {
@@ -2256,9 +2990,10 @@
         "calcium"
       ],
       "substitute_key": "calcium",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Antacid",
+      "product_key": "FDA-0108B97F",
       "mandate_category": "pharmacy"
     },
     {
@@ -2273,9 +3008,10 @@
         "calcium"
       ],
       "substitute_key": "calcium",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Antacid",
+      "product_key": "FDA-036EF1ED",
       "mandate_category": "pharmacy"
     },
     {
@@ -2290,9 +3026,10 @@
         "famotidine"
       ],
       "substitute_key": "famotidine",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Acid reducer",
+      "product_key": "FDA-05C03FD8",
       "mandate_category": "pharmacy"
     },
     {
@@ -2307,9 +3044,10 @@
         "famotidine"
       ],
       "substitute_key": "famotidine",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Acid reducer",
+      "product_key": "FDA-07A924F1",
       "mandate_category": "pharmacy"
     },
     {
@@ -2324,9 +3062,10 @@
         "calcium"
       ],
       "substitute_key": "calcium",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "PURPOSE Antacid",
+      "product_key": "FDA-021E1A7F",
       "mandate_category": "pharmacy"
     },
     {
@@ -2341,6 +3080,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0002500000024",
       "mandate_category": "grocery"
     },
     {
@@ -2356,6 +3096,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111015687",
       "mandate_category": "grocery"
     },
     {
@@ -2371,6 +3112,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111048480",
       "mandate_category": "grocery"
     },
     {
@@ -2384,6 +3126,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004850020571",
       "mandate_category": "grocery"
     },
     {
@@ -2397,6 +3140,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0002500013678",
       "mandate_category": "grocery"
     },
     {
@@ -2410,6 +3154,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0002500013680",
       "mandate_category": "grocery"
     },
     {
@@ -2423,6 +3168,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0002500013682",
       "mandate_category": "grocery"
     },
     {
@@ -2436,6 +3182,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0002500004789",
       "mandate_category": "grocery"
     },
     {
@@ -2452,6 +3199,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111015691",
       "mandate_category": "grocery"
     },
     {
@@ -2465,6 +3213,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0002500013025",
       "mandate_category": "grocery"
     },
     {
@@ -2479,6 +3228,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004850001833",
       "mandate_category": "grocery"
     },
     {
@@ -2493,6 +3243,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004850001830",
       "mandate_category": "grocery"
     },
     {
@@ -2509,6 +3260,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111048482",
       "mandate_category": "grocery"
     },
     {
@@ -2522,6 +3274,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0002500013663",
       "mandate_category": "grocery"
     },
     {
@@ -2535,7 +3288,460 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0002500013665",
       "mandate_category": "grocery"
+    },
+    {
+      "sku": "KR-0003320030003",
+      "name": "ARM & HAMMER Plus OxiClean with Odor Blasters Fresh Burst Liquid Laundry Detergent",
+      "brand": "Arm & Hammer",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 6.29,
+      "size": "45.5 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003320030003",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003320000427",
+      "name": "ARM & HAMMER Liquid Laundry Detergent Clean Burst Scent",
+      "brand": "Arm & Hammer",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 6.29,
+      "size": "67 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003320000427",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003320000268",
+      "name": "ARM & HAMMER Sensitive Skin Hypoallergenic Liquid Laundry Detergent",
+      "brand": "Arm & Hammer",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 6.29,
+      "size": "50 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003320000268",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003320097613",
+      "name": "ARM & HAMMER Plus A Touch Of Softener Liquid Laundry Detergent Orchard Bloom",
+      "brand": "Arm & Hammer",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 6.29,
+      "size": "45.5 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003320097613",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0009451400216",
+      "name": "XTRA Calypso Fresh Liquid Laundry Detergent",
+      "brand": "Xtra",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 9.99,
+      "size": "206.4 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0009451400216",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003320000267",
+      "name": "ARM & HAMMER Sensitive Skin Hypoallergenic Liquid Laundry Detergent",
+      "brand": "Arm & Hammer",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 11.29,
+      "size": "105 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003320000267",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0007261347415",
+      "name": "all Free Clear Laundry Detergent",
+      "brand": "All",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 11.99,
+      "regular_price": 13.29,
+      "size": "73 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0007261347415",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0002420005467",
+      "name": "Persil Deep Clean Intense Fresh Liquid Laundry Detergent for Long-Lasting Freshness",
+      "brand": "Persil",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 11.99,
+      "regular_price": 14.29,
+      "size": "84 fl oz / 64 loads",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0002420005467",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0074917409889",
+      "name": "ECOS Hypoallergenic Laundry Detergent Free & Clear",
+      "brand": "ECOS",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 13.49,
+      "regular_price": 16.29,
+      "size": "100 fo, 2.96l",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0074917409889",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003320099748",
+      "name": "ARM & HAMMER Plus OxiClean Ultra Stain Fighters Fresh Scent Liquid Laundry Detergent",
+      "brand": "Arm & Hammer",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 14.29,
+      "size": "158.6 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003320099748",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003320007008",
+      "name": "ARM & HAMMER Sensitive Skin Hypoallergenic Liquid Laundry Detergent",
+      "brand": "Arm & Hammer",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 14.29,
+      "size": "170 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003320007008",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003320000399",
+      "name": "ARM & HAMMER Plus OxiClean with Odor Blasters Liquid Detergent Fresh Burst Scent",
+      "brand": "Arm & Hammer",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 14.29,
+      "size": "160 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003320000399",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077212104",
+      "name": "Tide Original Scent Liquid Laundry Detergent",
+      "brand": "Tide",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 15.99,
+      "regular_price": 16.29,
+      "size": "100 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077212104",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "HOM-006",
+      "name": "Tide Original Liquid Laundry Detergent",
+      "brand": "Tide",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 15.99,
+      "size": "92 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "synthetic",
+      "product_key": "HOM-006",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077222634",
+      "name": "Gain Original Liquid Laundry Detergent",
+      "brand": "Gain",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 20.49,
+      "size": "132 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077222634",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077212101",
+      "name": "Tide Original Scent Liquid Laundry Detergent",
+      "brand": "Tide",
+      "category": "household",
+      "group": "laundry_detergent",
+      "price": 20.49,
+      "size": "125 fl oz",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077212101",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004667757020",
+      "name": "Philips 40-Watt Ba9 Candle Incandescent Dimmable Light Bulb - Soft White (2700K)",
+      "brand": "Philips",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 5.49,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004667757020",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004122666060",
+      "name": "Everyday Living 6.5-Watt (40-Watt) A19 LED Light Bulb - Soft White (2700K)",
+      "brand": "Everyday Living",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 7.99,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004122666060",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004122666061",
+      "name": "Everyday Living 6.5-Watt (40-Watt) A19 LED Light Bulb - Daylight (5000K)",
+      "brand": "Everyday Living",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 7.99,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004122666061",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004122666062",
+      "name": "Everyday Living 10.5-Watt (60-Watt) A19 LED Light Bulb - Soft White (2700K)",
+      "brand": "Everyday Living",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 8.99,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004122666062",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004122666063",
+      "name": "Everyday Living 10.5-Watt (60-Watt) A19 LED Light Bulb - Daylight (5000K)",
+      "brand": "Everyday Living",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 8.99,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004122666063",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004667756534",
+      "name": "Philips 6.5-Watt (40-Watt) A19 LED Light Bulb - Soft White (2700K)",
+      "brand": "Philips",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 8.99,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004667756534",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004667756548",
+      "name": "Philips 9-Watt (60-Watt) A19 LED Light Bulb - Daylight (5000K)",
+      "brand": "Philips",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 9.99,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004667756548",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004667756545",
+      "name": "Philips 10-Watt (60-Watt) A19 LED Light Bulb - Soft White (2700K)",
+      "brand": "Philips",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 9.99,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004667756545",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "HOM-004",
+      "name": "Philips 60-Watt A19 LED Light Bulb, Soft White",
+      "brand": "Philips",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 9.99,
+      "size": "1 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "synthetic",
+      "product_key": "HOM-004",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004122666066",
+      "name": "Everyday Living 14-Watt (100-Watt) A19 LED Light Bulb - Soft White (2700K)",
+      "brand": "Everyday Living",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 13.49,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004122666066",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004667756537",
+      "name": "Phillips 11-Watt 75-Watt A19 LED Light Bulb Soft White 2700K",
+      "brand": "Philips",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 13.49,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004667756537",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004667757609",
+      "name": "Philips 5-Watt (40-Watt) A19 LED Dimmable Flicker Free Light Bulb - Soft White (2700K)",
+      "brand": "Philips",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 13.99,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004667757609",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004122666067",
+      "name": "Everyday Living 12.5-Watt (100-Watt) A19 LED Light Bulb - Daylight (5000K)",
+      "brand": "Everyday Living",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 13.99,
+      "size": "4 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004122666067",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0088877709897",
+      "name": "Everyday Living 60-Watt (10.5-Watt) A19 Light Bulb, Soft White - 10 Pack",
+      "brand": "Everyday Living",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 14.99,
+      "size": "10 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0088877709897",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004667757151",
+      "name": "Philips 8-Watt (60-Watt) 3-Way A21 LED Light Bulb - Soft White (2700K)",
+      "brand": "Philips",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 16.49,
+      "size": "1 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004667757151",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004667757152",
+      "name": "Phillips 18.5-Watt (150-Watt) 3-Way A21 LED Light Bulb - Soft White (2700K)",
+      "brand": "Philips",
+      "category": "household",
+      "group": "light_bulbs",
+      "price": 19.49,
+      "size": "1 pk",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004667757152",
+      "mandate_category": "household"
     },
     {
       "sku": "DAI-002",
@@ -2551,6 +3757,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "DAI-002",
       "mandate_category": "grocery"
     },
     {
@@ -2566,6 +3773,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111040601",
       "mandate_category": "grocery"
     },
     {
@@ -2581,6 +3789,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111041661",
       "mandate_category": "grocery"
     },
     {
@@ -2596,6 +3805,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111050574",
       "mandate_category": "grocery"
     },
     {
@@ -2611,6 +3821,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111040101",
       "mandate_category": "grocery"
     },
     {
@@ -2626,6 +3837,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111041660",
       "mandate_category": "grocery"
     },
     {
@@ -2641,6 +3853,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111042315",
       "mandate_category": "grocery"
     },
     {
@@ -2656,6 +3869,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "DAI-001",
       "mandate_category": "grocery"
     },
     {
@@ -2672,6 +3886,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111082556",
       "mandate_category": "grocery"
     },
     {
@@ -2687,6 +3902,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111050573",
       "mandate_category": "grocery"
     },
     {
@@ -2703,6 +3919,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111042852",
       "mandate_category": "grocery"
     },
     {
@@ -2719,6 +3936,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111042850",
       "mandate_category": "grocery"
     },
     {
@@ -2734,6 +3952,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "DAI-003",
       "mandate_category": "grocery"
     },
     {
@@ -2750,6 +3969,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0009396651300",
       "mandate_category": "grocery"
     },
     {
@@ -2765,6 +3985,39 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "DAI-004",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-DAI-003",
+      "name": "Lactaid 2% Reduced Fat Milk",
+      "brand": "Lactaid",
+      "category": "dairy",
+      "group": "milk",
+      "price": 5.49,
+      "size": "96 oz",
+      "tags": [
+        "lactose_free"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "DAI-003",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-DAI-004",
+      "name": "Horizon Organic Whole Milk",
+      "brand": "Horizon",
+      "category": "dairy",
+      "group": "milk",
+      "price": 6.49,
+      "size": "half gal",
+      "tags": [
+        "organic"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "DAI-004",
       "mandate_category": "grocery"
     },
     {
@@ -2781,6 +4034,24 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111042908",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-NUT-003",
+      "name": "Ensure Max Protein Milk Chocolate Shake",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 9.49,
+      "size": "4 x 11 fl oz",
+      "tags": [
+        "protein",
+        "high_protein"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "NUT-003",
       "mandate_category": "grocery"
     },
     {
@@ -2797,6 +4068,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "NUT-003",
       "mandate_category": "grocery"
     },
     {
@@ -2810,6 +4082,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007440701",
       "mandate_category": "grocery"
     },
     {
@@ -2823,6 +4096,40 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007440705",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-NUT-001",
+      "name": "Ensure Original Vanilla Nutrition Shake",
+      "brand": "Ensure",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 10.49,
+      "size": "6 x 8 fl oz",
+      "tags": [
+        "protein"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "NUT-001",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-NUT-004",
+      "name": "Glucerna Original Shake Homemade Vanilla",
+      "brand": "Glucerna",
+      "category": "nutrition",
+      "group": "nutrition_shake",
+      "price": 10.49,
+      "size": "6 x 8 fl oz",
+      "tags": [
+        "protein",
+        "diabetes_friendly"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "NUT-004",
       "mandate_category": "grocery"
     },
     {
@@ -2837,6 +4144,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007466897",
       "mandate_category": "grocery"
     },
     {
@@ -2851,6 +4159,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007467166",
       "mandate_category": "grocery"
     },
     {
@@ -2865,6 +4174,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007464116",
       "mandate_category": "grocery"
     },
     {
@@ -2879,6 +4189,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007464118",
       "mandate_category": "grocery"
     },
     {
@@ -2893,6 +4204,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007468170",
       "mandate_category": "grocery"
     },
     {
@@ -2907,6 +4219,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007466891",
       "mandate_category": "grocery"
     },
     {
@@ -2922,6 +4235,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "NUT-001",
       "mandate_category": "grocery"
     },
     {
@@ -2938,6 +4252,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "NUT-004",
       "mandate_category": "grocery"
     },
     {
@@ -2952,6 +4267,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007440707",
       "mandate_category": "grocery"
     },
     {
@@ -2966,6 +4282,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007440702",
       "mandate_category": "grocery"
     },
     {
@@ -2980,6 +4297,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007440718",
       "mandate_category": "grocery"
     },
     {
@@ -2994,6 +4312,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007453623",
       "mandate_category": "grocery"
     },
     {
@@ -3008,6 +4327,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007007467725",
       "mandate_category": "grocery"
     },
     {
@@ -3024,6 +4344,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "NUT-002",
       "mandate_category": "grocery"
     },
     {
@@ -3039,6 +4360,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111007268",
       "mandate_category": "grocery"
     },
     {
@@ -3054,6 +4376,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111007191",
       "mandate_category": "grocery"
     },
     {
@@ -3070,6 +4393,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111007330",
       "mandate_category": "grocery"
     },
     {
@@ -3085,6 +4409,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111007301",
       "mandate_category": "grocery"
     },
     {
@@ -3099,6 +4424,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003000056728",
       "mandate_category": "grocery"
     },
     {
@@ -3113,6 +4439,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003000056828",
       "mandate_category": "grocery"
     },
     {
@@ -3127,6 +4454,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003000056729",
       "mandate_category": "grocery"
     },
     {
@@ -3141,6 +4469,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003000056849",
       "mandate_category": "grocery"
     },
     {
@@ -3155,6 +4484,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003000056731",
       "mandate_category": "grocery"
     },
     {
@@ -3171,6 +4501,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003000056855",
       "mandate_category": "grocery"
     },
     {
@@ -3188,6 +4519,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "PAN-003",
       "mandate_category": "grocery"
     },
     {
@@ -3204,6 +4536,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111010264",
       "mandate_category": "grocery"
     },
     {
@@ -3220,6 +4553,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111010302",
       "mandate_category": "grocery"
     },
     {
@@ -3236,6 +4570,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "PAN-001",
       "mandate_category": "grocery"
     },
     {
@@ -3252,6 +4587,41 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "PAN-002",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-PAN-001",
+      "name": "Quaker Old Fashioned Oats",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 4.99,
+      "size": "18 oz",
+      "tags": [
+        "whole_grain",
+        "heart_healthy"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "PAN-001",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-PAN-002",
+      "name": "Quaker Instant Oatmeal Original",
+      "brand": "Quaker",
+      "category": "pantry",
+      "group": "oatmeal",
+      "price": 4.99,
+      "size": "10 ct",
+      "tags": [
+        "whole_grain",
+        "easy_prep"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "PAN-002",
       "mandate_category": "grocery"
     },
     {
@@ -3266,6 +4636,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003000031504",
       "mandate_category": "grocery"
     },
     {
@@ -3280,6 +4651,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003000056831",
       "mandate_category": "grocery"
     },
     {
@@ -3294,9 +4666,10 @@
         "acetaminophen"
       ],
       "substitute_key": "acetaminophen",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Pain reliever/fever reducer",
+      "product_key": "FDA-00146B91",
       "mandate_category": "pharmacy"
     },
     {
@@ -3311,9 +4684,10 @@
         "naproxen"
       ],
       "substitute_key": "naproxen",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purposes Pain reliever/fever reducer",
+      "product_key": "FDA-00BD8490",
       "mandate_category": "pharmacy"
     },
     {
@@ -3328,9 +4702,10 @@
         "naproxen"
       ],
       "substitute_key": "naproxen",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purposes Pain reliever/fever reducer",
+      "product_key": "FDA-00EF5B30",
       "mandate_category": "pharmacy"
     },
     {
@@ -3345,9 +4720,10 @@
         "aspirin"
       ],
       "substitute_key": "aspirin",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Active ingredient (in each tablet) Purpose Aspirin 325 mg (NSAID*) ............................. *nonsteroidal anti-inﬂammatory drug Pain reliever",
+      "product_key": "FDA-00D9AB0D",
       "mandate_category": "pharmacy"
     },
     {
@@ -3362,9 +4738,10 @@
         "acetaminophen",
         "store_brand"
       ],
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "synthetic",
       "substitute_key": "acetaminophen",
+      "product_key": "OTC-004",
       "mandate_category": "pharmacy"
     },
     {
@@ -3380,9 +4757,10 @@
         "nsaid",
         "store_brand"
       ],
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "synthetic",
       "substitute_key": "ibuprofen",
+      "product_key": "OTC-002",
       "mandate_category": "pharmacy"
     },
     {
@@ -3397,9 +4775,10 @@
         "ibuprofen"
       ],
       "substitute_key": "ibuprofen",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Pain reliever/fever reducer",
+      "product_key": "FDA-00653B7C",
       "mandate_category": "pharmacy"
     },
     {
@@ -3414,9 +4793,10 @@
         "acetaminophen"
       ],
       "substitute_key": "acetaminophen",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Pain reliever/fever reducer",
+      "product_key": "FDA-0005AAFA",
       "mandate_category": "pharmacy"
     },
     {
@@ -3431,9 +4811,10 @@
         "aspirin"
       ],
       "substitute_key": "aspirin",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Pain reliever",
+      "product_key": "FDA-024C5054",
       "mandate_category": "pharmacy"
     },
     {
@@ -3448,9 +4829,10 @@
         "acetaminophen"
       ],
       "substitute_key": "acetaminophen",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Pain reliever/fever reducer",
+      "product_key": "FDA-0035A4FD",
       "mandate_category": "pharmacy"
     },
     {
@@ -3465,9 +4847,10 @@
         "ibuprofen"
       ],
       "substitute_key": "ibuprofen",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purposes Pain reliever/fever reducer",
+      "product_key": "FDA-006ADF23",
       "mandate_category": "pharmacy"
     },
     {
@@ -3482,9 +4865,10 @@
         "naproxen"
       ],
       "substitute_key": "naproxen",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purposes Pain reliever/fever reducer",
+      "product_key": "FDA-01746BB6",
       "mandate_category": "pharmacy"
     },
     {
@@ -3498,9 +4882,10 @@
       "tags": [
         "acetaminophen"
       ],
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "synthetic",
       "substitute_key": "acetaminophen",
+      "product_key": "OTC-003",
       "mandate_category": "pharmacy"
     },
     {
@@ -3515,9 +4900,10 @@
         "ibuprofen"
       ],
       "substitute_key": "ibuprofen",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purposes Pain reliever/fever reducer",
+      "product_key": "FDA-009DDE4C",
       "mandate_category": "pharmacy"
     },
     {
@@ -3532,9 +4918,10 @@
         "ibuprofen",
         "nsaid"
       ],
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "synthetic",
       "substitute_key": "ibuprofen",
+      "product_key": "OTC-001",
       "mandate_category": "pharmacy"
     },
     {
@@ -3549,10 +4936,249 @@
         "aspirin"
       ],
       "substitute_key": "aspirin",
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "openfda",
       "purpose": "Purpose Pain reliever",
+      "product_key": "FDA-0058175F",
       "mandate_category": "pharmacy"
+    },
+    {
+      "sku": "KR-0001111010621",
+      "name": "Kroger Glimmer Select-A-Sheet Paper Towels Double Rolls",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 3.0,
+      "size": "2 rolls",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111010621",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003040022272",
+      "name": "Sparkle Tear-A-Square Customizable Sheet Size Paper Towels Double Rolls",
+      "brand": "Sparkle",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 3.69,
+      "size": "2 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003040022272",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111014184",
+      "name": "Kroger Ultra Paper Towels With Absorbing Power Triple Rolls",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 6.49,
+      "size": "2 rolls",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111014184",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111014185",
+      "name": "Kroger Ultra Paper Towels With Absorbing Power Double Rolls",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 8.29,
+      "size": "4 rolls",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111014185",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003040022276",
+      "name": "Sparkle Tear-A-Square Paper Towel Double Rolls",
+      "brand": "Sparkle",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 8.99,
+      "regular_price": 9.29,
+      "size": "6 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003040022276",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003600049413",
+      "name": "Viva Multi-Surface Cloth Paper Towels Single+ Rolls",
+      "brand": "Viva",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 9.99,
+      "regular_price": 12.49,
+      "size": "6 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003600049413",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004200044579",
+      "name": "Brawny Tear-A-Square 3 Ply Paper Towel Double Rolls",
+      "brand": "Brawny",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 10.09,
+      "regular_price": 10.29,
+      "size": "4 rl",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004200044579",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111014186",
+      "name": "Kroger Ultra Paper Towels With Absorbing Power Double Rolls",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 11.29,
+      "size": "6 rolls",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111014186",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003040022241",
+      "name": "Sparkle Pick-A-Size Paper Towel, Double Rolls",
+      "brand": "Sparkle",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 11.99,
+      "size": "8 rl",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003040022241",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004200044588",
+      "name": "Brawny Tear-A-Square 3 Ply Paper Towel Double Rolls",
+      "brand": "Brawny",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 12.29,
+      "regular_price": 13.29,
+      "size": "6 rl",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004200044588",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077215703",
+      "name": "Bounty Paper Towels Select-A-Size White 6 Double Rolls",
+      "brand": "Bounty",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 15.29,
+      "size": "6 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077215703",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "HOM-001",
+      "name": "Bounty Select-A-Size Paper Towels, 6 Double Rolls",
+      "brand": "Bounty",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 15.29,
+      "size": "6 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "synthetic",
+      "product_key": "HOM-001",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003600056532",
+      "name": "Viva Signature Cloth Paper Towels Double Rolls",
+      "brand": "Viva",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 16.29,
+      "size": "6 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003600056532",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111016088",
+      "name": "Kroger Rugged + Reliable Paper Towels Double Plus Rolls BIG DEAL!",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 20.0,
+      "size": "12 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111016088",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077216014",
+      "name": "Bounty Paper Towels Select-A-Size White 8 Triple Rolls",
+      "brand": "Bounty",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 25.99,
+      "size": "8 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077216014",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077216041",
+      "name": "Bounty Paper Towels Select-A-Size White 12 Triple Rolls",
+      "brand": "Bounty",
+      "category": "household",
+      "group": "paper_towels",
+      "price": 36.99,
+      "size": "12 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077216041",
+      "mandate_category": "household"
     },
     {
       "sku": "KR-0001111001618",
@@ -3567,6 +5193,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111001618",
       "mandate_category": "grocery"
     },
     {
@@ -3582,6 +5209,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111001652",
       "mandate_category": "grocery"
     },
     {
@@ -3597,6 +5225,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111001649",
       "mandate_category": "grocery"
     },
     {
@@ -3612,6 +5241,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111001619",
       "mandate_category": "grocery"
     },
     {
@@ -3625,6 +5255,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004530000549",
       "mandate_category": "grocery"
     },
     {
@@ -3638,6 +5269,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005150025516",
       "mandate_category": "grocery"
     },
     {
@@ -3651,6 +5283,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005150025565",
       "mandate_category": "grocery"
     },
     {
@@ -3667,6 +5300,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111079156",
       "mandate_category": "grocery"
     },
     {
@@ -3682,6 +5316,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111009853",
       "mandate_category": "grocery"
     },
     {
@@ -3695,6 +5330,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005150024177",
       "mandate_category": "grocery"
     },
     {
@@ -3711,6 +5347,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111073932",
       "mandate_category": "grocery"
     },
     {
@@ -3724,6 +5361,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005150072001",
       "mandate_category": "grocery"
     },
     {
@@ -3737,6 +5375,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005150024321",
       "mandate_category": "grocery"
     },
     {
@@ -3753,6 +5392,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111012605",
       "mandate_category": "grocery"
     },
     {
@@ -3766,6 +5406,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005150024769",
       "mandate_category": "grocery"
     },
     {
@@ -3781,12 +5422,13 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "PPD-001",
       "mandate_category": "prepaid_card"
     },
     {
       "sku": "RX-001",
       "name": "Lisinopril 10 mg, 30 tablets (pharmacy pickup)",
-      "brand": "Corner Market Pharmacy",
+      "brand": "Parkside Pharmacy",
       "category": "pharmacy_pickup",
       "group": "prescription",
       "price": 8.0,
@@ -3796,9 +5438,10 @@
         "pickup",
         "blood_pressure"
       ],
-      "merchant": "corner_market",
+      "merchant": "parkside_pharmacy",
       "source": "synthetic",
       "note": "Ready for pickup, $8.00 copay",
+      "product_key": "RX-001",
       "mandate_category": "pharmacy"
     },
     {
@@ -3814,6 +5457,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111001950",
       "mandate_category": "grocery"
     },
     {
@@ -3829,6 +5473,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111089875",
       "mandate_category": "grocery"
     },
     {
@@ -3844,6 +5489,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111084726",
       "mandate_category": "grocery"
     },
     {
@@ -3857,6 +5503,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001740014031",
       "mandate_category": "grocery"
     },
     {
@@ -3870,6 +5517,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001740014000",
       "mandate_category": "grocery"
     },
     {
@@ -3883,6 +5531,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001740010077",
       "mandate_category": "grocery"
     },
     {
@@ -3896,6 +5545,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001740010675",
       "mandate_category": "grocery"
     },
     {
@@ -3909,6 +5559,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001740011805",
       "mandate_category": "grocery"
     },
     {
@@ -3924,6 +5575,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111015341",
       "mandate_category": "grocery"
     },
     {
@@ -3939,6 +5591,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111084703",
       "mandate_category": "grocery"
     },
     {
@@ -3952,6 +5605,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001740010695",
       "mandate_category": "grocery"
     },
     {
@@ -3965,6 +5619,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001740010932",
       "mandate_category": "grocery"
     },
     {
@@ -3980,6 +5635,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111015343",
       "mandate_category": "grocery"
     },
     {
@@ -3993,6 +5649,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001740010951",
       "mandate_category": "grocery"
     },
     {
@@ -4007,6 +5664,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001115203470",
       "mandate_category": "grocery"
     },
     {
@@ -4022,6 +5680,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111016039",
       "mandate_category": "grocery"
     },
     {
@@ -4037,6 +5696,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "SOU-004",
       "mandate_category": "grocery"
     },
     {
@@ -4053,6 +5713,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111086545",
       "mandate_category": "grocery"
     },
     {
@@ -4068,6 +5729,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111004523",
       "mandate_category": "grocery"
     },
     {
@@ -4084,6 +5746,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111016047",
       "mandate_category": "grocery"
     },
     {
@@ -4099,6 +5762,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "SOU-001",
       "mandate_category": "grocery"
     },
     {
@@ -4112,6 +5776,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100001251",
       "mandate_category": "grocery"
     },
     {
@@ -4128,6 +5793,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111004970",
       "mandate_category": "grocery"
     },
     {
@@ -4141,6 +5807,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100002457",
       "mandate_category": "grocery"
     },
     {
@@ -4155,6 +5822,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100028800",
       "mandate_category": "grocery"
     },
     {
@@ -4168,6 +5836,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100001047",
       "mandate_category": "grocery"
     },
     {
@@ -4183,6 +5852,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100016680",
       "mandate_category": "grocery"
     },
     {
@@ -4198,6 +5868,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100029114",
       "mandate_category": "grocery"
     },
     {
@@ -4213,6 +5884,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100029113",
       "mandate_category": "grocery"
     },
     {
@@ -4228,6 +5900,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100016681",
       "mandate_category": "grocery"
     },
     {
@@ -4245,6 +5918,23 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "SOU-002",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-SOU-001",
+      "name": "Campbell's Chicken Noodle Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 1.99,
+      "size": "10.75 oz",
+      "tags": [
+        "easy_open"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "SOU-001",
       "mandate_category": "grocery"
     },
     {
@@ -4263,6 +5953,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111004963",
       "mandate_category": "grocery"
     },
     {
@@ -4281,6 +5972,25 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111008602",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-SOU-002",
+      "name": "Campbell's Healthy Request Chicken Noodle Soup",
+      "brand": "Campbell's",
+      "category": "pantry",
+      "group": "soup",
+      "price": 2.49,
+      "size": "10.75 oz",
+      "tags": [
+        "low_sodium",
+        "heart_healthy",
+        "easy_open"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "SOU-002",
       "mandate_category": "grocery"
     },
     {
@@ -4294,6 +6004,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004119691401",
       "mandate_category": "grocery"
     },
     {
@@ -4307,6 +6018,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004119601088",
       "mandate_category": "grocery"
     },
     {
@@ -4320,6 +6032,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100003885",
       "mandate_category": "grocery"
     },
     {
@@ -4335,6 +6048,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004119680548",
       "mandate_category": "grocery"
     },
     {
@@ -4350,6 +6064,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004119674074",
       "mandate_category": "grocery"
     },
     {
@@ -4365,6 +6080,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004119613648",
       "mandate_category": "grocery"
     },
     {
@@ -4380,6 +6096,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004119613649",
       "mandate_category": "grocery"
     },
     {
@@ -4395,6 +6112,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004119641942",
       "mandate_category": "grocery"
     },
     {
@@ -4411,6 +6129,24 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "SOU-003",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-SOU-003",
+      "name": "Progresso Reduced Sodium Chicken Noodle Soup",
+      "brand": "Progresso",
+      "category": "pantry",
+      "group": "soup",
+      "price": 3.49,
+      "size": "19 oz",
+      "tags": [
+        "low_sodium",
+        "ready_to_eat"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "SOU-003",
       "mandate_category": "grocery"
     },
     {
@@ -4427,6 +6163,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111014281",
       "mandate_category": "grocery"
     },
     {
@@ -4442,6 +6179,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005260329011",
       "mandate_category": "grocery"
     },
     {
@@ -4457,6 +6195,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005260328919",
       "mandate_category": "grocery"
     },
     {
@@ -4470,6 +6209,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100012938",
       "mandate_category": "grocery"
     },
     {
@@ -4483,6 +6223,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100028207",
       "mandate_category": "grocery"
     },
     {
@@ -4496,6 +6237,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0005100027358",
       "mandate_category": "grocery"
     },
     {
@@ -4509,6 +6251,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007795869041",
       "mandate_category": "grocery"
     },
     {
@@ -4522,6 +6265,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111016537",
       "mandate_category": "grocery"
     },
     {
@@ -4535,6 +6279,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111011754",
       "mandate_category": "grocery"
     },
     {
@@ -4548,6 +6293,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004790030319",
       "mandate_category": "grocery"
     },
     {
@@ -4562,6 +6308,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007231000123",
       "mandate_category": "grocery"
     },
     {
@@ -4576,6 +6323,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007231000189",
       "mandate_category": "grocery"
     },
     {
@@ -4590,6 +6338,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007231000161",
       "mandate_category": "grocery"
     },
     {
@@ -4604,6 +6353,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007231000177",
       "mandate_category": "grocery"
     },
     {
@@ -4620,6 +6370,7 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007231001091",
       "mandate_category": "grocery"
     },
     {
@@ -4633,6 +6384,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001115605805",
       "mandate_category": "grocery"
     },
     {
@@ -4646,6 +6398,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007024221110",
       "mandate_category": "grocery"
     },
     {
@@ -4661,6 +6414,7 @@
       ],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "BEV-002",
       "mandate_category": "grocery"
     },
     {
@@ -4675,6 +6429,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0079452200425",
       "mandate_category": "grocery"
     },
     {
@@ -4690,6 +6445,23 @@
       ],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0001111016584",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-BEV-002",
+      "name": "Celestial Seasonings Chamomile Herbal Tea",
+      "brand": "Celestial Seasonings",
+      "category": "beverages",
+      "group": "tea",
+      "price": 3.99,
+      "size": "20 ct",
+      "tags": [
+        "caffeine_free"
+      ],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "BEV-002",
       "mandate_category": "grocery"
     },
     {
@@ -4703,6 +6475,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0004790030329",
       "mandate_category": "grocery"
     },
     {
@@ -4716,6 +6489,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "BEV-001",
       "mandate_category": "grocery"
     },
     {
@@ -4729,6 +6503,21 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0079452200418",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-BEV-001",
+      "name": "Lipton Black Tea Bags",
+      "brand": "Lipton",
+      "category": "beverages",
+      "group": "tea",
+      "price": 6.49,
+      "size": "100 ct",
+      "tags": [],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "BEV-001",
       "mandate_category": "grocery"
     },
     {
@@ -4742,7 +6531,492 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "synthetic",
+      "product_key": "BEV-003",
       "mandate_category": "grocery"
+    },
+    {
+      "sku": "PK-BEV-003",
+      "name": "Wagh Bakri Masala Chai",
+      "brand": "Wagh Bakri",
+      "category": "beverages",
+      "group": "tea",
+      "price": 7.99,
+      "size": "250 g",
+      "tags": [],
+      "merchant": "parkside_pharmacy",
+      "source": "synthetic",
+      "product_key": "BEV-003",
+      "mandate_category": "grocery"
+    },
+    {
+      "sku": "KR-0003040079391",
+      "name": "Angel Soft Soft & Strong Toilet Paper Mega Rolls",
+      "brand": "Angel Soft",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 4.79,
+      "size": "4 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003040079391",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0005400047618",
+      "name": "Scott ComfortPlus 1-Ply Toilet Paper Triple Rolls",
+      "brand": "Scott",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 7.09,
+      "regular_price": 7.29,
+      "size": "12 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0005400047618",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111010491",
+      "name": "Kroger Soft & Strong Toilet Paper Double Roll",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 7.29,
+      "size": "12 rolls",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111010491",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003600055707",
+      "name": "Cottonelle Ultra Soft Toilet Paper 6 Mega Rolls",
+      "brand": "Cottonelle",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 7.99,
+      "regular_price": 8.29,
+      "size": "6 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003600055707",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003600055699",
+      "name": "Cottonelle Ultra Clean Strong Toilet Paper 6 Mega Rolls",
+      "brand": "Cottonelle",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 7.99,
+      "regular_price": 8.29,
+      "size": "6 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003600055699",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004200087590",
+      "name": "Quilted Northern Ultra Plush Toilet Paper Mega Roll",
+      "brand": "Quilted Northern",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 8.29,
+      "size": "6 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004200087590",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003040079498",
+      "name": "Angel Soft Toilet Paper Mega Roll",
+      "brand": "Angel Soft",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 8.29,
+      "size": "8 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003040079498",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077213219",
+      "name": "Charmin Ultra Strong Toilet Paper 6 Mega Rolls",
+      "brand": "Charmin",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 9.29,
+      "size": "6 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077213219",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "HOM-002",
+      "name": "Charmin Ultra Soft Toilet Paper, 6 Mega Rolls",
+      "brand": "Charmin",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 9.29,
+      "size": "6 rolls",
+      "tags": [
+        "soft"
+      ],
+      "merchant": "main_street_home",
+      "source": "synthetic",
+      "product_key": "HOM-002",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111012804",
+      "name": "Kroger Ultra Strong Toilet Paper Mega Roll",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 12.99,
+      "size": "12 rolls",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111012804",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003040079423",
+      "name": "Angel Soft Toilet Paper Mega Roll",
+      "brand": "Angel Soft",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 13.29,
+      "size": "16 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003040079423",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003600055494",
+      "name": "Cottonelle Ultra Soft Toilet Paper 12 Mega Rolls",
+      "brand": "Cottonelle",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 13.99,
+      "size": "12 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003600055494",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111010492",
+      "name": "Kroger Soft & Strong Toilet Paper Mega Roll",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 14.79,
+      "size": "18 rolls",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111010492",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0004200087596",
+      "name": "Quilted Northern Ultra Plush Toilet Paper Mega Roll",
+      "brand": "Quilted Northern",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 14.99,
+      "size": "12 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0004200087596",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077216561",
+      "name": "Charmin Ultra Soft Toilet Paper 12 Mega Rolls",
+      "brand": "Charmin",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 17.49,
+      "size": "12 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077216561",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0003077213455",
+      "name": "Charmin Ultra Strong Toilet Paper 16 Mega XL Rolls",
+      "brand": "Charmin",
+      "category": "household",
+      "group": "toilet_paper",
+      "price": 33.99,
+      "size": "16 rolls",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0003077213455",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111013421",
+      "name": "Kroger Tall Kichen Drawstring Trash Bags",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 3.59,
+      "size": "15 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111013421",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001258722313",
+      "name": "Glad ForceFlex Tall Kitchen Drawstring Trash Bags, 13 Gallon, Gain Original Scent",
+      "brand": "Glad",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 7.29,
+      "size": "22 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001258722313",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001258722530",
+      "name": "Glad ForceFlex MaxStrength Tall Kitchen Drawstring Trash Bags, 13 Gallon, Bahama Bliss Scent",
+      "brand": "Glad",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 7.29,
+      "size": "20 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001258722530",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001258722315",
+      "name": "Glad ForceFlex Tall Kitchen Drawstring Trash Bags, 13 Gallon, Gain Lavender Scent",
+      "brand": "Glad",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 7.29,
+      "size": "22 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001258722315",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111013422",
+      "name": "Kroger Tall Kitchen 13 Gallon Drawstring Trash Bags",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 8.49,
+      "size": "40 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111013422",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111013428",
+      "name": "Kroger 30 Gallon Large Drawstring Trash Bags",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 8.79,
+      "size": "20 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111013428",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001370001654",
+      "name": "Hefty Ultra Strong Lavender & Sweet Vanilla 13-Gallon Tall Kitchen Drawstring Trash Bags",
+      "brand": "Hefty",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 11.99,
+      "size": "40 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001370001654",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001258778685",
+      "name": "Glad ForceFlex Tall Kitchen Drawstring Trash Bags, 13 Gallon, Gain Original Scent",
+      "brand": "Glad",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 11.99,
+      "size": "40 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001258778685",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001370021735",
+      "name": "Hefty Strong 30-Gallon Multi-Purpose Large Drawstring Trash Bags",
+      "brand": "Hefty",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 11.99,
+      "size": "28 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001370021735",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001258778459",
+      "name": "Glad ForceFlex Tall Kitchen Drawstring Trash Bags, 13 Gallon, Gain Lavender Scent",
+      "brand": "Glad",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 11.99,
+      "size": "40 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001258778459",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "HOM-007",
+      "name": "Glad Tall Kitchen Drawstring Trash Bags, 13 Gallon",
+      "brand": "Glad",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 11.99,
+      "size": "40 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "synthetic",
+      "product_key": "HOM-007",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111003037",
+      "name": "Kroger Tall 13 Gallon Kitchen Drawstring Trash Bags",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 14.29,
+      "size": "80 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111003037",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001370083690",
+      "name": "Hefty Strong Tall Kitchen Drawstring Trash Bags",
+      "brand": "Hefty",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 15.49,
+      "size": "90 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001370083690",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001258778750",
+      "name": "Glad ForceFlex Tall Kitchen Drawstring Trash Bags, 13 Gallon, Gain Original Scent",
+      "brand": "Glad",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 19.99,
+      "size": "80 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001258778750",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001111003052",
+      "name": "Kroger Tall Kitchen Drawstring 13 Gallon Trash Bags BIG Deal!",
+      "brand": "Kroger",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 20.49,
+      "size": "120 ct",
+      "tags": [
+        "store_brand"
+      ],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001111003052",
+      "mandate_category": "household"
+    },
+    {
+      "sku": "KR-0001258779157",
+      "name": "Glad ForceFlex Tall Kitchen Drawstring Trash Bags, 13 Gallon, Gain Lavender Scent",
+      "brand": "Glad",
+      "category": "household",
+      "group": "trash_bags",
+      "price": 22.99,
+      "regular_price": 25.99,
+      "size": "110 ct",
+      "tags": [],
+      "merchant": "main_street_home",
+      "source": "kroger",
+      "product_key": "KR-0001258779157",
+      "mandate_category": "household"
     },
     {
       "sku": "KR-0007047000300",
@@ -4755,6 +7029,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007047000300",
       "mandate_category": "grocery"
     },
     {
@@ -4768,6 +7043,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007047000307",
       "mandate_category": "grocery"
     },
     {
@@ -4782,6 +7058,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0089824800107",
       "mandate_category": "grocery"
     },
     {
@@ -4796,6 +7073,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0089824800111",
       "mandate_category": "grocery"
     },
     {
@@ -4809,6 +7087,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003663204258",
       "mandate_category": "grocery"
     },
     {
@@ -4822,6 +7101,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0081829001536",
       "mandate_category": "grocery"
     },
     {
@@ -4835,6 +7115,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003663202635",
       "mandate_category": "grocery"
     },
     {
@@ -4848,6 +7129,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0085006540378",
       "mandate_category": "grocery"
     },
     {
@@ -4861,6 +7143,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0085006540380",
       "mandate_category": "grocery"
     },
     {
@@ -4874,6 +7157,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007835557010",
       "mandate_category": "grocery"
     },
     {
@@ -4887,6 +7171,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003663201953",
       "mandate_category": "grocery"
     },
     {
@@ -4900,6 +7185,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0081829001626",
       "mandate_category": "grocery"
     },
     {
@@ -4913,6 +7199,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0007047040389",
       "mandate_category": "grocery"
     },
     {
@@ -4926,6 +7213,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003663204264",
       "mandate_category": "grocery"
     },
     {
@@ -4939,6 +7227,7 @@
       "tags": [],
       "merchant": "corner_market",
       "source": "kroger",
+      "product_key": "KR-0003663204266",
       "mandate_category": "grocery"
     }
   ]

@@ -3,9 +3,13 @@
 deactivate() cancels a link: the toolkit's update_payment_link has no status field, so the real backend calls
 REST directly (PATCH /ipl/v2/payment-links/{id} with status INACTIVE, then GET to confirm).
 
-get_payment_links() picks the backend:
-  MOCK_VISA=1, or any VISA_ACCEPTANCE_* credential missing -> MockPaymentLinks
+get_payment_links() picks the backend for one Cybersource account:
+  MOCK_VISA=1, or any credential missing -> MockPaymentLinks
   otherwise -> VisaMcpPaymentLinks, falling back to the mock on error unless VISA_FALLBACK_TO_MOCK=0
+
+StorefrontLinks gives each merchant in contracts/merchants.json its own account's backend (one MCP process per
+account). A merchant without its own <prefix>* keys shares the main account; its links are told apart by the
+purchase number prefix (PHARM..., HOME..., POWER...) and the store's name on the line.
 
 Two gotchas in @visaacceptance/mcp 0.0.96 that this module works around:
   * credentials go in env vars, not --secret-key=..., because the CLI splits each flag on every "=" and
@@ -21,6 +25,8 @@ import re
 import secrets
 import time
 from dataclasses import asdict, dataclass, field
+
+from common import merchants
 
 MCP_PACKAGE = "@visaacceptance/mcp@0.0.96"
 CRED_VARS = ("VISA_ACCEPTANCE_MERCHANT_ID", "VISA_ACCEPTANCE_API_KEY_ID", "VISA_ACCEPTANCE_SECRET_KEY")
@@ -53,9 +59,9 @@ class PaymentLink:
         return asdict(self)
 
 
-def new_purchase_number() -> str:
-    """< 20 alphanumeric chars, unique per link."""
-    return f"CM{int(time.time()):x}{secrets.token_hex(3)}".upper()[:19]
+def new_purchase_number(prefix: str = "CM") -> str:
+    """< 20 alphanumeric chars, unique per link. The prefix names the store when stores share one account."""
+    return f"{prefix}{int(time.time()):x}{secrets.token_hex(3)}".upper()[:19]
 
 
 def safe_text(text: str) -> str:
@@ -74,21 +80,25 @@ def same_amount(a, b) -> bool:
         return False
 
 
-def one_line(amount: str, line_items: list[LineItem]) -> dict:
+def one_line(amount: str, line_items: list[LineItem], store: str = "Corner Market") -> dict:
     """The whole cart as one Pay by Link line: quantity "1" and unitPrice = the cart total.
 
     Pay by Link prices a link from the first line's single unit: a 2-item $11.49 cart came back $8.00 and
     a single line "5 x $9.99" came back $9.99. One line whose unitPrice equals totalAmount is the pattern
-    the API documents. The itemised list goes in productDescription (under 256 characters).
+    the API documents. The itemised list goes in productDescription (under 256 characters). Any store but
+    Corner Market is named on a single-item line too, since stores may share one sandbox account.
     """
     if len(line_items) == 1:
         li = line_items[0]
         name = f"{li.quantity} x {li.productName}" if li.quantity != 1 else li.productName
+        if store != "Corner Market" and not name.startswith(store):
+            name = f"{store} - {name}"
     else:
-        name = f"Corner Market order ({sum(li.quantity for li in line_items)} items)"
+        name = f"{store} order ({sum(li.quantity for li in line_items)} items)"
     line = {
         "productName": safe_text(name)[:60].strip(),
-        "productDescription": safe_text(", ".join(f"{li.quantity} x {li.productName}" for li in line_items))[:250],
+        "productDescription": safe_text(f"{store}: " * (store != "Corner Market")
+                                        + ", ".join(f"{li.quantity} x {li.productName}" for li in line_items))[:250],
         "quantity": "1",
         "unitPrice": amount,
     }
@@ -104,7 +114,8 @@ class MockPaymentLinks:
         self.base_url = base_url.rstrip("/")
         self.links: dict[str, PaymentLink] = {}
 
-    async def create(self, purchase_number: str, amount: str, currency: str, line_items: list[LineItem]) -> PaymentLink:
+    async def create(self, purchase_number: str, amount: str, currency: str, line_items: list[LineItem],
+                     store: str = "Corner Market") -> PaymentLink:
         link_id = "mock_" + secrets.token_hex(6)
         link = PaymentLink(
             id=link_id,
@@ -115,7 +126,7 @@ class MockPaymentLinks:
             purchase_number=purchase_number,
             backend=self.backend,
             raw={"lineItems": [asdict(li) for li in line_items]},
-            line_item=one_line(amount, line_items),
+            line_item=one_line(amount, line_items, store),
         )
         self.links[link_id] = link
         return link
@@ -210,13 +221,14 @@ class VisaMcpPaymentLinks:
             raise VisaMcpError(f"{tool}: {text.strip() or 'empty response'}")
         return json.loads(text)
 
-    async def create(self, purchase_number: str, amount: str, currency: str, line_items: list[LineItem]) -> PaymentLink:
+    async def create(self, purchase_number: str, amount: str, currency: str, line_items: list[LineItem],
+                     store: str = "Corner Market") -> PaymentLink:
         args = {
             "linkType": "PURCHASE",
             "purchaseNumber": purchase_number,
             "currency": currency,
             "totalAmount": amount,
-            "lineItems": [one_line(amount, line_items)],
+            "lineItems": [one_line(amount, line_items, store)],
         }
         data = await self._call("create_payment_link", args)
         link = self._to_link(data, purchase_number, amount, currency)
@@ -356,12 +368,57 @@ class FallbackPaymentLinks:
         await self.primary.close()
 
 
-def get_payment_links(mock_base_url: str):
-    mock = MockPaymentLinks(mock_base_url)
-    creds = [os.environ.get(v, "") for v in CRED_VARS]
+def get_payment_links(mock_base_url: str, creds=None, mock: MockPaymentLinks | None = None):
+    mock = mock or MockPaymentLinks(mock_base_url)
+    creds = list(creds) if creds is not None else [os.environ.get(v, "") for v in CRED_VARS]
     if os.environ.get("MOCK_VISA") == "1" or not all(creds):
         return mock
     real = VisaMcpPaymentLinks(*creds)
     if os.environ.get("VISA_FALLBACK_TO_MOCK", "1") == "0":
         return real
     return FallbackPaymentLinks(real, mock)
+
+
+class StorefrontLinks:
+    """A payment-link backend per storefront. Merchants on the same Cybersource account share one backend (and
+    one MCP process); every mock link lives in one MockPaymentLinks so /pay/{id} finds it whatever the store."""
+
+    def __init__(self, mock_base_url: str):
+        self.mock = MockPaymentLinks(mock_base_url)
+        by_account: dict[str, object] = {}
+        self.stores: dict[str, dict] = {}
+        for entry in merchants.storefronts():
+            merchant_id, key_id, secret, separate = merchants.credentials(entry)
+            backend = by_account.get(merchant_id)
+            if backend is None:
+                backend = get_payment_links(mock_base_url, (merchant_id, key_id, secret), self.mock)
+                if merchant_id:
+                    by_account[merchant_id] = backend
+            self.stores[entry["id"]] = {"backend": backend, "account": merchant_id or None,
+                                        "separate": separate and backend is not self.mock,
+                                        "prefix": entry.get("purchase_prefix") or "CM", "name": entry["name"]}
+
+    def links(self, merchant: str | None = None):
+        return self.stores.get(merchant or merchants.DEFAULT, self.stores[merchants.DEFAULT])["backend"]
+
+    def purchase_number(self, merchant: str | None = None) -> str:
+        return new_purchase_number(self.stores.get(merchant or merchants.DEFAULT, {}).get("prefix", "CM"))
+
+    def _unique(self) -> list:
+        seen = []
+        for store in self.stores.values():
+            if not any(store["backend"] is b for b in seen):
+                seen.append(store["backend"])
+        return seen
+
+    async def start(self):
+        await asyncio.gather(*(b.start() for b in self._unique()))
+
+    async def close(self):
+        await asyncio.gather(*(b.close() for b in self._unique()), return_exceptions=True)
+
+    def describe(self) -> list[dict]:
+        """For the wall and the docs: which account each store's links are made on."""
+        return [{"merchant": mid, "store": s["name"], "backend": s["backend"].backend, "account": s["account"],
+                 "separate_account": s["separate"], "purchase_prefix": s["prefix"],
+                 "visa_last_error": getattr(s["backend"], "last_error", None)} for mid, s in self.stores.items()]
