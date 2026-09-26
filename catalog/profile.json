@@ -1,0 +1,30 @@
+{
+  "shopper": {
+    "id": "ruth",
+    "name": "Ruth",
+    "languages": ["en", "es"]
+  },
+  "usuals": [
+    {
+      "sku": "RX-001",
+      "label": "blood pressure medicine",
+      "phrases": [
+        "blood pressure medicine", "blood pressure pills", "blood pressure", "bp medicine", "bp pills",
+        "my medicine", "my pills", "my prescription", "lisinopril",
+        "medicina de la presion", "pastillas de la presion", "la presion", "mi medicina", "mis pastillas",
+        "bp ki dawai", "bp ki goli", "meri dawai", "blood pressure ki dawai", "बीपी की दवाई", "मेरी दवाई"
+      ],
+      "note": "Pharmacy pickup, $8.00 copay"
+    },
+    {
+      "sku": "BAK-001",
+      "label": "bread",
+      "phrases": ["bread", "my bread", "the usual bread", "pan", "mi pan", "el pan", "double roti", "ब्रेड"],
+      "note": "Usual brand"
+    }
+  ],
+  "preferences": {
+    "prefer_tags": ["low_sodium", "soft", "easy_open"],
+    "note": "Watching salt for blood pressure; prefers soft foods and easy-open packaging."
+  }
+}

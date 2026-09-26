@@ -1,0 +1,386 @@
+[
+  {
+    "sku": "FDA-00653B7C",
+    "name": "Ibuprofen Dye Free (ibuprofen)",
+    "brand": "Cvs Pharmacy",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 7.99,
+    "size": "",
+    "tags": [
+      "ibuprofen"
+    ],
+    "substitute_key": "ibuprofen",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Pain reliever/fever reducer"
+  },
+  {
+    "sku": "FDA-006ADF23",
+    "name": "Care One Ibuprofen (ibuprofen)",
+    "brand": "American Sales Company",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 10.99,
+    "size": "",
+    "tags": [
+      "ibuprofen"
+    ],
+    "substitute_key": "ibuprofen",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purposes Pain reliever/fever reducer"
+  },
+  {
+    "sku": "FDA-009DDE4C",
+    "name": "Leader Ibuprofen (ibuprofen)",
+    "brand": "Cardinal Health 110, Llc. Dba Leader",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 12.99,
+    "size": "",
+    "tags": [
+      "ibuprofen"
+    ],
+    "substitute_key": "ibuprofen",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purposes Pain reliever/fever reducer"
+  },
+  {
+    "sku": "FDA-0005AAFA",
+    "name": "Pain Reliever Extra Strength (acetaminophen)",
+    "brand": "Valu Merchandisers Company",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 8.99,
+    "size": "",
+    "tags": [
+      "acetaminophen"
+    ],
+    "substitute_key": "acetaminophen",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Pain reliever/fever reducer"
+  },
+  {
+    "sku": "FDA-00146B91",
+    "name": "Basic Care Acetaminophen (acetaminophen)",
+    "brand": "Amazon.Com Services Llc",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 4.99,
+    "size": "",
+    "tags": [
+      "acetaminophen"
+    ],
+    "substitute_key": "acetaminophen",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Pain reliever/fever reducer"
+  },
+  {
+    "sku": "FDA-0035A4FD",
+    "name": "Acetaminophen (acetaminophen)",
+    "brand": "Walmart Inc.",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 9.99,
+    "size": "",
+    "tags": [
+      "acetaminophen"
+    ],
+    "substitute_key": "acetaminophen",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Pain reliever/fever reducer"
+  },
+  {
+    "sku": "FDA-00BD8490",
+    "name": "Up And Up Naproxen Sodium (naproxen sodium)",
+    "brand": "Target Corporation",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 5.99,
+    "size": "",
+    "tags": [
+      "naproxen"
+    ],
+    "substitute_key": "naproxen",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purposes Pain reliever/fever reducer"
+  },
+  {
+    "sku": "FDA-00EF5B30",
+    "name": "Aleve (naproxen sodium)",
+    "brand": "Bayer Healthcare Llc.",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 5.99,
+    "size": "",
+    "tags": [
+      "naproxen"
+    ],
+    "substitute_key": "naproxen",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purposes Pain reliever/fever reducer"
+  },
+  {
+    "sku": "FDA-01746BB6",
+    "name": "Foster And Thrive All Day Pain Relief (naproxen sodium)",
+    "brand": "Strategic Sourcing Services Llc",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 11.99,
+    "size": "",
+    "tags": [
+      "naproxen"
+    ],
+    "substitute_key": "naproxen",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purposes Pain reliever/fever reducer"
+  },
+  {
+    "sku": "FDA-0058175F",
+    "name": "Low Dose Aspirin (aspirin)",
+    "brand": "P & L Development, Llc",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 13.99,
+    "size": "",
+    "tags": [
+      "aspirin"
+    ],
+    "substitute_key": "aspirin",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Pain reliever"
+  },
+  {
+    "sku": "FDA-00D9AB0D",
+    "name": "Rapidol Aspirin (aspirin)",
+    "brand": "Pharmadel Llc",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 5.99,
+    "size": "",
+    "tags": [
+      "aspirin"
+    ],
+    "substitute_key": "aspirin",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Active ingredient (in each tablet) Purpose Aspirin 325 mg (NSAID*) ............................. *nonsteroidal anti-in\ufb02ammatory drug Pain reliever"
+  },
+  {
+    "sku": "FDA-024C5054",
+    "name": "Aspirin Low Dose (aspirin)",
+    "brand": "Atlantic Biologicals Corp.",
+    "category": "otc_medicine",
+    "group": "pain_relief",
+    "price": 8.99,
+    "size": "",
+    "tags": [
+      "aspirin"
+    ],
+    "substitute_key": "aspirin",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Pain reliever"
+  },
+  {
+    "sku": "FDA-0038BC38",
+    "name": "Allergy Relief (loratadine)",
+    "brand": "Cvs Pharmacy",
+    "category": "otc_medicine",
+    "group": "allergy",
+    "price": 12.99,
+    "size": "",
+    "tags": [
+      "loratadine"
+    ],
+    "substitute_key": "loratadine",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Antihistamine"
+  },
+  {
+    "sku": "FDA-01CB43CF",
+    "name": "Loratadine (loratadine)",
+    "brand": "Advanced Rx Pharmacy Of Tennessee, Llc",
+    "category": "otc_medicine",
+    "group": "allergy",
+    "price": 5.99,
+    "size": "",
+    "tags": [
+      "loratadine"
+    ],
+    "substitute_key": "loratadine",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Antihistamine"
+  },
+  {
+    "sku": "FDA-023A46F0",
+    "name": "Nuvicare-Allergy Relief Loratadine Tablets, 10 Mg (loratadine)",
+    "brand": "Nuvicare Llc",
+    "category": "otc_medicine",
+    "group": "allergy",
+    "price": 7.99,
+    "size": "",
+    "tags": [
+      "loratadine"
+    ],
+    "substitute_key": "loratadine",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Antihistamine"
+  },
+  {
+    "sku": "FDA-03C0A599",
+    "name": "Cetirizine Hydrochloride (cetirizine hydrochloride)",
+    "brand": "Pd-Rx Pharmaceuticals, Inc.",
+    "category": "otc_medicine",
+    "group": "allergy",
+    "price": 4.99,
+    "size": "",
+    "tags": [
+      "cetirizine"
+    ],
+    "substitute_key": "cetirizine",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Antihistamine"
+  },
+  {
+    "sku": "FDA-0502F197",
+    "name": "Cetirizine Hydrochloride 10 Mg (cetirizine hydrochloride)",
+    "brand": "Yyba Corp",
+    "category": "otc_medicine",
+    "group": "allergy",
+    "price": 13.99,
+    "size": "",
+    "tags": [
+      "cetirizine"
+    ],
+    "substitute_key": "cetirizine",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Antihistamine"
+  },
+  {
+    "sku": "FDA-0643EA78",
+    "name": "All Day Allergy Relief (cetirizine hydrochloride)",
+    "brand": "Dolgencorp, Inc.",
+    "category": "otc_medicine",
+    "group": "allergy",
+    "price": 13.99,
+    "size": "",
+    "tags": [
+      "cetirizine"
+    ],
+    "substitute_key": "cetirizine",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Antihistamine"
+  },
+  {
+    "sku": "FDA-018B02E8",
+    "name": "Famotidine (famotidine)",
+    "brand": "Wal-Mart Stores, Inc.",
+    "category": "otc_medicine",
+    "group": "heartburn",
+    "price": 7.99,
+    "size": "",
+    "tags": [
+      "famotidine"
+    ],
+    "substitute_key": "famotidine",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Acid reducer"
+  },
+  {
+    "sku": "FDA-05C03FD8",
+    "name": "Heartburn Relief (famotidine)",
+    "brand": "Meijer Distribution Inc",
+    "category": "otc_medicine",
+    "group": "heartburn",
+    "price": 12.99,
+    "size": "",
+    "tags": [
+      "famotidine"
+    ],
+    "substitute_key": "famotidine",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Acid reducer"
+  },
+  {
+    "sku": "FDA-07A924F1",
+    "name": "Maximum Strength Acid Reducer (famotidine)",
+    "brand": "Target Corporation",
+    "category": "otc_medicine",
+    "group": "heartburn",
+    "price": 12.99,
+    "size": "",
+    "tags": [
+      "famotidine"
+    ],
+    "substitute_key": "famotidine",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Acid reducer"
+  },
+  {
+    "sku": "FDA-0108B97F",
+    "name": "Antacid (calcium carbonate)",
+    "brand": "Advance Pharmaceutical Inc.",
+    "category": "otc_medicine",
+    "group": "heartburn",
+    "price": 8.99,
+    "size": "",
+    "tags": [
+      "calcium"
+    ],
+    "substitute_key": "calcium",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Antacid"
+  },
+  {
+    "sku": "FDA-021E1A7F",
+    "name": "Family Wellness Ultra Stregth Antacid 171Ab (calcium carbonate)",
+    "brand": "Family Dollar Services, Inc.",
+    "category": "otc_medicine",
+    "group": "heartburn",
+    "price": 14.99,
+    "size": "",
+    "tags": [
+      "calcium"
+    ],
+    "substitute_key": "calcium",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "PURPOSE Antacid"
+  },
+  {
+    "sku": "FDA-036EF1ED",
+    "name": "Tums Chewy Bites Orange And Cream Es (calcium carbonate)",
+    "brand": "Haleon Us Holdings Llc",
+    "category": "otc_medicine",
+    "group": "heartburn",
+    "price": 9.99,
+    "size": "",
+    "tags": [
+      "calcium"
+    ],
+    "substitute_key": "calcium",
+    "merchant": "corner_market",
+    "source": "openfda",
+    "purpose": "Purpose Antacid"
+  }
+]

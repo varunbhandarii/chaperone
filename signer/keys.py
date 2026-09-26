@@ -50,14 +50,14 @@ def public_jwk(private_key: Ed25519PrivateKey | None = None) -> dict:
 def write_jwks(private_key: Ed25519PrivateKey | None = None) -> dict:
     document = {"keys": [public_jwk(private_key)]}
     JWKS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    JWKS_PATH.write_text(json.dumps(document, indent=2) + "\n")
+    JWKS_PATH.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     return document
 
 
 def load_jwks() -> dict:
     if not JWKS_PATH.exists():
         return write_jwks()
-    return json.loads(JWKS_PATH.read_text())
+    return json.loads(JWKS_PATH.read_text(encoding="utf-8"))
 
 
 def public_key_from_jwk(data: dict) -> Ed25519PublicKey:
