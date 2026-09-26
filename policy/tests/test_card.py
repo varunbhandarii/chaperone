@@ -48,6 +48,13 @@ def test_grocery_under_the_cap_is_approved():
     assert answer["reason_key"] is None
 
 
+def test_risk_active_flag_uses_the_cooldown_caps():
+    cooled = decide(swipe("5912", 45, "FIVEPTSDRUG01"), DEFAULT_MANDATE, risk={"active": True, "reason": "scam"}, now=NOW)
+    assert cooled["reason_key"] == "card_cooldown"
+    cleared = decide(swipe("5912", 45, "FIVEPTSDRUG01"), DEFAULT_MANDATE, risk={"active": False, "cooldown_until": (NOW + timedelta(hours=1)).isoformat()}, now=NOW)
+    assert cleared["result"] == "APPROVED"
+
+
 def test_cooldown_declines_a_pharmacy_swipe_that_normally_passes():
     risk = {"cooldown_until": (NOW + timedelta(hours=1)).isoformat(), "reason": "scam"}
     cooled = decide(swipe("5912", 45, "FIVEPTSDRUG01"), DEFAULT_MANDATE, risk=risk, now=NOW)

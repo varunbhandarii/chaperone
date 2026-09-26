@@ -31,6 +31,47 @@ def test_a_down_judge_asks_priya_and_says_why(tmp_path, monkeypatch):
     assert listed[0]["items"]
 
 
+def test_a_v1_mandate_still_shows_the_new_stores_and_the_power_bill(tmp_path, monkeypatch):
+    from policy.store import save_mandate
+
+    api = client(tmp_path, monkeypatch)
+    save_mandate({
+        "mandate_id": "m_ruth_2026_09", "shopper": "ruth", "caregiver": "priya", "currency": "USD",
+        "per_purchase_cap": 60, "monthly_cap": 300, "approval_threshold": 40,
+        "allowed_merchants": ["corner_market"], "allowed_categories": ["grocery", "pharmacy"],
+        "blocked_categories": ["gift_card"], "languages": ["en"],
+        "valid_from": "2026-09-01", "valid_to": "2026-12-31",
+        "passkey": {"credential_id": "priya", "public_key": "k", "response": {"id": "priya"}},
+    })
+    mandate = api.get("/mandate").json()["mandate"]
+    assert "parkside_pharmacy" in mandate["allowed_merchants"]
+    assert "utility_bill" in mandate["allowed_categories"] and "household" in mandate["allowed_categories"]
+    assert mandate["billers"][0]["account_ref"] == "PP-2231-0098"
+    assert "response" not in json.dumps(mandate)
+
+
+def test_two_stores_place_two_orders(tmp_path, monkeypatch):
+    def priced(_cart, _mandate, fetch=None):
+        return {"merchant": "corner_market", "total": 11.49, "items": [
+            {"sku": "BAK-001", "name": "Bread", "category": "grocery", "mandate_category": "grocery", "qty": 1, "price": 3.49, "merchant": "corner_market"},
+            {"sku": "RX-001", "name": "Lisinopril", "category": "pharmacy_pickup", "mandate_category": "pharmacy", "qty": 1, "price": 8.0, "merchant": "parkside_pharmacy"},
+        ]}
+
+    seen = []
+
+    def merchant(body):
+        seen.append(body["cart"]["merchant"])
+        return {"order_id": "ord_" + body["cart"]["merchant"][:4], "status": "awaiting_payment", "payment_link": {"url": "http://127.0.0.1:8002/pay/x"}}
+
+    monkeypatch.setattr("policy.checkout.price_cart", priced)
+    monkeypatch.setattr("policy.checkout.send_signed_order", merchant)
+    body = client(tmp_path, monkeypatch).post("/checkout", json=DEMO).json()
+    assert body["decision"] == "allow"
+    assert seen == ["corner_market", "parkside_pharmacy"]
+    assert [row["merchant"] for row in body["orders"]] == seen
+    assert body["order"] is None
+
+
 def test_demo_cart_allows_and_returns_the_merchant_link(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "policy.checkout.send_signed_order",

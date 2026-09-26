@@ -26,6 +26,7 @@ const nextConfig = {
       { source: "/merchant/webhooks/cybersource", destination: `${merchant.replace(/\/$/, "")}/webhooks/cybersource` },
       { source: "/merchant/webhooks/cybersource/:path*", destination: `${merchant.replace(/\/$/, "")}/webhooks/cybersource/:path*` },
       { source: "/card/asa", destination: `${policy}/card/asa` },
+      { source: "/line/:path*", destination: "http://127.0.0.1:8005/:path*" },
     ];
   },
 };

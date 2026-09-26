@@ -47,6 +47,7 @@ def price_bill(line: dict, mandate: dict, fetch=None) -> dict:
         "mandate_category": "utility_bill",
         "qty": 1,
         "price": amount,
+        "merchant": "peachtree_power",
     }
 
 

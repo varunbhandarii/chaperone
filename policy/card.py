@@ -51,14 +51,13 @@ def state_path() -> Path:
     return Path(__file__).resolve().parents[1] / "sessions" / "card_state.json"
 
 
-def load_risk(mandate_id: str) -> dict:
-    """Until policy/risk.py is available, there is no cool-down."""
+def read_risk(mandate_id: str) -> dict:
+    """Every swipe asks the scam check's cool-down. Missing policy.risk means there is no cool-down yet."""
     try:
-        from policy.risk import load_risk as read_risk
+        from policy.risk import load_risk
     except ImportError:
         return {}
-    found = read_risk(mandate_id) or {}
-    return found
+    return load_risk(mandate_id) or {}
 
 
 def _blank() -> dict:
@@ -116,7 +115,12 @@ def _cap(table: dict, mcc: str, default: float) -> float:
 
 
 def _cooldown_active(risk: dict, now: datetime) -> bool:
-    until = (risk or {}).get("cooldown_until")
+    """policy.risk.load_risk sets active. A dict with only cooldown_until still counts, for tests."""
+    if not risk:
+        return False
+    if "active" in risk:
+        return bool(risk["active"])
+    until = risk.get("cooldown_until")
     if not until:
         return False
     try:
@@ -229,7 +233,8 @@ def handle_authorization(payload: dict, mandate: dict | None = None) -> dict:
         state = load_state()
         active = mandate or DEFAULT_MANDATE
         mandate_id = active.get("mandate_id") or DEFAULT_MANDATE["mandate_id"]
-        answer = decide(payload, active, load_risk(mandate_id), state["history"], state["passes"])
+        risk = read_risk(mandate_id)
+        answer = decide(payload, active, risk, state["history"], state["passes"])
         record = {
             "token": token,
             "result": "approved" if answer["result"] == "APPROVED" else "declined",
@@ -271,7 +276,7 @@ def handle_authorization(payload: dict, mandate: dict | None = None) -> dict:
             card_last4=answer["card_last4"], store=answer["store"], mcc=answer["mcc"],
             amount=answer["amount"], result=record["result"], reason_key=answer["reason_key"],
             reason=answer["reason"], hold_id=answer["hold_id"],
-            cooldown=bool((load_risk(mandate_id) or {}).get("cooldown_until")),
+            cooldown=bool(risk.get("active") or risk.get("cooldown_until")),
             network="visa", provider="lithic",
         )
         return public
@@ -307,7 +312,7 @@ def allow_hold(hold_id: str, now: datetime | None = None) -> dict:
 
 def public_state(mandate_id: str) -> dict:
     state = load_state()
-    risk = load_risk(mandate_id)
+    risk = read_risk(mandate_id)
     open_holds = [hold for hold in state["holds"].values() if not hold.get("released")]
     return {
         "decisions": list(reversed(state["decisions"][-20:])),

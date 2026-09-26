@@ -46,6 +46,24 @@ VISA_STORES = {
 MONTHLY_BASELINE = 142.10
 
 
+def fill_v2(mandate: dict) -> dict:
+    """Show the new stores, categories and billers even when a v1 file was signed earlier.
+
+    The signed file is not rewritten. A later passkey sign stores the filled fields.
+    """
+    filled = dict(mandate)
+    for key in ("allowed_merchants", "allowed_categories"):
+        have = list(filled.get(key) or [])
+        for item in DEFAULT_MANDATE[key]:
+            if item not in have:
+                have.append(item)
+        filled[key] = have
+    for key in ("billers", "card", "trusted_contacts"):
+        if not filled.get(key):
+            filled[key] = DEFAULT_MANDATE[key]
+    return filled
+
+
 def canonical_mandate(mandate: dict) -> dict:
     return {key: value for key, value in mandate.items() if key != "passkey"}
 

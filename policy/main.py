@@ -17,7 +17,7 @@ from policy.checkout import CartRejected, ReadBackRequired, UnsignedMandate, che
 from policy.checkout import send_signed_order
 from policy.engine import dollars, to_cents
 from policy.events import post_event
-from policy.mandate import DEFAULT_MANDATE
+from policy.mandate import DEFAULT_MANDATE, fill_v2
 from policy.pricing import UnknownSku
 from policy.store import add_spent_cents, hold_decisions, load_caregiver_credential, load_mandate, load_paused, load_spent_cents, reset as reset_store, save_caregiver_credential, save_decision, save_mandate, save_paused
 from policy.verify_mandate import relying_party, verify_mandate_assertion
@@ -28,6 +28,13 @@ try:
     from policy.screen import router as screen_router
 
     app.include_router(screen_router)
+except ImportError:
+    pass
+
+try:
+    from policy.risk import router as risk_router
+
+    app.include_router(risk_router)
 except ImportError:
     pass
 
@@ -103,7 +110,7 @@ def get_mandate():
     stored = load_mandate()
     paused = load_paused()
     if stored:
-        public = {key: value for key, value in stored.items() if key not in ("passkey", "paused")}
+        public = fill_v2({key: value for key, value in stored.items() if key not in ("passkey", "paused")})
         credential_id = (stored.get("passkey") or {}).get("credential_id")
         return {"signed": True, "credential_id": credential_id, "mandate": public, "paused": paused}
     return {"signed": False, "mandate": DEFAULT_MANDATE, "detail": "unsigned mandate", "paused": paused}
