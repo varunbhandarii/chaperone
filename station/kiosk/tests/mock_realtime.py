@@ -11,7 +11,8 @@ force_message. Audio is a quiet sine tone at the session's output rate.
 
 HTTP stand-ins, in the agreed shapes: POST /session/token; catalog GET /search {"q","items"} and
 GET /resolve {"q","matches"}; policy POST /screen, GET /approvals/{id}, POST /checkout (decision, decision_id, say_key, order,
-approval) and GET /budget; relay POST /events and GET /audio/<clip>.
+approval), GET /budget, POST /orders/{id}/cancel, POST /refunds (preview, then the processor's refund shape) and
+GET /history; merchant GET /orders/{id} (status, pickup code, timeline); relay POST /events and GET /audio/<clip>.
 GET /mock/log returns every client event and HTTP call it saw.
 
 Run standalone (repo root):
@@ -44,7 +45,9 @@ FIRST_AUDIO_DELAY_S = 0.15
 CHUNK_S = 0.04
 BLOCKED_WORDS = ("tarjeta", "tarjetas", "regalo", "gift card", "gift cards")
 MOCK = {"transcript": "necesito pan", "pace": 0.25, "clip": False, "eager_checkout": False,  # pace 1.0 = real time
-        "approval_ttl": 90.0, "print_ok": False}
+        "approval_ttl": 90.0, "print_ok": False,
+        "preparing_after": 3.0, "ready_after": 6.0}  # the merchant's timers after paid (20 s and 60 s for real)
+REGULAR = {"BAK-001": 3.99}  # a promotion: the station reads savings off the receipt
 
 # Merchant, policy approvals, relay stream and the station's print helper, all in memory.
 ORDERS: dict[str, dict] = {}
@@ -69,7 +72,8 @@ def iso(ts: float) -> str:
 def new_order(session_id: str, cart: dict, decision_id: str, lang: str | None) -> dict:
     order_id = new_id("o")
     ORDERS[order_id] = {"order_id": order_id, "session_id": session_id, "cart": cart, "decision_id": decision_id,
-                        "lang": lang or "en", "paid_at": None}
+                        "lang": lang or "en", "paid_at": None, "cancelled": False, "refunds": [],
+                        "pickup_code": f"{secrets.randbelow(900) + 100}", "created": time.time()}
     return {"order_id": order_id, "payment_link": f"http://127.0.0.1:8002/pay/{order_id}", "status": "link_created"}
 
 BREAD = [
@@ -214,8 +218,9 @@ async def cancel_approval(approval_id: str, request: Request) -> dict:
     if a is None:
         raise HTTPException(404, "unknown approval")
     record("http", path=f"/approvals/{approval_id}/cancel", host_header=request.headers.get("x-chaperone-host"))
-    if a["state"] == "pending":
-        a["state"] = "cancelled"
+    if a["state"] != "pending":
+        raise HTTPException(400, "approval is closed")  # policy's answer for an approval that already closed
+    a["state"] = "cancelled"
     return {"approval_id": approval_id, "state": a["state"]}
 
 
@@ -248,7 +253,93 @@ async def receipt(order_id: str, lang: str | None = None) -> dict:
             "pickup": "after 3pm", "order_id": order_id, "decision_id": o["decision_id"], "session_id": o["session_id"],
             "status": "paid" if o["paid_at"] else "awaiting_payment", "paid_at": o["paid_at"],
             "session_url": f"https://tunnel.example/s/{o['session_id']}", "lang": lang or o["lang"],
-            "sandbox_note": "Paid in the Visa sandbox. No real money."}
+            "sandbox_note": "Paid in the Visa sandbox. No real money.",
+            "savings": f"{sum((REGULAR.get(i['sku'], i['price']) - i['price']) * i['qty'] for i in o['cart'].get('items', [])):.2f}",
+            "loyalty_points": int(float(o["cart"].get("total", 0))), "pickup_code": o["pickup_code"]}
+
+
+def order_status(o: dict) -> str:
+    """The merchant's lifecycle, computed on read: awaiting_payment, paid, preparing, ready_for_pickup; side exits."""
+    if o["cancelled"]:
+        return "cancelled"
+    if o["refunds"]:
+        refunded = sum(r["amount"] for r in o["refunds"])
+        return "refunded" if refunded >= float(o["cart"].get("total", 0)) - 0.005 else "partially_refunded"
+    if not o["paid_at"]:
+        return "awaiting_payment"
+    age = time.time() - datetime.fromisoformat(o["paid_at"].replace("Z", "+00:00")).timestamp()
+    return "ready_for_pickup" if age >= MOCK["ready_after"] else "preparing" if age >= MOCK["preparing_after"] else "paid"
+
+
+@app.get("/orders/{order_id}")
+async def merchant_order(order_id: str) -> dict:
+    o = ORDERS.get(order_id)
+    if o is None:
+        raise HTTPException(404, "unknown order")
+    status = order_status(o)
+    record("http", path=f"/orders/{order_id}", status=status)
+    timeline = [{"status": "awaiting_payment", "at": iso(o["created"])}]
+    if o["paid_at"]:
+        timeline.append({"status": "paid", "at": o["paid_at"]})
+    if status in ("preparing", "ready_for_pickup"):
+        timeline.append({"status": "preparing", "at": o["paid_at"]})
+    if status == "ready_for_pickup":
+        timeline.append({"status": "ready_for_pickup", "at": o["paid_at"]})
+    return {"order_id": order_id, "status": status, "pickup_code": o["pickup_code"], "amount": f"{float(o['cart'].get('total', 0)):.2f}",
+            "timeline": timeline, "refunds": o["refunds"]}
+
+
+@app.post("/orders/{order_id}/cancel")
+async def cancel_order(order_id: str, request: Request):
+    """Policy's cancel: only an unpaid order; the payment link goes INACTIVE."""
+    o = ORDERS.get(order_id)
+    record("http", path=f"/orders/{order_id}/cancel")
+    if o is None:
+        raise HTTPException(404, "unknown order")
+    if order_status(o) != "awaiting_payment":
+        return Response(json.dumps({"error": "order is paid", "say_key": "cancel_too_late"}), status_code=409, media_type="application/json")
+    o["cancelled"] = True
+    emit({"type": "order_status", "session_id": o["session_id"], "mandate_id": "m_ruth_2026_09", "t": int(time.time() * 1000),
+          "source": "merchant", "order_id": order_id, "status": "cancelled"})
+    return {"order_id": order_id, "status": "cancelled", "link_status": "INACTIVE"}
+
+
+SCAM_REFUND = ("difference", "diferencia", "gift card", "tarjeta de regalo", "refunded me too much", "de más", "zyada refund", "फर्क")
+
+
+@app.post("/refunds")
+async def refunds(request: Request):
+    """Policy's refund: RF1 paid order, RF4 no prescription returns, RF5 refund-scam words; preview, then the refund."""
+    body = await request.json()
+    record("http", path="/refunds", body=body)
+    o = ORDERS.get(body.get("order_id", ""))
+    rules = []
+    if o is None or not o["paid_at"]:
+        return {"decision": "deny", "say_key": "declined", "rules": [{"id": "RF1_order_owned", "passed": False}]}
+    lines = [i for i in o["cart"].get("items", []) if not body.get("sku") or i["sku"] == body["sku"]]
+    if str(body.get("sku") or "").startswith("RX") or any(i.get("category") in ("pharmacy", "pharmacy_pickup") or i["sku"].startswith("RX") for i in lines):
+        return {"decision": "deny", "say_key": "refund_not_allowed_rx", "rules": [{"id": "RF4_returnable", "passed": False}]}
+    if any(w in str(body.get("transcript", "")).lower() for w in SCAM_REFUND):
+        return {"decision": "deny", "say_key": "refund_scam", "rules": [{"id": "RF5_screen", "passed": False}]}
+    qty = int(body.get("qty") or 0)
+    items = [{"name": i["name"], "qty": qty or i["qty"], "amount": round(i["price"] * (qty or i["qty"]), 2)} for i in lines]
+    amount = round(sum(i["amount"] for i in items), 2)
+    if not body.get("confirmed"):
+        return {"preview": {"amount": amount, "card_last4": "1111", "items": items}, "say": f"${amount:.2f} back to your card ending 1111. Shall I?"}
+    refund = {"id": new_id("rf"), "status": "PENDING", "reconciliationId": secrets.token_hex(6).upper(),
+              "refundAmountDetails": {"refundAmount": f"{amount:.2f}", "currency": "USD"},
+              "processorInformation": {"responseCode": "100", "approvalCode": "831000"}, "source": "sandbox-processor-stub"}
+    o["refunds"].append({"id": refund["id"], "amount": amount, "status": "PENDING", "at": iso(time.time())})
+    return {"decision": "allow", "rules": rules, "refund": refund}
+
+
+@app.get("/history")
+async def history(mandate_id: str = "", days: int = 30) -> dict:
+    record("http", path="/history", days=days)
+    orders = [{"order_id": k, "at": v["paid_at"] or iso(v["created"]), "total": v["cart"].get("total"), "status": order_status(v),
+               "items": v["cart"].get("items", [])} for k, v in ORDERS.items()]
+    refunds = [{**r, "order_id": k} for k, v in ORDERS.items() for r in v["refunds"]]
+    return {"orders": orders, "refunds": refunds, "refusals": [], "totals": {"spent": 142.10}}
 
 
 @app.post("/mock/pay/{order_id}")
@@ -384,6 +475,7 @@ async def mock_reset(request: Request) -> dict:
         MOCK["eager_checkout"] = bool(body.get("eager_checkout", False))
         MOCK["approval_ttl"] = float(body.get("approval_ttl", 90.0))
         MOCK["print_ok"] = bool(body.get("print_ok", False))
+        MOCK["eager_refund"] = bool(body.get("eager_refund", False))
     return {"ok": True}
 
 
@@ -421,7 +513,8 @@ class Session:
         if not (td is None or (isinstance(td, dict) and td.get("type") is None)):
             return await self.error("mock expects manual turn detection", "session.turn_detection")
         names = [t.get("name") for t in session.get("tools", []) if t.get("type") == "function"]
-        missing = [n for n in ("search_catalog", "add_to_cart", "read_cart", "checkout") if n not in names]
+        missing = [n for n in ("search_catalog", "add_to_cart", "read_cart", "checkout", "order_status", "cancel_order",
+                               "request_refund", "purchase_history") if n not in names]
         if missing:
             return await self.error(f"tools missing: {', '.join(missing)}", "session.tools")
         self.config = session
@@ -500,13 +593,16 @@ class Session:
         if instructions:
             text = instructions.split("nothing else:", 1)[-1].strip()
             return self.start(self.speak(text, 0.8))
+        if self.tool_outputs and json.loads(self.tool_outputs[-1].get("output") or "{}").get("status") == "preview":
+            # a refund preview was read out: remember it, so the shopper's "sí" confirms that refund
+            self.pending_refund = json.loads(self.tool_outputs[-1].get("output"))
         if self.tool_outputs:
             # The scripted model: search -> add the usual -> read back (or, eager, checkout first) -> speak.
             outputs, self.tool_outputs = self.tool_outputs, []
             data = json.loads(outputs[-1].get("output") or "{}")
             if data.get("refused"):
                 return self.start(self.speak(data.get("say", ""), 1.0))
-            if "items" in data:
+            if "items" in data and data.get("status") != "preview":  # a refund preview lists items too
                 items = data["items"]
                 if not items:
                     return self.start(self.speak("No lo encontré.", 0.6))
@@ -525,8 +621,24 @@ class Session:
                 return self.start(self.speak(data["say"], 0.8))
             if "left" in data and "say" in data:
                 return self.start(self.speak(data["say"], 0.8))
+            if "orders" in data:
+                return self.start(self.speak(f"Tiene {len(data['orders'])} pedidos recientes.", 0.8))
+            if data.get("error") == "refund_confirm_required":
+                return self.start(self.speak("Primero se lo confirmo.", 0.4, {"name": "request_refund", "arguments": {"sku": "BAK-001", "reason": "return", "confirmed": False}}))
             return self.start(self.speak("Lo siento, hubo un problema.", 0.8))
-        words = set(self.last_user.lower().replace(",", " ").replace(".", " ").split())
+        words = set(self.last_user.lower().replace(",", " ").replace(".", " ").replace("?", " ").replace("¿", " ").split())
+        low = self.last_user.lower()
+        if words & {"sí", "si", "yes"} and getattr(self, "pending_refund", None):
+            self.pending_refund = None
+            return self.start(self.speak("Un momento.", 0.4, {"name": "request_refund", "arguments": {"sku": "BAK-001", "reason": "return", "confirmed": True}}))
+        if "devolver" in low or "return" in low or "wapas" in low:
+            return self.start(self.speak("Un momento.", 0.4, {"name": "request_refund", "arguments": {"sku": "RX-001" if "medicina" in low else "BAK-001", "reason": "return", "confirmed": MOCK.get("eager_refund", False)}}))
+        if "cancel" in low:
+            return self.start(self.speak("Un momento.", 0.4, {"name": "cancel_order", "arguments": {}}))
+        if "dónde" in low or "donde" in low or "where" in low:
+            return self.start(self.speak("Un momento.", 0.4, {"name": "order_status", "arguments": {}}))
+        if "compré" in low or "compre" in low or "bought" in low:
+            return self.start(self.speak("Un momento.", 0.4, {"name": "purchase_history", "arguments": {"days": 30}}))
         if words & {"sí", "si", "yes"}:
             return self.start(self.speak("Un momento.", 0.4, {"name": "checkout", "arguments": {}}))
         if words & {"cuánto", "cuanto", "queda", "left"}:

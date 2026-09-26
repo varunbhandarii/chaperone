@@ -3,6 +3,7 @@
 // Vite bundles them at build time; a missing file simply leaves the default in place.
 
 import { registerSay } from "./cart.ts";
+import { registerRepeatPhrases } from "./postpurchase.ts";
 import type { Lang } from "./lang.ts";
 
 const refusals = import.meta.glob("../../../ai/prompts/refusal.*.txt", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
@@ -20,6 +21,10 @@ for (const [path, table] of Object.entries(lineFiles)) {
   const m = path.match(/lines\.(es|hi|en)\.json$/);
   if (!m || !table || typeof table !== "object") continue;
   for (const [key, text] of Object.entries(table as Record<string, unknown>)) {
+    if (key === "repeat_phrases" && Array.isArray(text)) {
+      registerRepeatPhrases(text.filter((p): p is string => typeof p === "string"));
+      continue;
+    }
     if (typeof text === "string") {
       registerSay(key, m[1] as Lang, text);
       loaded++;

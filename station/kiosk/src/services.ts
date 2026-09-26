@@ -3,6 +3,16 @@
 
 import { URLS, VOICE } from "./config.ts";
 import { parseApproval, parseReceipt, type ApprovalStatus, type Receipt } from "./receipt.ts";
+import {
+  parseCancelReply,
+  parseHistory,
+  parseOrder,
+  parseRefundReply,
+  type CancelReply,
+  type HistorySummary,
+  type OrderView,
+  type RefundReply,
+} from "./postpurchase.ts";
 import { FALLBACK_ITEMS, mergeResults, parseResolveResponse, parseSearchResponse, type CatalogItem, type CheckoutBody } from "./cart.ts";
 import type { Lang } from "./lang.ts";
 import { parseScreen, type ScreenResult } from "./screen.ts";
@@ -356,6 +366,66 @@ export async function cancelApproval(approvalId: string): Promise<boolean> {
   } catch (err) {
     console.warn(`[approval] cancel ${approvalId} failed: ${describe(err)}`);
     return false;
+  }
+}
+
+// ---------- after payment: order status, cancel, refunds, history ----------
+
+/** GET {merchant}/orders/{id}: status, pickup code and timeline. */
+export async function getOrder(orderId: string): Promise<OrderView | null> {
+  try {
+    const res = await call(`${URLS.merchant}/orders/${encodeURIComponent(orderId)}`, { signal: AbortSignal.timeout(2500), cache: "no-store" });
+    health.mark("merchant", "up");
+    return res.ok ? parseOrder(await readJson(res)) : null;
+  } catch (err) {
+    if (isNetworkFailure(err)) health.mark("merchant", "down");
+    return null;
+  }
+}
+
+/** POST {policy}/orders/{id}/cancel: policy checks the order is this mandate's and unpaid, then signs the merchant call. */
+export async function cancelOrder(orderId: string, body: Record<string, unknown>): Promise<CancelReply> {
+  try {
+    const res = await call(`${URLS.policy}/orders/${encodeURIComponent(orderId)}/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
+    });
+    health.mark("policy", "up");
+    return parseCancelReply(res.status, await readJson(res));
+  } catch (err) {
+    if (isNetworkFailure(err)) health.mark("policy", "down");
+    return { kind: "error", error: `policy unreachable (${describe(err)})` };
+  }
+}
+
+/** POST {policy}/refunds: preview (confirmed false) or refund (confirmed true). No amount or destination is ever sent. */
+export async function postRefund(body: Record<string, unknown>): Promise<RefundReply> {
+  try {
+    const res = await call(`${URLS.policy}/refunds`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
+    });
+    health.mark("policy", "up");
+    return parseRefundReply(await readJson(res));
+  } catch (err) {
+    if (isNetworkFailure(err)) health.mark("policy", "down");
+    return { kind: "error", error: `policy unreachable (${describe(err)})` };
+  }
+}
+
+/** GET {policy}/history?mandate_id=&days= */
+export async function getHistory(mandateId: string, days: number): Promise<HistorySummary | null> {
+  try {
+    const res = await call(`${URLS.policy}/history?mandate_id=${encodeURIComponent(mandateId)}&days=${days}`, { signal: AbortSignal.timeout(4000) });
+    health.mark("policy", "up");
+    return res.ok ? parseHistory(await readJson(res)) : null;
+  } catch (err) {
+    if (isNetworkFailure(err)) health.mark("policy", "down");
+    return null;
   }
 }
 

@@ -234,6 +234,15 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
       outcomeEl.append(small);
     },
 
+    notice(title: string, detail: string, tone: "ok" | "warn" | "bad") {
+      outcomeEl.hidden = false;
+      outcomeEl.className = `outcome ${tone === "ok" ? "ordered" : tone === "warn" ? "waiting_for_caregiver" : "declined"}`;
+      outcomeEl.textContent = title;
+      const small = document.createElement("small");
+      small.textContent = detail;
+      outcomeEl.append(small);
+    },
+
     waiting(secondsLeft: number | null) {
       waitSecs = secondsLeft;
       if (currentState === "waiting") strip.textContent = stripLabel(currentState);
@@ -274,6 +283,13 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
       $("receipt-total-label").textContent = L.total;
       $("receipt-total").textContent = usd(receipt.total);
       $("receipt-pickup").textContent = L.pickup(receipt.pickup);
+      const code = $("receipt-code");
+      code.hidden = !receipt.pickup_code;
+      code.textContent = receipt.pickup_code ? `${L.code}: ${receipt.pickup_code.split("").join(" ")}` : "";
+      const extras = [receipt.savings ? L.saved(usd(receipt.savings)) : "", receipt.loyalty_points ? L.points(receipt.loyalty_points) : ""].filter(Boolean);
+      const rewards = $("receipt-rewards");
+      rewards.hidden = !extras.length;
+      rewards.textContent = extras.join(" · ");
       const qr = $("receipt-qr");
       qr.innerHTML = receipt.session_url ? renderSVG(receipt.session_url, { border: 2 }) : "";
       $("receipt-scan").textContent = receipt.session_url ? L.scan : "";

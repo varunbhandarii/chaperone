@@ -15,6 +15,11 @@ export interface Receipt {
   paid_at?: string | number;
   session_url?: string;
   lang: Lang;
+  /** what the promotions saved, when there were any (regular minus paid) */
+  savings?: number;
+  /** Corner Market Rewards points for this order */
+  loyalty_points?: number;
+  pickup_code?: string;
 }
 
 /** What the station remembers about the order it placed, for a receipt when the merchant's is unavailable. */
@@ -70,6 +75,9 @@ export function parseReceipt(body: unknown, fallbackLang: Lang = "en"): Receipt 
     ...(typeof b.paid_at === "string" || typeof b.paid_at === "number" ? { paid_at: b.paid_at } : {}),
     ...(typeof b.session_url === "string" && b.session_url ? { session_url: b.session_url } : {}),
     lang: isLang(b.lang) ? b.lang : fallbackLang,
+    ...((num(b.savings) ?? 0) > 0 ? { savings: num(b.savings)! } : {}),
+    ...(Number.isInteger(num(b.loyalty_points)) && (num(b.loyalty_points) ?? 0) > 0 ? { loyalty_points: num(b.loyalty_points)! } : {}),
+    ...(typeof b.pickup_code === "string" || typeof b.pickup_code === "number" ? { pickup_code: String(b.pickup_code) } : {}),
   };
 }
 
@@ -118,7 +126,22 @@ function pickupHi(when: string): string {
 }
 
 /** Labels for the on-screen receipt, in the session's language. */
-export const RECEIPT_LABELS: Record<Lang, { title: string; total: string; pickup: (when: string) => string; sandbox: string; scan: string; order: string; decision: string; paid: string }> = {
+export const RECEIPT_LABELS: Record<
+  Lang,
+  {
+    title: string;
+    total: string;
+    pickup: (when: string) => string;
+    sandbox: string;
+    scan: string;
+    order: string;
+    decision: string;
+    paid: string;
+    saved: (amount: string) => string;
+    points: (n: number) => string;
+    code: string;
+  }
+> = {
   en: {
     title: "Receipt",
     total: "Total",
@@ -128,6 +151,9 @@ export const RECEIPT_LABELS: Record<Lang, { title: string; total: string; pickup
     order: "Order",
     decision: "Decision",
     paid: "Paid",
+    saved: (amount) => `You saved ${amount}`,
+    points: (n) => `+${n} Corner Market Rewards points`,
+    code: "Pickup code",
   },
   es: {
     title: "Recibo",
@@ -138,6 +164,9 @@ export const RECEIPT_LABELS: Record<Lang, { title: string; total: string; pickup
     order: "Pedido",
     decision: "Decisión",
     paid: "Pagado",
+    saved: (amount) => `Usted ahorró ${amount}`,
+    points: (n) => `+${n} puntos Corner Market Rewards`,
+    code: "Código de recogida",
   },
   hi: {
     title: "रसीद",
@@ -148,6 +177,9 @@ export const RECEIPT_LABELS: Record<Lang, { title: string; total: string; pickup
     order: "ऑर्डर",
     decision: "निर्णय",
     paid: "भुगतान",
+    saved: (amount) => `आपने ${amount} बचाए`,
+    points: (n) => `+${n} कॉर्नर मार्केट रिवॉर्ड्स पॉइंट`,
+    code: "पिकअप कोड",
   },
 };
 

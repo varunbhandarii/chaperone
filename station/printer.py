@@ -101,6 +101,9 @@ class Receipt(BaseModel):
     paid_at: str | float | None = None
     session_url: str | None = None
     lang: str | None = "en"
+    savings: float | None = None  # promotions, when there were any
+    loyalty_points: int | None = None  # Corner Market Rewards
+    pickup_code: str | None = None
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -125,6 +128,9 @@ TEXT = {
         "printed": "Printed {date}, {time}",
         "sandbox": "Paid in the Visa sandbox. No real money.",
         "scan": "Scan for your session",
+        "code": "Pickup code",
+        "saved": "You saved {amount}",
+        "points": "+{n} Corner Market Rewards points",
     },
     "es": {
         "total": "Total",
@@ -136,6 +142,9 @@ TEXT = {
         "printed": "Impreso el {date}, {time}",
         "sandbox": "Pagado en el entorno de pruebas de Visa. No se cobró dinero real.",
         "scan": "Escanee para ver su sesión",
+        "code": "Código de recogida",
+        "saved": "Usted ahorró {amount}",
+        "points": "+{n} puntos Corner Market Rewards",
     },
     "hi": {
         "total": "कुल",
@@ -147,6 +156,9 @@ TEXT = {
         "printed": "प्रिंट किया गया: {date}, {time}",
         "sandbox": "भुगतान Visa सैंडबॉक्स में हुआ। कोई असली पैसा नहीं लगा।",
         "scan": "अपना सत्र देखने के लिए स्कैन करें",
+        "code": "पिकअप कोड",
+        "saved": "आपने {amount} बचाए",
+        "points": "+{n} कॉर्नर मार्केट रिवॉर्ड्स पॉइंट",
     },
 }
 
@@ -402,6 +414,16 @@ def render_receipt(receipt: Receipt | dict, fonts: Fonts) -> Image.Image:
     s.row(t["total"], money(r.total if r.total is not None else sum(amounts)), body_bold)
     s.gap(12)
     s.text(pickup_line(r.pickup, lang), body)
+    code = "".join(ch for ch in (r.pickup_code or "") if ch.isalnum())
+    if code:
+        s.gap(8)
+        s.text(t["code"], label, "center")
+        s.text(" ".join(code), title, "center")  # large, digit by digit
+    if r.savings and r.savings > 0:  # only real savings are printed
+        s.gap(8)
+        s.text(t["saved"].format(amount=money(r.savings)), body_bold)
+    if r.loyalty_points and r.loyalty_points > 0:
+        s.text(t["points"].format(n=r.loyalty_points), label)
     s.gap(16)
     if r.order_id:
         s.text(t["order"].format(id=r.order_id), small)

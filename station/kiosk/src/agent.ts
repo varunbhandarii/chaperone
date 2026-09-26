@@ -13,6 +13,7 @@ import {
   checkoutOutcome,
   compactItem,
   fromCents,
+  hasSay,
   money,
   newSessionId,
   readBackSay,
@@ -26,18 +27,23 @@ import { detectLang, guessLang, type Lang } from "./lang.ts";
 import { ChunkAccumulator, PcmRing, base64ToPcm16, median, pcm16ToBase64 } from "./pcm.ts";
 import { ruleIds, type ScreenResult } from "./screen.ts";
 import { collapseShopperTurns } from "./recording.ts";
+import { RefundGate, isRepeatRequest, spokenCode, statusWords, type RefundReply, type RefundTarget } from "./postpurchase.ts";
 import {
   Ledger,
   RelayStream,
   cancelApproval,
+  cancelOrder,
   fetchToken,
   getApproval,
   getBudget,
+  getHistory,
+  getOrder,
   getReceipt,
   health,
   loadCachedSession,
   loadClip,
   postCheckout,
+  postRefund,
   printReceipt,
   requestReset,
   saveCachedSession,
@@ -61,6 +67,8 @@ export interface AgentUI {
   decision(result: Record<string, unknown>): void;
   cart(lines: CartLineView[], total: number): void;
   outcome(outcome: CheckoutOutcome): void;
+  /** after payment: a cancel or refund result in the outcome banner */
+  notice(title: string, detail: string, tone: "ok" | "warn" | "bad"): void;
   /** seconds left while waiting for the caregiver, null when not waiting */
   waiting(secondsLeft: number | null): void;
   /** the receipt shown full-screen (always, even when it printed), null to close it */
@@ -236,8 +244,15 @@ export class StationAgent {
   private replaying: { gen: number } | null = null;
   /** Set by the Host's "Arm replay" (relay event replay_armed); consumed by the next press. */
   private replayArmed = false;
-  /** Responses whose line the station already played as a clip: no response.create follows their tool calls. */
-  private silentResponses = new Set<string>();
+  /** Responses whose line the station already played as a clip, with that line: added to the history after the
+   *  tool outputs, and no response.create follows. */
+  private silentResponses = new Map<string, string>();
+  /** Orders placed in this session, oldest first: order_status, cancel_order and request_refund default to the last. */
+  private sessionOrders: string[] = [];
+  private refundGate = new RefundGate();
+  private refundPreview: { amount: number; last4?: string } | null = null;
+  /** The last line the shopper heard (model, clip or fixed line), for "repeat that". */
+  private lastSpoken: string | null = null;
   private replayGen = 0;
   private pendingForce: { text: string; at: number } | null = null;
   private deferredRefusal: { turn: Turn; result: ScreenResult } | null = null;
@@ -268,8 +283,10 @@ export class StationAgent {
 
     this.rateReady = this.setupCapture(ctx, micDeviceId);
     void health.start();
-    this.stream = new RelayStream(["paid", "reset", "replay_armed"], (ev) => this.onStreamEvent(ev), (m) => this.warn("stream", m));
-    void this.stream.open();
+    if (!this.stream) {
+      this.stream = new RelayStream(["paid", "reset", "replay_armed"], (ev) => this.onStreamEvent(ev), (m) => this.warn("stream", m));
+      void this.stream.open();
+    }
     const tokenPromise = fetchToken();
 
     let token;
@@ -562,8 +579,14 @@ export class StationAgent {
     const turn = this.newTurn("text");
     turn.text = text;
     turn.lang = guessLang(text) ?? this.lastLang;
-    if (turn.lang) this.lastLang = turn.lang;
+    // "repeat that" replays the last line in its own language; it does not switch the session's language
+    const repeat = isRepeatRequest(text);
+    if (turn.lang && !repeat) this.lastLang = turn.lang;
     this.recordShopper(turn, text, `text-${turn.n}`, "guess");
+    if (repeat) {
+      this.repeatLast(turn);
+      return;
+    }
     this.send({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } });
     if (turn.lang) this.applyLanguage(turn.lang);
     this.tRelease = performance.now();
@@ -619,7 +642,7 @@ export class StationAgent {
 
   private recordShopper(turn: Turn, text: string, key: string, langSource: string): void {
     // Only a turn with words counts as the read-back "yes"; an empty or noise press does not arm checkout.
-    if (!turn.counted && text.trim()) {
+    if (!turn.counted && text.trim() && !isRepeatRequest(text)) {
       turn.counted = true;
       this.userTurns++;
       // Words alone ("okay", "thank you") keep the caregiver wait: only a cart change closes the approval.
@@ -735,6 +758,7 @@ export class StationAgent {
         this.send({ type: "conversation.item.create", item: { type: "message", role: "assistant", content: [{ type: "text", text: say }] } });
         this.ledger.post("heard", payload.heard("agent", say, (result.refusal?.lang as Lang | undefined) ?? turn.lang, `${this.sessionId}-refusal-${turn.n}`));
         this.record({ kind: "clip", url, text: say });
+        this.lastSpoken = say;
         await this.player.playClip(clip);
         this.refreshState();
       }
@@ -821,10 +845,15 @@ export class StationAgent {
         turn.text = text;
         const detected = detectLang(ev.language, text);
         turn.lang = detected.lang ?? this.lastLang;
-        if (turn.lang) this.lastLang = turn.lang;
-        if (turn.lang && detected.source !== "none") this.applyLanguage(turn.lang);
+        const repeat = isRepeatRequest(text); // replays the last line; the session's language stays as it was
+        if (turn.lang && !repeat) this.lastLang = turn.lang;
+        if (turn.lang && detected.source !== "none" && !repeat) this.applyLanguage(turn.lang);
         if (ev.language) console.info(`[${ts()}] detected language (api): ${ev.language}`);
         this.recordShopper(turn, text, `voice-${turn.n}`, detected.source);
+        if (repeat) {
+          this.repeatLast(turn);
+          break;
+        }
         // Grok may complete a turn several times with a longer transcript each time ("मेरे..." then the whole
         // sentence), so screen every new version; a later refusal overrides an earlier proceed.
         if (turn.finalScreened !== text && turn.screenResult?.action !== "refuse") {
@@ -886,6 +915,7 @@ export class StationAgent {
         this.ui.transcript("agent", key, text, true, this.lastLang);
         this.ledger.post("heard", payload.heard("agent", text, this.lastLang, key));
         this.record({ kind: "agent_text", text, item: key });
+        this.lastSpoken = text;
         if (this.pendingForce && text === this.pendingForce.text) this.pendingForce = null;
         break;
       }
@@ -999,7 +1029,7 @@ export class StationAgent {
       }
     }
     console.info(`[${ts()}] TOOL RESULT ${name}:`, output);
-    if (output.already_said === true) this.silentResponses.add(responseId);
+    if (output.already_said === true) this.silentResponses.set(responseId, String(output.say ?? ""));
     if (gen !== this.socketGen) {
       console.warn(`[${ts()}] ${name} finished after a reconnect; its output is dropped (the cart state was re-sent instead)`);
       return;
@@ -1023,6 +1053,14 @@ export class StationAgent {
         return this.toolBudget();
       case "checkout":
         return this.toolCheckout();
+      case "order_status":
+        return this.toolOrderStatus(args);
+      case "cancel_order":
+        return this.toolCancelOrder(args);
+      case "request_refund":
+        return this.toolRequestRefund(args);
+      case "purchase_history":
+        return this.toolPurchaseHistory(args);
       default:
         return { error: `unknown tool ${name}` };
     }
@@ -1040,9 +1078,16 @@ export class StationAgent {
       this.continuing = false;
     }
     const turn = this.currentTurn();
-    const silent = this.silentResponses.delete(responseId);
-    if (gen !== this.generation || turn?.refusal === "out_of_band" || silent) {
-      // silent: the station already played this moment's line (the asking-Priyank clip); the model waits for the shopper
+    const said = this.silentResponses.get(responseId);
+    this.silentResponses.delete(responseId);
+    if (said !== undefined && gen === this.generation) {
+      // The station already played this moment's line (the asking-Priyank clip): record it in the history after the
+      // tool outputs, so the model sees call, result, then its own words; the model then waits for the shopper.
+      if (said) this.send({ type: "conversation.item.create", item: { type: "message", role: "assistant", content: [{ type: "text", text: said }] } });
+      this.refreshState();
+      return;
+    }
+    if (gen !== this.generation || turn?.refusal === "out_of_band") {
       this.refreshState();
       return;
     }
@@ -1150,11 +1195,15 @@ export class StationAgent {
     const lines = this.cart.lines();
     if (outcome.status === "ordered" && outcome.order_id) {
       this.lastOrder = { order_id: outcome.order_id, decision_id: outcome.decision_id, lines, totalCents, lang: this.lang };
+      this.sessionOrders.push(outcome.order_id);
       this.cart.clear();
       this.cartChanged();
     } else if (outcome.status === "waiting_for_caregiver") {
-      this.waitingForCaregiver = true;
-      if (outcome.approval_id && this.approvalWait?.id === outcome.approval_id) {
+      this.waitingForCaregiver = !this.replaying;
+      if (this.replaying) {
+        // A replay has no voice session to poll with: the Host sees the approval on the wall and the phone.
+        console.info(`[${ts()}] replay: approval ${outcome.approval_id} left to the caregiver's phone`);
+      } else if (outcome.approval_id && this.approvalWait?.id === outcome.approval_id) {
         // An unchanged cart checked out again: policy returned the approval that is already pending.
         console.info(`[${ts()}] still waiting on ${outcome.approval_id}`);
       } else if (outcome.approval_id) {
@@ -1177,11 +1226,162 @@ export class StationAgent {
     const clip = await loadClip(this.ctx, url, VOICE.refusal.clip_timeout_ms, (m) => this.warn(`clip:${url}`, m));
     if (!clip || !this.player || this.pressed) return false;
     this.ui.transcript("agent", `line-${key}-${this.turns.length}`, text, true, this.lastLang);
-    this.send({ type: "conversation.item.create", item: { type: "message", role: "assistant", content: [{ type: "text", text }] } });
+    // The assistant history item follows the tool output (continueAfterTools), not before it.
     this.ledger.post("heard", payload.heard("agent", text, this.lastLang, `${this.sessionId}-line-${key}-${this.turns.length}`));
     this.record({ kind: "clip", url, text });
+    this.lastSpoken = text;
     void this.player.playClip(clip).then(() => this.refreshState());
     return true;
+  }
+
+  // ---------------------------------------------------------------- after payment
+
+  /** The order a tool means: the one named, else this session's latest. */
+  private orderFor(args: Record<string, unknown>): string | null {
+    const named = typeof args.order_id === "string" && args.order_id.trim() ? args.order_id.trim() : null;
+    return named ?? this.sessionOrders[this.sessionOrders.length - 1] ?? null;
+  }
+
+  private async toolOrderStatus(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const orderId = this.orderFor(args);
+    if (!orderId) return { error: "no_orders", say: sayFor("no_orders", this.lang) };
+    const order = await getOrder(orderId);
+    if (!order) return { error: "order status unavailable", say: sayFor("store_unavailable", this.lang) };
+    const code = spokenCode(order.pickup_code);
+    const say =
+      order.status === "ready_for_pickup" && code
+        ? sayFor("order_ready", this.lang, { code })
+        : sayFor("order_status", this.lang, { status: statusWords(order.status, this.lang), code });
+    this.ui.notice(statusWords(order.status, "en"), `${order.order_id}${order.pickup_code ? ` · pickup code ${order.pickup_code}` : ""}`, "ok");
+    return {
+      order_id: order.order_id,
+      status: order.status,
+      ...(order.pickup_code ? { pickup_code: order.pickup_code } : {}),
+      timeline: order.timeline.map((e) => e.status),
+      say,
+    };
+  }
+
+  private async toolCancelOrder(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const orderId = this.orderFor(args);
+    if (!orderId) return { error: "no_orders", say: sayFor("no_orders", this.lang) };
+    const reply = await cancelOrder(orderId, { session_id: this.sessionId, mandate_id: VOICE.mandate_id, lang: this.lastLang });
+    if (reply.kind === "cancelled") {
+      this.ui.notice("Order cancelled", `${orderId}${reply.link_status ? ` · payment link ${reply.link_status}` : ""} · nothing was charged`, "ok");
+      return { status: "cancelled", order_id: orderId, ...(reply.link_status ? { link_status: reply.link_status } : {}), say: sayFor("order_cancelled", this.lang) };
+    }
+    if (reply.kind === "too_late") {
+      this.ui.notice("Not cancelled", `${orderId} is already paid · a return is still possible`, "warn");
+      return { status: "not_cancelled", reason: "already paid", order_id: orderId, say: sayFor("cancel_too_late", this.lang) };
+    }
+    this.ui.notice("Cancel failed", reply.error, "bad");
+    return { status: "error", error: reply.error, say: sayFor("store_unavailable", this.lang) };
+  }
+
+  /**
+   * Returns: a preview (confirmed false) that policy prices from the order's own lines, then, after the shopper's
+   * yes, the refund to the original card. The model never passes an amount or a destination.
+   */
+  private async toolRequestRefund(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const orderId = this.orderFor(args);
+    if (!orderId) return { error: "no_orders", say: sayFor("no_orders", this.lang) };
+    const target: RefundTarget = {
+      order_id: orderId,
+      ...(typeof args.sku === "string" && args.sku ? { sku: args.sku } : {}),
+      ...(Number.isInteger(args.qty) && Number(args.qty) > 0 ? { qty: Number(args.qty) } : {}),
+    };
+    const reason = String(args.reason ?? "").slice(0, 200);
+    const confirmed = args.confirmed === true;
+    const base = { session_id: this.sessionId, mandate_id: VOICE.mandate_id, ...target, reason, lang: this.lastLang };
+
+    if (!confirmed) {
+      const reply = await postRefund({ ...base, confirmed: false, transcript: this.shopperTexts.slice(this.requestStart).join(" ") });
+      if (reply.kind === "preview") {
+        this.refundGate.markPreview(target, this.userTurns, this.shopperTexts.length);
+        this.refundPreview = { amount: reply.amount, ...(reply.card_last4 ? { last4: reply.card_last4 } : {}) };
+        this.ui.notice(
+          `Refund preview ${money(toCents(reply.amount), "en")}`,
+          `${orderId}${reply.card_last4 ? ` · to the card ending ${reply.card_last4}` : ""} · waiting for the shopper's yes`,
+          "warn",
+        );
+        const say = sayFor("refund_preview", this.lang, { amount: money(toCents(reply.amount), this.lang), last4: spokenCode(reply.card_last4) });
+        return {
+          status: "preview",
+          amount: reply.amount,
+          ...(reply.card_last4 ? { card_last4: reply.card_last4 } : {}),
+          items: reply.items,
+          say,
+          instruction: "Say this to the shopper and wait for their yes; then call request_refund again with confirmed true and the same order_id, sku and qty.",
+        };
+      }
+      return this.refundNotDone(reply);
+    }
+
+    const gate = this.refundGate.check(target, this.userTurns);
+    if (!gate.ok) {
+      console.warn(`[${ts()}] refund held by the confirm gate: ${gate.reason}`);
+      this.ui.note(`Refund held: confirm required (${gate.reason})`, "warn");
+      return {
+        error: "refund_confirm_required",
+        reason: gate.reason,
+        instruction: "Call request_refund with confirmed false first, say its say text, and wait for the shopper's yes.",
+      };
+    }
+    // Only the words since the preview go to policy: a refund-scam line said earlier does not block a real return.
+    const transcript = this.shopperTexts.slice(this.refundGate.sinceShopperIndex).join(" ");
+    const preview = this.refundPreview;
+    this.refundGate.reset(); // one preview, one refund
+    this.refundPreview = null;
+    const reply = await postRefund({ ...base, confirmed: true, transcript });
+    if (reply.kind === "done") {
+      const amount = reply.amount ?? preview?.amount ?? 0;
+      const last4 = spokenCode(preview?.last4);
+      this.ui.notice(
+        `Refund ${money(toCents(amount), "en")} · ${reply.status}`,
+        `to the original card${preview?.last4 ? ` ending ${preview.last4}` : ""} · sandbox processor stub${reply.reconciliation_id ? ` · ${reply.reconciliation_id}` : ""}`,
+        "ok",
+      );
+      return {
+        status: reply.status,
+        amount,
+        ...(reply.refund_id ? { refund_id: reply.refund_id } : {}),
+        say: sayFor("refund_done", this.lang, { amount: money(toCents(amount), this.lang), last4 }),
+      };
+    }
+    return this.refundNotDone(reply);
+  }
+
+  /** A refusal (refund_not_allowed_rx, refund_scam, ...), an error, or a reply out of order (treated as an error). */
+  private refundNotDone(r: RefundReply): Record<string, unknown> {
+    if (r.kind === "preview" || r.kind === "done") r = { kind: "error", error: `unexpected ${r.kind} reply from the refund service` };
+    if (r.kind === "declined") {
+      // a purchase line ("I can't buy that") would be wrong here: unknown or generic keys get the refund line
+      const key = hasSay(r.say_key) && r.say_key !== "declined" ? r.say_key : "refund_not_possible";
+      if (r.rules_failed.length) this.ui.rules(r.rules_failed, "deny");
+      this.ui.notice("Refund not made", `${r.say_key}${r.rules_failed.length ? ` · ${r.rules_failed.join(", ")}` : ""}`, "warn");
+      return { status: "declined", say_key: r.say_key, say: sayFor(key, this.lang) };
+    }
+    this.ui.notice("Refund unavailable", r.error, "bad");
+    return { status: "error", error: r.error, say: sayFor("store_unavailable", this.lang) };
+  }
+
+  private async toolPurchaseHistory(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const days = Math.min(60, Math.max(1, Number.isInteger(args.days) ? Number(args.days) : 30));
+    const history = await getHistory(VOICE.mandate_id, days);
+    if (!history) return { error: "history unavailable", say: sayFor("store_unavailable", this.lang) };
+    return { days, ...history };
+  }
+
+  /** "Repeat that": the last line again, verbatim, with no model turn (and it is not the read-back "yes"). */
+  private repeatLast(turn: Turn): void {
+    turn.refusal = "out_of_band"; // nothing else answers this turn: no tool runs, no continuation
+    turn.screen.resolve(null);
+    turn.screenSettled = true;
+    if (this.responsePending) this.cancelWhenCreated = true;
+    this.bargeIn("repeat request");
+    const text = this.lastSpoken ?? sayFor("repeat_nothing", this.lang);
+    console.info(`[${ts()}] repeat: ${text}`);
+    this.speakVerbatim(text);
   }
 
   // ---------------------------------------------------------------- caregiver approval
@@ -1242,6 +1442,7 @@ export class StationAgent {
     console.info(`[${ts()}] caregiver answer: ${status.state}${status.order_id ? ` (order ${status.order_id})` : ""}`);
     if (status.state === "approved" && status.order_id) {
       this.lastOrder = { order_id: status.order_id, decision_id: decisionId, lines, totalCents, lang };
+      this.sessionOrders.push(status.order_id);
       this.cart.clear();
       this.cartChanged();
       const say = sayFor("caregiver_approved", lang, { total });
@@ -1269,6 +1470,7 @@ export class StationAgent {
   /** A fixed line, spoken verbatim (force_message) once the shopper and the model are quiet; never over them. */
   private async speakFixed(text: string): Promise<void> {
     if (this.replaying) return; // the recording carries its own audio
+    this.lastSpoken = text;
     const t0 = performance.now();
     while ((this.pressed || this.responseActive || this.player?.active) && performance.now() - t0 < 8000) await sleep(150);
     if (!this.started || this.pressed || !this.configured) return; // the screen still shows it
@@ -1324,7 +1526,11 @@ export class StationAgent {
     );
     this.ledger.post("receipt_printed", payload.receiptPrinted(orderId, onPaper ? "printer" : "screen", printed.ok && printed.via === "pdf"));
     const totalText = money(toCents(receipt.total), receipt.lang);
-    void this.speakFixed(sayFor(onPaper ? "receipt_done" : "receipt_on_screen", receipt.lang, { total: totalText }));
+    const parts = [sayFor(onPaper ? "receipt_done" : "receipt_on_screen", receipt.lang, { total: totalText })];
+    // Only real savings are mentioned; when nothing was saved the line is left out.
+    if (receipt.savings) parts.push(sayFor("you_saved", receipt.lang, { saved: money(toCents(receipt.savings), receipt.lang) }));
+    if (receipt.loyalty_points) parts.push(sayFor("loyalty_points", receipt.lang, { points: String(receipt.loyalty_points) }));
+    void this.speakFixed(parts.join(" "));
   }
 
   /** The on-screen Reprint button. */
@@ -1361,6 +1567,10 @@ export class StationAgent {
     this.requestStart = 0;
     this.lastOrder = null;
     this.lastReceipt = null;
+    this.sessionOrders = [];
+    this.refundGate.reset();
+    this.refundPreview = null;
+    this.lastSpoken = null;
     this.deferredRefusal = null;
     this.pendingForce = null;
     this.waitingForCaregiver = false;
@@ -1511,6 +1721,11 @@ export class StationAgent {
     this.ledger.replay = false;
     this.player?.stop();
     this.ui.replay(false);
+    if (!this.started && this.stream) {
+      // Opened for a replay without Start: Start opens its own (one stream at a time).
+      this.stream.close();
+      this.stream = null;
+    }
   }
 
   get isReplaying(): boolean {
