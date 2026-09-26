@@ -60,6 +60,36 @@ def money(value: float) -> str:
     return f"{value:.2f}"
 
 
+def same_amount(a, b) -> bool:
+    try:
+        return round(float(a) * 100) == round(float(b) * 100)
+    except (TypeError, ValueError):
+        return False
+
+
+def one_line(amount: str, line_items: list[LineItem]) -> dict:
+    """The whole cart as one Pay by Link line: quantity "1" and unitPrice = the cart total.
+
+    Pay by Link prices a link from the first line's single unit: a 2-item $11.49 cart came back $8.00 and
+    a single line "5 x $9.99" came back $9.99. One line whose unitPrice equals totalAmount is the pattern
+    the API documents. The itemised list goes in productDescription (under 256 characters).
+    """
+    if len(line_items) == 1:
+        li = line_items[0]
+        name = f"{li.quantity} x {li.productName}" if li.quantity != 1 else li.productName
+    else:
+        name = f"Corner Market order ({sum(li.quantity for li in line_items)} items)"
+    line = {
+        "productName": safe_text(name)[:60].strip(),
+        "productDescription": safe_text(", ".join(f"{li.quantity} x {li.productName}" for li in line_items))[:250],
+        "quantity": "1",
+        "unitPrice": amount,
+    }
+    if len(line_items) == 1 and line_items[0].productSKU:
+        line["productSKU"] = line_items[0].productSKU
+    return line
+
+
 class MockPaymentLinks:
     backend = "mock"
 
@@ -166,31 +196,24 @@ class VisaMcpPaymentLinks:
         return json.loads(text)
 
     async def create(self, purchase_number: str, amount: str, currency: str, line_items: list[LineItem]) -> PaymentLink:
-        # Hosted Pay by Link charges only the first line item (a 2-item $11.49 cart showed $8.00), so the
-        # whole cart goes up as one line; the item list rides in the description.
-        if len(line_items) > 1:
-            count = sum(li.quantity for li in line_items)
-            summary = {
-                "productName": f"Corner Market order ({count} items)",
-                "productDescription": safe_text(", ".join(f"{li.quantity} {li.productName}" for li in line_items))[:250],
-                "quantity": "1",
-                "unitPrice": amount,
-            }
-        else:
-            li = line_items[0]
-            summary = {"productName": li.productName[:60], "productSKU": li.productSKU,
-                       "quantity": str(li.quantity), "unitPrice": li.unitPrice}
         args = {
             "linkType": "PURCHASE",
             "purchaseNumber": purchase_number,
             "currency": currency,
             "totalAmount": amount,
-            "lineItems": [{k: v for k, v in summary.items() if v}],
+            "lineItems": [one_line(amount, line_items)],
         }
         data = await self._call("create_payment_link", args)
         link = self._to_link(data, purchase_number, amount, currency)
-        if float(link.amount) != float(amount):
+        if not same_amount(link.amount, amount):
             raise VisaMcpError(f"Visa set the link total to {link.amount}, expected {amount}")
+        try:  # read the stored link back: the create answer echoes our request more than it shows the link
+            stored = await self.get(link.id)
+        except Exception as e:  # noqa: BLE001 - the create answer already matched; keep the real link
+            print(f"[visa] could not read link {link.id} back: {type(e).__name__}: {e}")
+            return link
+        if stored is not None and stored.amount and not same_amount(stored.amount, amount):
+            raise VisaMcpError(f"Visa stored the link total as {stored.amount}, expected {amount}")
         return link
 
     async def get(self, link_id: str) -> PaymentLink | None:

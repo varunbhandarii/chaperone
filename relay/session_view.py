@@ -80,7 +80,38 @@ def _step_detail(e: dict) -> str:
     return ""
 
 
-def render(session_id: str, events: list[dict], receipt: dict | None) -> str:
+def orders(events: list[dict]) -> list[dict]:
+    """Every order in the session, oldest first, with whether it was paid."""
+    found: dict[str, dict] = {}
+    for e in events:
+        order_id = e.get("order_id")
+        if not order_id or e.get("type") not in ("payment_link_created", "paid"):
+            continue
+        order = found.setdefault(str(order_id), {"order_id": str(order_id), "amount": None, "paid": False, "via": None})
+        if e["type"] == "payment_link_created":
+            order["amount"] = e.get("amount")
+        else:
+            order["paid"], order["via"] = True, e.get("via")
+            order["amount"] = order["amount"] or e.get("total", e.get("amount"))
+    return list(found.values())
+
+
+def _receipt(receipt: dict) -> str:
+    items = "".join(
+        f'<tr><td>{escape(str(i.get("qty", 1)))} × {escape(str(i.get("name", "")))}</td>'
+        f'<td>{_money(i.get("price"))}</td></tr>' for i in receipt.get("items") or []
+    )
+    return (
+        f'<section><h2>Receipt</h2><table>{items}<tr class="total"><td>Total</td>'
+        f'<td>{_money(receipt.get("total"))}</td></tr></table>'
+        f'<p>{escape(str(receipt.get("merchant", "")))} · pickup {escape(str(receipt.get("pickup", "")))}</p>'
+        f'<p class="mono small">order {escape(str(receipt.get("order_id", "")))} · decision '
+        f'{escape(str(receipt.get("decision_id", "")))}</p></section>')
+
+
+def render(session_id: str, events: list[dict], receipts: list[dict] | dict | None = None) -> str:
+    if isinstance(receipts, dict):
+        receipts = [receipts]
     turns = "".join(
         f'<li class="{"agent" if e.get("role") in ("agent", "assistant") else "shopper"}">'
         f'<span class="who">{"Agent" if e.get("role") in ("agent", "assistant") else "Ruth"}</span>'
@@ -111,30 +142,17 @@ def render(session_id: str, events: list[dict], receipt: dict | None) -> str:
         checks = (f'<section><h2>Signature</h2><p class="mono">key {escape(str(keyid))}<br>nonce {escape(str(nonce))}'
                   f'<br>decision {escape(str(verified.get("decision_id", "")))}</p><ul class="checks">{rows}</ul></section>')
 
-    paid = next((e for e in reversed(events) if e.get("type") == "paid"), None)
-    link = next((e for e in reversed(events) if e.get("type") == "payment_link_created"), None)
-    refused = any(e.get("type") == "refusal" for e in events)
-    if paid:
-        status = f'<p class="status ok">Paid {_money(paid.get("total", paid.get("amount")))}</p>'
-    elif link:
-        status = f'<p class="status warn">Waiting for payment · {_money(link.get("amount"))}</p>'
-    elif refused:
-        status = '<p class="status bad">A request was refused and Priyank was told</p>'
-    else:
-        status = '<p class="status muted">No order in this session</p>'
+    status = "".join(
+        f'<p class="status {"ok" if o["paid"] else "warn"}">'
+        f'{"Paid" if o["paid"] else "Waiting for payment"} {_money(o["amount"])}'
+        f' <span class="mono small">{escape(o["order_id"])}</span></p>'
+        for o in orders(events)
+    )
+    if any(e.get("type") == "refusal" for e in events):
+        status = '<p class="status bad">A request was refused and Priyank was told</p>' + status
+    status = status or '<p class="status muted">No order in this session</p>'
 
-    receipt_html = ""
-    if receipt:
-        items = "".join(
-            f'<tr><td>{escape(str(i.get("qty", 1)))} × {escape(str(i.get("name", "")))}</td>'
-            f'<td>{_money(i.get("price"))}</td></tr>' for i in receipt.get("items") or []
-        )
-        receipt_html = (
-            f'<section><h2>Receipt</h2><table>{items}<tr class="total"><td>Total</td>'
-            f'<td>{_money(receipt.get("total"))}</td></tr></table>'
-            f'<p>{escape(str(receipt.get("merchant", "")))} · pickup {escape(str(receipt.get("pickup", "")))}</p>'
-            f'<p class="mono small">order {escape(str(receipt.get("order_id", "")))} · decision '
-            f'{escape(str(receipt.get("decision_id", "")))}</p></section>')
+    receipt_html = "".join(_receipt(r) for r in receipts or [] if r)
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">

@@ -14,8 +14,9 @@ GET  /sessions/{id}[?format=html]  that session's events, JSON; html is the read
 GET  /jwks.json, /.well-known/jwks.json
 GET  /audio/{name}                 refusal clips from ai/warnings/
 GET  /wall                         the wall page; /wall/data/{panel,mandate,budget} proxy merchant and policy
-POST /reset                        truncate live.jsonl, policy and merchant /reset in parallel, then a `reset`
-                                   event (the station answers with a new session); answers with the time taken
+POST /reset                        policy and merchant /reset in parallel, then truncate live.jsonl and post a
+                                   `reset` event (the station answers with a new session); answers
+                                   {ok, policy, merchant, failed, ms}. Needs X-Chaperone-Host: 1 (relay/host.py)
 /host, /host/api/*                 the Host's LAN-only controls (relay/host.py)
 """
 
@@ -209,22 +210,31 @@ async def session_events(session_id: str, format: str = "json"):
         return events
     if not path.exists():
         raise HTTPException(404, "unknown session")
-    return HTMLResponse(session_view.render(session_id, events, await _receipt_for(events)),
+    return HTMLResponse(session_view.render(session_id, events, await _receipts_for(events)),
                         headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
 
 
-async def _receipt_for(events: list[dict]) -> dict | None:
-    """The merchant's receipt for this session's latest order; the page renders without it if the merchant is slow."""
-    order_id = next((e.get("order_id") for e in reversed(events)
-                     if e.get("type") in ("paid", "payment_link_created") and e.get("order_id")), None)
-    if not order_id or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", str(order_id)):
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=0.8) as client:
-            r = await client.get(f"{_service('MERCHANT_URL', 'http://127.0.0.1:8002')}/orders/{order_id}/receipt")
-        return r.json() if r.is_success else None
-    except (httpx.HTTPError, ValueError):
-        return None
+MAX_RECEIPTS = 6
+
+
+async def _receipts_for(events: list[dict]) -> list[dict]:
+    """The merchant's receipt for each paid order in the session, fetched in parallel. The page renders
+    without them if the merchant is slow."""
+    order_ids = [o["order_id"] for o in session_view.orders(events)
+                 if o["paid"] and re.fullmatch(r"[A-Za-z0-9_-]{1,64}", o["order_id"])][-MAX_RECEIPTS:]
+    if not order_ids:
+        return []
+    base = _service("MERCHANT_URL", "http://127.0.0.1:8002")
+
+    async def one(client: httpx.AsyncClient, order_id: str) -> dict | None:
+        try:
+            r = await client.get(f"{base}/orders/{order_id}/receipt")
+            return r.json() if r.is_success else None
+        except (httpx.HTTPError, ValueError):
+            return None
+
+    async with httpx.AsyncClient(timeout=0.8) as client:
+        return [r for r in await asyncio.gather(*(one(client, o) for o in order_ids)) if r]
 
 
 @router.get("/jwks.json")
@@ -293,20 +303,21 @@ async def reset(request: Request):
     Policy resets spend, decisions, approvals and the screen's session memory; the merchant its orders.
     LAN only, like /host/api/reset.
     """
-    from relay.host import lan_only  # host imports this module; import here to avoid a cycle
+    from relay.host import host_action  # host imports this module; import here to avoid a cycle
 
-    lan_only(request)
+    host_action(request)
     started = time.perf_counter()
-    LEDGER.truncate_live()
     services = {"policy": _service("POLICY_URL", "http://127.0.0.1:8001"),
                 "merchant": _service("MERCHANT_URL", "http://127.0.0.1:8002")}
     async with httpx.AsyncClient(timeout=RESET_TIMEOUT_S) as client:
         answers = await asyncio.gather(*(_reset_one(client, url) for url in services.values()))
     results = dict(zip(services, answers))
+    failed = [name for name, answer in results.items() if answer != "ok"]
+    LEDGER.truncate_live()  # after the fan-out, so nothing a service posted while resetting survives it
     ms = round((time.perf_counter() - started) * 1000)
     LEDGER.append({"type": "reset", "session_id": "none", "mandate_id": MANDATE_ID,
-                   "t": int(time.time() * 1000), "source": "relay", "results": results, "ms": ms})
-    return {"ok": all(v == "ok" for v in results.values()), **results, "ms": ms}
+                   "t": int(time.time() * 1000), "source": "relay", "results": results, "failed": failed, "ms": ms})
+    return {"ok": not failed, **results, "failed": failed, "ms": ms}
 
 
 from relay.host import router as host_router  # noqa: E402 - host.py uses this module's LEDGER and reset

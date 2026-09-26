@@ -11,7 +11,9 @@ POST /host/api/arm-replay          posts replay_armed; the station plays its cac
 GET  /host/api/approval-code       the current approval's six-digit fallback code, from policy's LAN-only
                                    GET /approvals/{id}/host_code. Never logged, never on the stream.
 
-Requests that came through a proxy or tunnel, or from outside a private network, get 403.
+Requests that came through a proxy or tunnel, or from outside a private network, get 403. Every POST here,
+and the relay's POST /reset, also needs the header X-Chaperone-Host: 1: a cross-site form or fetch cannot set
+it, so a page open in some other LAN browser (the wall display, say) cannot press the Host's buttons.
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 HOST_HTML = Path(__file__).with_name("host.html")
 PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-real-ip", "forwarded", "ngrok-trace-id", "x-original-url")
 NO_STORE = {"Cache-Control": "no-store"}
+HOST_HEADER = "x-chaperone-host"
 
 router = APIRouter(prefix="/host")
 
@@ -56,6 +59,13 @@ def lan_only(request: Request) -> None:
         raise HTTPException(403, "host controls are LAN only") from None
     if not (address.is_private or address.is_loopback):
         raise HTTPException(403, "host controls are LAN only")
+
+
+def host_action(request: Request) -> None:
+    """For requests that change something: LAN only, and sent by the Host page or the station on purpose."""
+    lan_only(request)
+    if request.headers.get(HOST_HEADER) != "1":
+        raise HTTPException(403, "missing X-Chaperone-Host: 1")
 
 
 def _merchant() -> str:
@@ -112,7 +122,7 @@ async def status(request: Request):
 @router.post("/api/confirm-payment")
 async def confirm_payment(request: Request):
     """The sandbox-flow paid step: the Host says "marked paid in the sandbox flow"."""
-    lan_only(request)
+    host_action(request)
     from merchant.simulate_payment import envelope
     from merchant.webhooks import headers_for
 
@@ -140,13 +150,13 @@ async def confirm_payment(request: Request):
 
 @router.post("/api/reset")
 async def reset(request: Request):
-    lan_only(request)
+    host_action(request)
     return await ledger.reset(request)
 
 
 @router.post("/api/arm-replay")
 async def arm_replay(request: Request):
-    lan_only(request)
+    host_action(request)
     ledger.LEDGER.append({"type": "replay_armed", "session_id": "none", "mandate_id": ledger.MANDATE_ID,
                           "t": int(time.time() * 1000), "source": "relay"})
     return {"ok": True}

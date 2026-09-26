@@ -30,14 +30,14 @@ Relay routes (8000). `relay/main.py` owns the token routes; `relay/ledger.py` ow
 | Route | What |
 |---|---|
 | `POST /session/token`, `GET /health` | Grok Voice client secrets |
-| `POST /events` | validate, add `rt` and `seq`, append to `sessions/<session_id>.jsonl` and `sessions/live.jsonl`, fan out |
+| `POST /events` | validate, add `rt` and `seq`, append to `sessions/by-id/<session_id>.jsonl` and `sessions/live.jsonl`, fan out |
 | `GET /events/stream?session_id=&types=` | SSE, `id: <seq>`, replay from `Last-Event-ID`, `:` heartbeat every 15 s |
 | `GET /sessions/{id}[?format=html]` | that session's events as JSON; `format=html` is the read-only page behind the receipt's QR code |
 | `GET /jwks.json`, `GET /.well-known/jwks.json` | `relay/jwks.json` |
 | `GET /audio/*` | refusal clips from `ai/warnings/` |
 | `GET /wall` | the wall page |
-| `POST /reset` | clear the live ledger, call policy and merchant `/reset` in parallel, post `reset`; answers `{ok, policy, merchant, ms}` |
-| `GET /host`, `/host/api/*` | the Host's controls, LAN only (403 through a proxy): confirm payment, reset, arm replay, fallback code |
+| `POST /reset` | call policy and merchant `/reset` in parallel, clear the live ledger, post `reset`; answers `{ok, policy, merchant, failed, ms}`. Needs `X-Chaperone-Host: 1` |
+| `GET /host`, `/host/api/*` | the Host's controls, LAN only (403 through a proxy); every POST needs `X-Chaperone-Host: 1`: confirm payment, reset, arm replay, fallback code |
 
 Merchant routes (8002): `POST /orders` (409 when the decision already has an order), `GET /orders[/{id}]`, `GET /orders/{id}/receipt[?lang=]`, `POST /orders/{id}/paid`, `GET /pay/{link_id}` (mock page), `GET /panel`, `POST /reset`, `POST /webhooks/cybersource`, `GET|POST /webhooks/cybersource/health`.
 

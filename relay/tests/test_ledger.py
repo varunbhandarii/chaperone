@@ -18,7 +18,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(ledger, "LEDGER", ledger.Ledger(tmp_path / "live.jsonl"))
     monkeypatch.setenv("POLICY_URL", "http://127.0.0.1:9")  # nothing listens: services "offline"
     monkeypatch.setenv("MERCHANT_URL", "http://127.0.0.1:9")
-    return TestClient(ledger.app)
+    return TestClient(ledger.app, headers={"X-Chaperone-Host": "1"})  # the Host page's header
 
 
 def stream_events(client, **params):
@@ -119,6 +119,7 @@ def test_reset_truncates_and_reports(client, tmp_path):
     client.post("/events", json=event())
     r = client.post("/reset").json()
     assert r["ok"] is False and r["policy"].startswith("unreachable") and r["merchant"].startswith("unreachable")
+    assert r["failed"] == ["policy", "merchant"]
     assert isinstance(r["ms"], int) and r["ms"] < 15000
     live = stream_events(client)
     assert [e["type"] for e in live] == ["reset"] and live[0]["seq"] == 2  # seq keeps counting
@@ -223,3 +224,16 @@ def test_session_page_loads_fast_with_the_merchant_down(client):
     started = time.perf_counter()
     assert client.get("/sessions/s1", params={"format": "html"}).status_code == 200
     assert time.perf_counter() - started < 2
+
+
+def test_session_page_lists_every_order(client):
+    """The 9am run: medicine and bread, then the approved Ensure cart, both in one session."""
+    for order_id, amount, paid in (("ord_a", "11.49", True), ("ord_b", "49.95", True), ("ord_c", "8.00", False)):
+        client.post("/events", json={**event("payment_link_created", order_id=order_id, amount=amount,
+                                             backend="visa"), "source": "merchant"})
+        if paid:
+            client.post("/events", json={**event("paid", order_id=order_id, total=amount, via="host"),
+                                         "source": "merchant"})
+    page = client.get("/sessions/s1", params={"format": "html"}).text
+    assert "Paid $11.49" in page and "Paid $49.95" in page and "Waiting for payment $8.00" in page
+    assert page.index("ord_a") < page.index("ord_b") < page.index("ord_c")
