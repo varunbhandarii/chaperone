@@ -56,6 +56,11 @@ contexts:
          "re:(?:una|la) (?:llamada|mensaje|correo)", "re:(?:un|el|una|la) (?:senor|senora|hombre|mujer)", "re:por telefono"]
     hi: ["re:(?:फोन|कॉल|मैसेज) (?:आया|आई|किया)", "re:(?:ने )?कहा", "re:बोला", "re:(?:वाले|वाली) ने", "re:फोन पर"]
     hi_latn: ["re:(?:phone|fone|call|message) (?:aaya|aayi|kiya)", "re:(?:ne )?kaha", "re:bola", "re:(?:vale|vali) ne", "re:(?:phone|fone) (?:pe|par)"]
+  payment_ask:
+    en: ["re:pay(?:s|ing|ment)?", "re:money", "re:dollars?", "re:gift ?cards?", "re:bitcoin|crypto", "re:wire", "re:zelle|venmo|cash ?app", "re:card number"]
+    es: ["re:pag(?:ar|ue|o|a|ues)", "re:dinero", "re:dolares?", "re:tarjetas? (?:de )?regalo", "re:bitcoin|cripto", "re:transferencia"]
+    hi: ["re:पैसे|पैसा|रुपये", "re:भुगतान", "re:पेमेंट", "re:गिफ्ट ?कार्ड", "re:बिटकॉइन"]
+    hi_latn: ["re:paise|paisa|rupaye", "re:pay kar|payment", "re:gift ?card", "re:bitcoin"]
   soon:
     en: ["today", "tonight", "re:in (?:an|one|two|\\d+) hours?", "re:within (?:an|one|two|\\d+) hours?", "re:right (?:now|away)", "immediately"]
     es: ["hoy", "re:esta noche", "re:(?:en|dentro de) (?:una|dos|\\d+) horas?", "re:ahora mismo", "re:de inmediato"]
@@ -668,6 +673,7 @@ rules:
 
   R_utility_shutoff:
     severity: soft
+    needs: [payment_ask]
     hard_with: [soon]
     pattern: utility_shutoff
     detail: '"We will cut your power tonight unless you pay": utilities do not disconnect by one phone call.'
@@ -756,7 +762,7 @@ rules:
         - "re:(?:keep|its) (?:it |this )?(?:a )?secret"
         - "re:between (?:us|you and me)"
       es:
-        - "re:no (?:le )?(?:digas|diga|cuentes|cuente) (?:nada )?(?:a (?:mi|su|tu) )?(?:mama|madre|papa|padre|padres|hija|hijo|familia|nadie)"
+        - "re:no (?:le )?(?:digas|diga|cuentes|cuente) (?:nada )?(?:a (?:(?:mi|su|tu) )?)?(?:mama|madre|papa|padre|padres|hija|hijo|familia|nadie)"
         - "re:(?:es )?(?:un )?secreto"
       hi:
         - "re:(?:मम्मी|मां|माँ|पापा|घर वालों|किसी) को (?:मत|ना|नहीं) (?:बताना|बताओ|बताइए|बताइएगा)"

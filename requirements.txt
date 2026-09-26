@@ -18,6 +18,7 @@ jsonschema==4.26.0
 openai==3.19.2
 PyYAML==6.0.3
 mcp==2.2.0
+lithic  # the card network sandbox (Auth Stream Access, simulated swipes)
 
 # tests
 pytest==9.1.1

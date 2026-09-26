@@ -9,7 +9,7 @@ caller -> xAI number -> Builder agent (Grok voice, persona) --MCP--> https://<TU
        -> caregiver app rewrite /line/* -> line/server.py (127.0.0.1:8005) -> policy, catalog, merchant, relay
 ```
 
-**Number:** +1 (404) 341-4354, an xAI-provisioned number on the Voice Agent Builder agent "Chaperone". xAI releases it after 30 days without calls.
+**Number:** the xAI-provisioned number on the Voice Agent Builder agent "Chaperone" (shown in the xAI console). xAI releases it after 30 days without calls.
 
 ## Tools
 

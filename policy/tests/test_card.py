@@ -123,9 +123,20 @@ def test_asa_is_idempotent_and_a_proxy_cannot_list_card_state(tmp_path, monkeypa
     assert api.get("/card/state", headers={"x-forwarded-for": "8.8.8.8"}).status_code == 403
     hold_id = json.loads((tmp_path / "card_state.json").read_text())["holds"]
     hold_id = next(iter(hold_id))
-    allowed = api.post(f"/card/holds/{hold_id}/allow", headers={"X-Chaperone-Marker": action_marker(hold_id, "card")})
+    # gift cards are a signed "never": no one-time pass opens them
+    refused = api.post(f"/card/holds/{hold_id}/allow", headers={"X-Chaperone-Marker": action_marker(hold_id, "card")})
+    assert refused.status_code == 409, refused.text
+    big = json.dumps(swipe("5411", 400, token="tok_big")).encode()
+    stamp = str(int(datetime.now(timezone.utc).timestamp()))
+    signed = f"msg_4.{stamp}.".encode() + big
+    good = base64.b64encode(hmac.new(base64.b64decode(SECRET.removeprefix("whsec_")), signed, hashlib.sha256).digest()).decode()
+    over = api.post("/card/asa", content=big, headers={**headers, "webhook-id": "msg_4", "webhook-timestamp": stamp, "webhook-signature": f"v1,{good}"})
+    assert over.json()["result"] == "VELOCITY_EXCEEDED"
+    holds = json.loads((tmp_path / "card_state.json").read_text())["holds"]
+    cap_hold = next(h for h, row in holds.items() if row["reason_key"] == "card_over_cap")
+    allowed = api.post(f"/card/holds/{cap_hold}/allow", headers={"X-Chaperone-Marker": action_marker(cap_hold, "card")})
     assert allowed.status_code == 200, allowed.text
-    assert api.post(f"/card/holds/{hold_id}/allow", headers={"X-Chaperone-Marker": action_marker(hold_id, "card")}).status_code == 404
+    assert api.post(f"/card/holds/{cap_hold}/allow", headers={"X-Chaperone-Marker": action_marker(cap_hold, "card")}).status_code == 404
 
 
 def test_visa_view_matches_the_intelligent_commerce_shape():
@@ -134,6 +145,28 @@ def test_visa_view_matches_the_intelligent_commerce_shape():
     ids = [row["mandateId"] for row in view["mandates"]]
     assert "m_ruth_2026_09-corner_market" in ids
     grocery = next(row for row in view["mandates"] if row["merchantCategoryCode"] == "5411")
-    assert grocery["declineThreshold"] == {"amount": "150.00", "currencyCode": "USD"}
+    assert grocery["declineThreshold"] == {"amount": "60.00", "currencyCode": "USD"}  # the agent's per-purchase cap
     assert grocery["effectiveUntilTime"].isdigit()
     assert all(len(row["mandateId"]) <= 50 for row in view["mandates"])
+
+
+
+def test_single_message_swipes_and_partial_rules_are_still_checked():
+    """An ATM or PIN-debit swipe arrives as FINANCIAL_AUTHORIZATION; a card section without blocked_mccs keeps the defaults."""
+    partial = {**DEFAULT_MANDATE, "card": {"default_cap": 60}}
+    gift = decide(swipe("6540", 50, "GIFTCARDMALL1", status="FINANCIAL_AUTHORIZATION"), partial, {}, [], [], now=NOW)
+    assert gift["result"] == "UNAUTHORIZED_MERCHANT"
+    credit = decide(swipe("6540", 50, "GIFTCARDMALL1", status="CREDIT_AUTHORIZATION"), partial, {}, [], [], now=NOW)
+    assert credit["result"] == "APPROVED"  # money coming back in
+
+
+def test_atm_cash_is_capped_per_day():
+    history = [{"mcc": "6011", "amount": 60.0, "at": NOW.isoformat()}]
+    second = decide(swipe("6011", 60, "COINATM0001"), DEFAULT_MANDATE, {}, history, [], now=NOW)
+    assert second["reason_key"] == "card_atm_cap"
+    assert decide(swipe("6011", 40, "COINATM0001"), DEFAULT_MANDATE, {}, history, [], now=NOW)["result"] == "APPROVED"
+
+
+def test_one_small_swipe_does_not_make_the_next_one_unusual():
+    history = [{"mcc": "5411", "amount": 5.0, "at": NOW.isoformat()}]
+    assert decide(swipe("5411", 20), DEFAULT_MANDATE, {}, history, [], now=NOW)["result"] == "APPROVED"

@@ -221,6 +221,8 @@ def report(out: dict, text: str, session_id: str, mandate_id: str) -> None:
 
     rule_ids = sorted({h["rule_id"] for h in out["hits"]})
     if out["action"] in ("slow", "judge"):
+        if not rule_ids:  # "judge" only because the session had a refusal earlier: nothing to show
+            return
         post("caution", session_id, mandate_id, rule_ids=rule_ids, action=out["action"],
              words=[h["term"] for h in out["hits"]][:6])
         return

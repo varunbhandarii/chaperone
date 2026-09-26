@@ -549,7 +549,7 @@ def test_repeat_triggers_cover_every_language():
 V2_SCAMS = [
     ("R_utility_shutoff", "Peachtree Power says they'll cut my power tonight unless I pay $480"),
     ("R_utility_shutoff", "Llamaron de la compañía de luz, me cortan la luz hoy si no pago"),
-    ("R_utility_shutoff", "बिजली वाले ने कहा आज रात बिजली काट देंगे"),
+    ("R_utility_shutoff", "बिजली वाले ने कहा आज रात बिजली काट देंगे, अभी गिफ्ट कार्ड से पैसे दो"),
     ("R_safe_account", "The bank says move your money to a safe account"),
     ("R_safe_account", "Mueva su dinero a una cuenta segura"),
     ("R_safe_account", "सुरक्षित खाते में पैसे ट्रांसफर करो"),
@@ -569,6 +569,20 @@ V2_SCAMS = [
 def test_v2_families_refuse(rule, text):
     v = evaluate(text)
     assert v.action == "refuse" and rule in v.rules, v
+
+
+OUTAGE_TALK = [
+    "अभी बिजली बंद है, मोमबत्ती मंगा दो",
+    "आज बिजली कट गई है, टॉर्च की बैटरी चाहिए",
+    "Tonight they shut off the water for repairs, buy me bottled water",
+    "Hoy me cortan el agua por reparaciones, compre agua embotellada",
+    "turn off the water today, the plumber is coming, buy a wrench",
+]
+
+
+@pytest.mark.parametrize("text", OUTAGE_TALK)
+def test_outage_talk_is_not_the_shutoff_scam(text):
+    assert action(text) not in ("refuse", "judge")
 
 
 @pytest.mark.parametrize("text", [

@@ -35,7 +35,7 @@ REASONS = {
     "card_unusual_amount": "This is much more than Ruth usually spends at this kind of store.",
 }
 
-# Physical stores for the card demo, used when contracts/merchants.json is not on this branch yet.
+# Physical stores for the card demo, used when contracts/merchants.json can't be read.
 TERMINAL_STORES = {
     "FIVEPTSDRUG01": {"name": "Five Points Drug", "mcc": "5912"},
     "CORNERMKT01": {"name": "Corner Market", "mcc": "5411"},
@@ -55,9 +55,10 @@ def read_risk(mandate_id: str) -> dict:
     """Every swipe asks the scam check's cool-down. Missing policy.risk means there is no cool-down yet."""
     try:
         from policy.risk import load_risk
-    except ImportError:
+
+        return load_risk(mandate_id) or {}
+    except Exception:  # noqa: BLE001 - a broken risk file must not answer every swipe with a 500
         return {}
-    return load_risk(mandate_id) or {}
 
 
 def _blank() -> dict:
@@ -82,7 +83,9 @@ def load_state() -> dict:
 def save_state(data: dict) -> None:
     path = state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data), encoding="utf-8")
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(data), encoding="utf-8")
+    os.replace(temporary, path)
 
 
 def reset_state() -> None:
@@ -101,11 +104,33 @@ def swipe_dollars(payload: dict) -> float:
     return int(cents) / 100
 
 
+USUAL_MIN_SWIPES = 5  # below this, one small swipe would make every normal one look unusual
+
+
 def median_dollars(history: list[dict], mcc: str) -> float:
-    amounts = [float(row["amount"]) for row in history if str(row.get("mcc")) == str(mcc)]
-    if not amounts:
+    amounts = [float(row["amount"]) for row in history if str(row.get("mcc")) == str(mcc) and float(row["amount"]) > 0]
+    if len(amounts) < USUAL_MIN_SWIPES:
         return 30.0
     return float(statistics.median(amounts))
+
+
+def card_rules(mandate: dict | None) -> dict:
+    """The mandate's card rules over the defaults, so a partial card section never drops a block."""
+    defaults = DEFAULT_MANDATE["card"]
+    given = (mandate or DEFAULT_MANDATE).get("card") or {}
+    rules = {**defaults, **given}
+    rules["cooldown"] = {**(defaults.get("cooldown") or {}), **(given.get("cooldown") or {})}
+    rules["blocked_mccs"] = sorted({str(code) for code in (defaults.get("blocked_mccs") or [])}
+                                   | {str(code) for code in (given.get("blocked_mccs") or [])})
+    return rules
+
+
+DECIDED = ("AUTHORIZATION", "FINANCIAL_AUTHORIZATION")  # single-message swipes (ATM, PIN debit) are purchases too
+
+
+def atm_today(history: list[dict], now: datetime) -> float:
+    day = now.date().isoformat()
+    return sum(float(row["amount"]) for row in history if str(row.get("mcc")) == "6011" and str(row.get("at", ""))[:10] == day)
 
 
 def _cap(table: dict, mcc: str, default: float) -> float:
@@ -156,7 +181,7 @@ def decide(payload: dict, mandate: dict, risk: dict | None = None, history: list
     card = payload.get("card") or {}
     mcc = str(merchant.get("mcc") or "")
     amount = swipe_dollars(payload)
-    rules = (mandate or DEFAULT_MANDATE).get("card") or DEFAULT_MANDATE["card"]
+    rules = card_rules(mandate)
     answer = {
         "token": token,
         "result": "APPROVED",
@@ -169,18 +194,19 @@ def decide(payload: dict, mandate: dict, risk: dict | None = None, history: list
         "hold_id": None,
         "consumed_pass": None,
     }
-    if status == "BALANCE_INQUIRY" or status != "AUTHORIZATION":
+    if status not in DECIDED:  # balance inquiries and credits move no money out
         return answer
+
+    # Blocked categories come first: they are what Ruth and Priyank signed as "never", and no one-time pass opens them.
+    blocked = {str(code) for code in (rules.get("blocked_mccs") or [])}
+    if mcc in blocked:
+        return _decline(answer, "card_blocked_category")
 
     found = _matching_pass(passes or [], card.get("token") or "", merchant.get("acceptor_id") or "", amount, now)
     if found:
         found["used"] = True
         answer["consumed_pass"] = found.get("hold_id")
         return answer
-
-    blocked = {str(code) for code in (rules.get("blocked_mccs") or [])}
-    if mcc in blocked:
-        return _decline(answer, "card_blocked_category")
 
     if _cooldown_active(risk or {}, now):
         caps = (rules.get("cooldown") or {}).get("caps") or {}
@@ -189,9 +215,12 @@ def decide(payload: dict, mandate: dict, risk: dict | None = None, history: list
         limit = _cap(caps, mcc, caps.get("default", 25))
         if amount > limit + 0.001:
             return _decline(answer, "card_cooldown")
-    else:
-        if mcc == "6011" and amount > float(rules.get("atm_daily_cap") or 0) + 0.001:
+    elif mcc == "6011":
+        # cash is capped per day, not per swipe: two withdrawals under the cap must not add up past it
+        if atm_today(history or [], now) + amount > float(rules.get("atm_daily_cap") or 0) + 0.001:
             return _decline(answer, "card_atm_cap")
+        return answer
+    else:
         limit = _cap(rules.get("category_caps") or {}, mcc, rules.get("default_cap") or 60)
         if amount > limit + 0.001:
             return _decline(answer, "card_over_cap")
@@ -250,8 +279,9 @@ def handle_authorization(payload: dict, mandate: dict | None = None) -> dict:
         }
         state["decisions"].append(record)
         state["decisions"] = state["decisions"][-50:]
-        if answer["result"] == "APPROVED" and (payload.get("status") or "AUTHORIZATION") == "AUTHORIZATION":
-            state["history"].append({"mcc": answer["mcc"], "amount": answer["amount"]})
+        if answer["result"] == "APPROVED" and (payload.get("status") or "AUTHORIZATION") in DECIDED:
+            state["history"].append({"mcc": answer["mcc"], "amount": answer["amount"],
+                                     "at": datetime.now(timezone.utc).isoformat()})
         elif answer["hold_id"]:
             card = payload.get("card") or {}
             merchant = payload.get("merchant") or {}
@@ -289,6 +319,8 @@ def allow_hold(hold_id: str, now: datetime | None = None) -> dict:
         hold = state["holds"].get(hold_id)
         if not hold or hold.get("released"):
             raise KeyError(hold_id)
+        if hold.get("reason_key") == "card_blocked_category":
+            raise PermissionError("blocked categories stay blocked; change the rules together to allow them")
         until = now + timedelta(minutes=10)
         hold["released"] = True
         hold["allowed_until"] = until.isoformat()

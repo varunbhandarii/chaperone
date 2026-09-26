@@ -59,6 +59,10 @@ def evaluate(
     categories = [mandate_category(item) for item in items]
     blocked = set(mandate.get("blocked_categories") or [])
     allowed_cats = set(mandate.get("allowed_categories") or [])
+    # A bill is capped by its biller's own monthly limit when it is priced (policy/bills.py), so the per-purchase
+    # cap and the ask-Priyank threshold apply to goods only; the monthly cap still counts both.
+    goods = sum(to_cents(item.get("price", 0)) * int(item.get("qty") or 1) for item in items
+                if mandate_category(item) != "utility_bill")
     cap = to_cents(mandate["per_purchase_cap"])
     monthly_cap = to_cents(mandate["monthly_cap"])
     threshold = to_cents(mandate["approval_threshold"])
@@ -88,9 +92,9 @@ def evaluate(
     r2 = _rule("R2_merchant_allowed", blocked_merchant is None and all(item_merchants), blocked_merchant or merchant or "missing merchant")
     bad_cat = next((cat for cat in categories if cat not in allowed_cats), None)
     r3 = _rule("R3_category_allowed", bad_cat is None, bad_cat or ",".join(categories) or "empty cart")
-    r4 = _rule("R4_per_purchase_cap", total <= cap, f"{dollars(total):.2f} <= {dollars(cap):.2f}")
+    r4 = _rule("R4_per_purchase_cap", goods <= cap, f"{dollars(goods):.2f} <= {dollars(cap):.2f}")
     r5 = _rule("R5_monthly_cap", after_allow <= monthly_cap, f"{dollars(monthly_spent_cents):.2f} + {dollars(total):.2f} <= {dollars(monthly_cap):.2f}")
-    r6 = _rule("R6_approval_threshold", total <= threshold, f"{dollars(total):.2f} <= {dollars(threshold):.2f}")
+    r6 = _rule("R6_approval_threshold", goods <= threshold, f"{dollars(goods):.2f} <= {dollars(threshold):.2f}")
 
     if judge_error or judge is None:
         r7_passed = screen_action != "judge"

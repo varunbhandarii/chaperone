@@ -39,19 +39,26 @@ DEFAULT_MANDATE = {
 VISA_STORES = {
     "corner_market": ("Corner Market", "Grocery Stores, Supermarkets", "5411", "Groceries for Ruth, per purchase"),
     "parkside_pharmacy": ("Parkside Pharmacy", "Drug Stores and Pharmacies", "5912", "Medicine for Ruth, per purchase"),
-    "main_street_home": ("Main Street Home", "Discount Stores", "5251", "Household items for Ruth, per purchase"),
+    "main_street_home": ("Main Street Home", "Hardware Stores", "5251", "Household items for Ruth, per purchase"),
     "peachtree_power": ("Peachtree Power", "Utilities", "4900", "Ruth's power bill"),
 }
 
 MONTHLY_BASELINE = 142.10
 
 
-def fill_v2(mandate: dict) -> dict:
+def fill_v2(mandate: dict, widen: bool = True) -> dict:
     """Show the new stores, categories and billers even when a v1 file was signed earlier.
 
-    The signed file is not rewritten. A later passkey sign stores the filled fields.
+    The signed file is not rewritten. A later passkey sign stores the filled fields. With widen=False (what
+    checkout enforces) the stores, categories and billers stay exactly as signed; only missing restrictions
+    (card rules, trusted contacts) take their defaults.
     """
     filled = dict(mandate)
+    if not widen:
+        for key in ("card", "trusted_contacts"):
+            if not filled.get(key):
+                filled[key] = DEFAULT_MANDATE[key]
+        return filled
     for key in ("allowed_merchants", "allowed_categories"):
         have = list(filled.get(key) or [])
         for item in DEFAULT_MANDATE[key]:
@@ -93,7 +100,7 @@ def visa_view(mandate: dict) -> dict:
             bill = next((row for row in (mandate.get("billers") or []) if row.get("merchant_id") == merchant_id), {})
             amount = f"{float(bill.get('monthly_cap') or 0):.2f}"
         else:
-            amount = f"{float(caps.get(mcc) or mandate.get('per_purchase_cap') or 0):.2f}"
+            amount = per_purchase  # what the agent may spend per purchase there (card swipe caps are separate)
         mandate_id = f"{mandate.get('mandate_id')}-{merchant_id}"[:50]
         entries.append({
             "mandateId": mandate_id,

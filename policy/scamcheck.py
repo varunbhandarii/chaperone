@@ -69,7 +69,8 @@ RULE_PATTERNS = [
     ("redelivery_fee", "fake_delivery"), ("parcel_illegal", "digital_arrest"), ("renewal_callback", "fake_renewal"),
     ("silence_request", "bank_impersonation"), ("utility_shutoff", "utility_shutoff"),
     ("safe_account", "safe_account"), ("crypto_atm", "crypto_atm"), ("courier_pickup", "courier_pickup"),
-    ("family_emergency", "grandparent_emergency"), ("code_reading", "gift_card_codes"),
+    ("grandparent_secrecy", "grandparent_emergency"), ("family_emergency", "grandparent_emergency"),
+    ("code_reading", "gift_card_codes"),
     ("authority_impersonation", "government_impersonation"), ("blocked_category", "gift_card_demand"),
 ]
 
@@ -196,12 +197,16 @@ def _recent_orders(mandate_id: str) -> list[dict]:
         from policy.store import load_decisions
     except ImportError:
         return []
+    from policy.postpurchase import order_total_cents, orders_of
+
+    cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)).isoformat()
     out = []
     for doc in load_decisions().values():
-        if doc.get("mandate_id") == mandate_id and doc.get("order"):
-            cart = doc.get("cart") or {}
-            out.append({"at": doc.get("created_at") or "", "total": cart.get("total"),
-                        "store": cart.get("merchant") or "corner_market"})
+        if doc.get("mandate_id") != mandate_id or (doc.get("created_at") or "") < cutoff:
+            continue
+        for entry in orders_of(doc):  # one per store when the cart was split
+            out.append({"at": doc.get("created_at") or "", "total": order_total_cents(doc, entry) / 100,
+                        "store": entry.get("merchant") or (doc.get("cart") or {}).get("merchant") or "corner_market"})
     return sorted(out, key=lambda o: o["at"], reverse=True)[:5]
 
 
@@ -392,8 +397,10 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
                 entry = {k: v.get(k) for k in ("verdict", "pattern", "say", "actions", "reported_recently", "sources")}
                 cache_put(entry, story_key(key_text, lang), f"pattern:{pattern}:{lang}")
         else:
-            # Rules only: two or more soft signals are treated as a scam, one as unsure.
-            verdict = "scam" if screened["action"] == "judge" else "unsure"
+            # Rules only: two or more soft signals are treated as a scam, one as unsure. Screened without the
+            # session: after an earlier refusal the session screen says "judge" for anything, even a visit.
+            plain = screen(heard, lang)
+            verdict = "scam" if plain["action"] == "judge" else "unsure"
             pattern = rule_pattern or "unknown"
             say, raw_actions = _fallback(verdict, lang), ["do_not_pay"]
             sources, reported = [], None

@@ -29,3 +29,8 @@ caregiver/data/
 .DS_Store
 Thumbs.db
 .vscode/
+
+# every state file the services write (decisions, spend, mandate, pause, passkey, card, risk, scam checks and their cache)
+sessions/*.json
+# design files copied into the caregiver app at build time
+caregiver/public/design/

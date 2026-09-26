@@ -182,3 +182,15 @@ def test_judge_error_after_two_soft_hits_asks_priya():
     )
     assert result["decision"] == "approve"
     assert result["judge_error"] == "timeout"
+
+
+def test_the_power_bill_is_not_held_to_the_grocery_caps():
+    """$86.40 of power bill: over the $60 per purchase and the $40 threshold, yet capped only by its biller."""
+    bill = {"sku": "BILL-peachtree_power", "name": "Peachtree Power bill", "qty": 1, "price": 86.40,
+            "category": "utility_bill", "mandate_category": "utility_bill", "merchant": "peachtree_power"}
+    mandate = {**DEFAULT_MANDATE, "allowed_merchants": ["corner_market", "peachtree_power"],
+               "allowed_categories": ["grocery", "pharmacy", "utility_bill"]}
+    result = evaluate({"merchant": "corner_market", "items": [bill]}, mandate, 0, judge=proceed(), today=TODAY, signed=True)
+    assert result["decision"] == "allow", [r for r in result["rules"] if not r["passed"]]
+    with_goods = evaluate({"merchant": "corner_market", "items": [bill, item(20)]}, mandate, 0, judge=proceed(), today=TODAY, signed=True)
+    assert with_goods["decision"] == "allow"

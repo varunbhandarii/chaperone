@@ -131,10 +131,11 @@ def reset() -> None:
         path.unlink()
     if pause_path().exists():
         pause_path().unlink()
-    from policy import risk, scamcheck
+    from policy import card, risk, scamcheck
 
     risk.reset()
     scamcheck.reset()
+    card.reset_state()
     try:
         from policy.screen import reset_sessions
     except ImportError:

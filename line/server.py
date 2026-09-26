@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
@@ -33,6 +34,18 @@ from starlette.responses import JSONResponse
 
 from common import tls
 from common.config import ROOT, env
+
+
+class _MaskToken(logging.Filter):
+    """The token rides in the path for URL-only MCP clients (/k/<token>/mcp): keep it out of the access log."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(re.sub(r"/k/[^/\s]+", "/k/***", a) if isinstance(a, str) else a for a in record.args)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_MaskToken())
 
 VOICE = json.loads((ROOT / "station" / "config" / "voice.json").read_text(encoding="utf-8"))
 MANDATE_ID = VOICE["mandate_id"]
@@ -205,7 +218,8 @@ class Call:
 
 
 CALLS: dict[str, Call] = {}  # key (call_id, MCP session id, X-Call-Id) -> the phone call it belongs to
-REUSE_S = 300  # a new MCP session this soon after the last tool call, with no call_id, continues that call
+REUSE_S = 120  # a new MCP session this soon after the last tool call, with no call_id, continues that call
+# (kept short: two callers back to back must not share a cart or an order to cancel)
 
 
 def call_for(key: str | None) -> Call:
@@ -426,8 +440,12 @@ async def t_checkout(call: Call) -> dict:
     total = money(cents(view["total"]), call.lang)
     order = reply.get("order") or {}
     if decision == "allow":
-        if order.get("order_id"):
-            call.orders.append(order["order_id"])
+        placed = [o["order_id"] for o in reply.get("orders") or [] if isinstance(o, dict) and o.get("order_id")]
+        placed = placed or ([order["order_id"]] if order.get("order_id") else [])
+        if not placed:  # allowed, but no store took the order: nothing was bought
+            return {"status": "error", "error": reply.get("order_error") or "the merchant did not take the order",
+                    "say": say("checkout_unavailable", call.lang)}
+        call.orders.extend(placed)
         call.cart.clear()
         call.version += 1
         return {"status": "ordered", "order_id": order.get("order_id"), "decision_id": reply.get("decision_id"), "say": say("ordering_now", call.lang, total=total)}
