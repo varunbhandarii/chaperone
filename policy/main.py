@@ -31,12 +31,11 @@ try:
 except ImportError:
     pass
 
-try:
-    from policy.risk import router as risk_router
+from policy.risk import router as risk_router  # noqa: E402
+from policy.scamcheck import router as scamcheck_router  # noqa: E402
 
-    app.include_router(risk_router)
-except ImportError:
-    pass
+app.include_router(risk_router)
+app.include_router(scamcheck_router)
 
 
 @app.on_event("startup")

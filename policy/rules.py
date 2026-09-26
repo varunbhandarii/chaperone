@@ -153,6 +153,7 @@ class Verdict:
     patterns: list[str]
     hits: list[Hit] = field(default_factory=list)
     elapsed_ms: float = 0.0
+    story: bool = False  # reported speech: Ruth is telling what someone else said
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -230,6 +231,7 @@ class RuleSet:
             list(dict.fromkeys(h.pattern for h in hits)),
             hits,
             round((time.perf_counter() - start) * 1000, 3),
+            "story" in present,
         )
 
 

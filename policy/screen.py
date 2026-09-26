@@ -2,6 +2,9 @@
 
     POST /screen  {session_id, text, lang?, partial?}
                -> {action, hits: [{rule_id, pattern, lang, term}], refusal | null}  (contracts/screen.schema.json)
+               A hard hit inside a story about someone else ("Peachtree Power called and said...") answers
+               action "scam_check" instead of "refuse": the station then calls POST /scam-check, which sets
+               the cool-down and alerts Priyank. The refusal is still attached as the fallback if that fails.
     POST /judge   {transcript, cart? (list or {items}), mandate_summary?, history_summary?, session_id?, mandate_id?}
                -> contracts/judge.schema.json; posts judge_scored to the relay
 
@@ -17,7 +20,9 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import uuid
 from collections import OrderedDict
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
@@ -126,6 +131,10 @@ def refusal_for(key: str, lang: str, rule_id: str, patterns: list[str]) -> dict:
 def screen(text: str, lang: str | None = None, *, session_id: str | None = None,
            partial: bool = False) -> dict:
     """Return the C6 screen result for one utterance."""
+    return _screen(text, lang, session_id=session_id, partial=partial)[0]
+
+
+def _screen(text: str, lang: str | None, *, session_id: str | None, partial: bool) -> tuple[dict, Verdict]:
     verdict = evaluate(text, lang)
     lang_out = detect_lang(text, lang, verdict)
     action = verdict.action
@@ -152,7 +161,7 @@ def screen(text: str, lang: str | None = None, *, session_id: str | None = None,
                      if ((rules.get(h.rule_id) or {}).get("spoken_key") or _RULE_KEYS.get(h.rule_id)) == key),
                     hard_hits[0])
         refusal = refusal_for(key, lang_out, hard.rule_id, verdict.patterns)
-    return {"action": action, "hits": hits, "refusal": refusal}
+    return {"action": action, "hits": hits, "refusal": refusal}, verdict
 
 
 # ---------------------------------------------------------------- relay events
@@ -177,6 +186,7 @@ class ScreenBody(BaseModel):
     text: str
     lang: str | None = None
     partial: bool = False
+    mandate_id: str | None = None
 
 
 class JudgeBody(BaseModel):
@@ -193,7 +203,44 @@ router = APIRouter()
 
 @router.post("/screen")
 def screen_route(body: ScreenBody) -> dict:
-    return screen(body.text, body.lang, session_id=body.session_id, partial=body.partial)
+    out, verdict = _screen(body.text, body.lang, session_id=body.session_id, partial=body.partial)
+    if out["action"] == "refuse" and verdict.story:
+        # Ruth is telling us about a call, not asking to buy: the scam check answers, cools the card
+        # and alerts Priyank (it records its own check, so no decision or alert here).
+        out["action"] = "scam_check"
+        return out
+    if not body.partial:
+        report(out, body.text, body.session_id, body.mandate_id or DEFAULT_MANDATE_ID)
+    return out
+
+
+def report(out: dict, text: str, session_id: str, mandate_id: str) -> None:
+    """Make a final screen visible: a caution row for soft signals; for a refusal, a stored decision
+    and an alert to Priyank carrying its decision_id, so his "Why?" can explain it."""
+    from policy.events import post_event as post
+
+    rule_ids = sorted({h["rule_id"] for h in out["hits"]})
+    if out["action"] in ("slow", "judge"):
+        post("caution", session_id, mandate_id, rule_ids=rule_ids, action=out["action"],
+             words=[h["term"] for h in out["hits"]][:6])
+        return
+    if out["action"] != "refuse":
+        return
+    from policy.store import save_decision
+
+    refusal = out["refusal"]
+    decision_id = "d_" + uuid.uuid4().hex[:12]
+    save_decision({
+        "decision_id": decision_id, "decision": "deny", "source": "screen", "say_key": refusal["spoken_key"],
+        "rules": [{"id": f"S_screen_{rule_id}", "passed": False, "detail": refusal["spoken_key"]} for rule_id in rule_ids],
+        "judge": None, "cart": {"items": [], "total": 0}, "order": None, "approval": None,
+        "mandate_id": mandate_id, "session_id": session_id, "lang": refusal["lang"],
+        "ruth_said": text[:400], "screen_hits": out["hits"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    refusal["decision_id"] = decision_id
+    post("caregiver_alerted", session_id, mandate_id, kind="screen_refusal", decision_id=decision_id,
+         rule_ids=rule_ids, spoken_key=refusal["spoken_key"], patterns=refusal["patterns"], lang=refusal["lang"])
 
 
 @router.post("/judge")

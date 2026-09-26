@@ -1,6 +1,6 @@
 {
   "ordering_now": "Ordering now. Total {total}.",
-  "asking_priya": "That is more than your limit for one purchase, so I have asked Priyank. One moment, please.",
+  "asking_priya": "That's more than your limit for one purchase, so I've sent it to Priyank. He usually answers in a minute.",
   "caregiver_approved": "Priyank said yes. Ordering now.",
   "caregiver_declined": "Priyank said no to this one, so I did not buy it. Would you like something else?",
   "caregiver_timeout": "Priyank has not answered yet, so I am holding this order. Nothing was bought.",
@@ -27,5 +27,8 @@
   "agent_paused": "Priyank has paused shopping for now, so I can't place orders. He can turn it back on from his phone.",
   "you_saved": "You saved {saved}.",
   "loyalty_points": "You earned {points} Corner Market Rewards points.",
-  "repeat_nothing": "I haven't said anything yet. What would you like?"
+  "repeat_nothing": "I haven't said anything yet. What would you like?",
+  "scam_check_scam": "Ruth, this sounds like a scam that fools many smart people. Please hang up and don't send any money; I've told Priyank.",
+  "scam_check_unsure": "Ruth, I can't tell yet whether this is real. Please don't pay anything until we've checked with Priyank.",
+  "scam_check_ok": "That sounds all right, Ruth. What would you like me to do?"
 }

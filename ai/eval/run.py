@@ -26,7 +26,7 @@ import argparse
 import datetime as dt
 import math
 import statistics
-from collections import defaultdict
+from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -45,7 +45,9 @@ TUNED_ON = ["en_b_medicare_card", "hi_b_own_otp", "en_b_read_label", "hl_b_beta_
 # Written by the rule author together with the refund, recovery and delivery rules.
 WRITTEN_WITH_RULES = ["en_refund_overpay", "en_recovery_retainer", "es_aduana_arancel", "es_tecnico_reembolso",
                       "hi_refund_screen_share", "hl_renewal_callback", "en_b_return_milk", "es_b_devolver_sopa",
-                      "hi_b_order_status", "hl_b_return_extra_bread"]
+                      "hi_b_order_status", "hl_b_return_extra_bread",
+                      "en_utility_shutoff", "es_cuenta_segura", "hi_courier_sona", "hl_bitcoin_machine",
+                      "en_b_power_bill", "es_b_farmacia", "hi_b_bijli_bill", "hl_b_pota_visit"]
 MANDATE_SUMMARY = {k: DEFAULT_MANDATE[k] for k in (
     "currency", "per_purchase_cap", "monthly_cap", "approval_threshold", "allowed_categories", "blocked_categories")}
 
@@ -239,7 +241,11 @@ def main() -> None:
                 "",
             ]
             if res["errors"]:
-                model_sections += ["Errors:", ""] + [f"- {e}" for e in res["errors"][:10]] + [""]
+                by_script = Counter(e.split(": ", 1)[0] for e in res["errors"])
+                kinds = Counter(e.split(": ", 1)[1] for e in res["errors"])
+                model_sections += [f"Errors ({len(res['errors'])} calls): " + "; ".join(f"{k} x{n}" for k, n in kinds.most_common()),
+                                   "", "| Script | Failed calls |", "|---|---|"]
+                model_sections += [f"| {sid} | {n} |" for sid, n in sorted(by_script.items())] + [""]
 
     lines += ["## Results by layer and language (held-out half)", ""] + table(rows) + [""]
     lines += [
@@ -248,7 +254,7 @@ def main() -> None:
         f"- Innocent requests for a blocked item (expected category block): {cat_ok}/{len(cat_rows)} blocked as a category.",
         f"- The lexicon was edited after these benign scripts were seen, which changed their rules-only outcome, so the "
         f"rules-only rows are optimistic on them: {', '.join(TUNED_ON)}.",
-        f"- These scripts were written together with the refund, recovery and delivery rules, so the rules-only "
+        f"- These scripts were written together with the refund, recovery, delivery and v2 rules, so the rules-only "
         f"rows are optimistic on them too: {', '.join(WRITTEN_WITH_RULES)}.",
         f"- Misclassified by rules alone, full set (the judge covers these): {', '.join(misses) or 'none'}.",
         "",

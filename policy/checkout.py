@@ -36,13 +36,17 @@ def call_judge(transcript: str, cart: dict, mandate: dict, session_id: str | Non
     if os.environ.get("JUDGE_FAKE") == "1":
         return _fake_judge(), None
     try:
-        from policy.judge import judge
+        from policy.judge import judge_with_meta
     except ImportError:
         return None, "judge unavailable"
     try:
         # The judge takes the cart lines and the limits only; the passkey material never leaves this service.
         summary = {key: mandate[key] for key in MANDATE_SUMMARY_KEYS if key in mandate}
-        result = judge(transcript, cart.get("items", []), summary, session_id=session_id)
+        result, meta = judge_with_meta(transcript, cart.get("items", []), summary, session_id=session_id)
+        # The score belongs on the ledger, so the wall and Priyank can see the scam check ran.
+        post_event("judge_scored", session_id or "none", mandate.get("mandate_id") or "none",
+                   scam_score=result["scam_score"], patterns=result["patterns"], action=result["action"],
+                   model=meta["model"], ms=meta["ms"])
         result["threshold"] = JUDGE_THRESHOLD
         return result, None
     except Exception as exc:  # noqa: BLE001 - R7 treats any judge failure as unavailable
