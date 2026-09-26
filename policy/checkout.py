@@ -29,7 +29,10 @@ def _fake_judge() -> dict:
     return {"scam_score": 0.05, "patterns": ["none"], "rationale": "fake", "action": "proceed", "threshold": JUDGE_THRESHOLD}
 
 
-def call_judge(transcript: str, cart: dict, mandate: dict) -> tuple[dict | None, str | None]:
+MANDATE_SUMMARY_KEYS = ("currency", "per_purchase_cap", "monthly_cap", "approval_threshold", "allowed_categories", "blocked_categories")
+
+
+def call_judge(transcript: str, cart: dict, mandate: dict, session_id: str | None = None) -> tuple[dict | None, str | None]:
     if os.environ.get("JUDGE_FAKE") == "1":
         return _fake_judge(), None
     try:
@@ -37,19 +40,22 @@ def call_judge(transcript: str, cart: dict, mandate: dict) -> tuple[dict | None,
     except ImportError:
         return None, "judge unavailable"
     try:
-        result = judge(transcript, cart, mandate)
+        # The judge takes the cart lines and the limits only; the passkey material never leaves this service.
+        summary = {key: mandate[key] for key in MANDATE_SUMMARY_KEYS if key in mandate}
+        result = judge(transcript, cart.get("items", []), summary, session_id=session_id)
         result["threshold"] = JUDGE_THRESHOLD
         return result, None
     except Exception as exc:  # noqa: BLE001 - R7 treats any judge failure as unavailable
         return None, str(exc)
 
 
-def call_screen(transcript: str, lang: str) -> dict:
+def call_screen(transcript: str, lang: str, session_id: str | None = None) -> dict:
     try:
         from policy.screen import screen
     except ImportError:
         return {"action": "proceed", "hits": [], "refusal": None}
-    return screen(transcript, lang or "en")
+    # session_id lets the screen remember an earlier refusal in this session (repeat attempts go to the judge).
+    return screen(transcript, lang or "en", session_id=session_id)
 
 
 class UnsignedMandate(Exception):
@@ -92,10 +98,9 @@ def send_signed_order(body: dict) -> dict:
     url = f"{merchant_public_url()}/orders"
     prepared = sign_request(url, body)
     response = requests.Session().send(prepared, timeout=5)
-    payload = response.json()
     if response.status_code >= 400:
-        raise RuntimeError(payload.get("error") if isinstance(payload, dict) else response.text)
-    return payload
+        raise RuntimeError(f"merchant answered {response.status_code}: {response.text[:300]}")
+    return response.json()
 
 
 def checkout(payload: dict) -> dict:
@@ -106,10 +111,10 @@ def checkout(payload: dict) -> dict:
     if payload.get("mandate_id"):
         mandate = {**mandate, "mandate_id": payload["mandate_id"]}
     priced = reprice(payload.get("cart") or {})
-    screen = call_screen(transcript, lang)
+    screen = call_screen(transcript, lang, session_id)
     judgment, judge_error = (None, None)
     if screen.get("action") != "refuse":
-        judgment, judge_error = call_judge(transcript, priced, mandate)
+        judgment, judge_error = call_judge(transcript, priced, mandate, session_id)
     decision = evaluate(
         priced,
         mandate,
@@ -127,7 +132,21 @@ def checkout(payload: dict) -> dict:
     approval = None
     order = None
     order_error = None
+    document = {
+        **decision,
+        "decision_id": decision_id,
+        "mandate_id": mandate["mandate_id"],
+        "session_id": session_id,
+        "cart": priced,
+        "order": None,
+        "approval": None,
+        "unsigned_mandate": unsigned,
+    }
+    if unsigned:
+        document["detail"] = "unsigned mandate"
     if decision["decision"] == "allow":
+        # The merchant looks this decision up before it accepts the order, so store it first.
+        save_decision(document)
         body = _order_body(mandate["mandate_id"], decision_id, session_id, priced, None)
         try:
             merchant_order = send_signed_order(body)
@@ -166,18 +185,8 @@ def checkout(payload: dict) -> dict:
     public_approval = None
     if approval:
         public_approval = {"approval_id": approval["approval_id"], "expires_at": approval["expires_at"]}
-    document = {
-        **decision,
-        "decision_id": decision_id,
-        "mandate_id": mandate["mandate_id"],
-        "session_id": session_id,
-        "cart": priced,
-        "order": order,
-        "approval": approval,
-        "unsigned_mandate": unsigned,
-    }
-    if unsigned:
-        document["detail"] = "unsigned mandate"
+    document["order"] = order
+    document["approval"] = approval
     save_decision(document)
     post_event("policy_decision", session_id, mandate["mandate_id"], decision_id=decision_id, decision=decision["decision"])
     response = {

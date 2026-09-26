@@ -293,7 +293,8 @@ const clipCache = new Map<string, Promise<AudioBuffer | null>>();
 
 /** Fetches and decodes a refusal clip (relative URLs resolve against the relay). Null when it cannot load in time. */
 export function loadClip(ctx: AudioContext, audioUrl: string, timeoutMs: number, warn: Warn): Promise<AudioBuffer | null> {
-  const url = new URL(audioUrl, URLS.relay + "/").toString();
+  // "/audio/x.mp3" must keep the relay's path prefix (the dev proxy serves the relay under /svc/relay).
+  const url = audioUrl.startsWith("/") ? URLS.relay.replace(/\/+$/, "") + audioUrl : new URL(audioUrl, URLS.relay + "/").toString();
   let pending = clipCache.get(url);
   if (!pending) {
     pending = (async () => {

@@ -143,6 +143,8 @@ export class StationAgent {
 
   private turns: Turn[] = [];
   private shopperTexts: string[] = [];
+  /** Where the current request starts in shopperTexts; moves past each refusal and checkout. */
+  private requestStart = 0;
   private lastLang: Lang | undefined;
   private cache = new ItemCache();
   private cart = new Cart();
@@ -588,6 +590,8 @@ export class StationAgent {
 
   private logRefusal(turn: Turn, result: ScreenResult, via: string): void {
     const ids = ruleIds(result);
+    // Policy screens the checkout transcript again; a refused request must not ride along into the next one.
+    this.requestStart = this.shopperTexts.length;
     this.ledger.post("refusal", {
       rule_ids: ids,
       spoken_key: result.refusal?.spoken_key ?? "refusal",
@@ -987,13 +991,17 @@ export class StationAgent {
         instruction: "Call read_cart, read its say text to the shopper, and wait for their yes before calling checkout again.",
       };
     }
+    // One read-back buys one checkout: consume it before the await so a parallel or repeated call is held.
+    this.gate.reset();
     const cart = this.cart.priced(VOICE.merchant);
     const totalCents = this.cart.totalCents;
+    const transcript = this.shopperTexts.slice(this.requestStart).join(" ");
+    this.requestStart = this.shopperTexts.length;
     const body = buildCheckoutBody({
       sessionId: this.sessionId,
       mandateId: VOICE.mandate_id,
       cart,
-      transcript: this.shopperTexts.join(" "),
+      transcript,
       lang: this.lastLang,
       readBack: true,
     });
@@ -1017,7 +1025,6 @@ export class StationAgent {
     this.ui.outcome(outcome);
     if (outcome.status === "ordered") {
       this.cart.clear();
-      this.gate.reset();
       this.cartChanged();
     } else if (outcome.status === "waiting_for_caregiver") {
       this.waitingForCaregiver = true;

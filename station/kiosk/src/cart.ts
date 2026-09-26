@@ -352,13 +352,23 @@ export function checkoutOutcome(reply: Record<string, unknown>, totalCents: numb
   const total = money(totalCents, lang);
   if (decision === "allow") {
     const order = (reply.order ?? null) as { order_id?: unknown } | null;
+    // Allowed but the merchant never took the order (signing or merchant failure): nothing was bought.
+    if (!order || typeof order.order_id !== "string") {
+      return {
+        status: "error",
+        say_key: "checkout_unavailable",
+        say: sayFor("checkout_unavailable", lang),
+        decision_id: decisionId,
+        error: typeof reply.order_error === "string" ? reply.order_error : "the merchant did not take the order",
+      };
+    }
     return {
       status: "ordered",
       say_key: "ordering_now",
       say: sayFor("ordering_now", lang, { total }),
       total: fromCents(totalCents),
       decision_id: decisionId,
-      ...(order && typeof order.order_id === "string" ? { order_id: order.order_id } : {}),
+      order_id: order.order_id,
     };
   }
   if (decision === "approve") {

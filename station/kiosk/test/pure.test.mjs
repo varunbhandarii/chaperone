@@ -257,6 +257,10 @@ test("checkout outcomes map the policy reply to what the model says", () => {
     decision_id: "d_1",
     order_id: "o_1",
   });
+  const noOrder = checkoutOutcome({ decision: "allow", decision_id: "d_3", order: null, order_error: "merchant answered 401" }, 1149, "en");
+  assert.equal(noOrder.status, "error");
+  assert.equal(noOrder.say_key, "checkout_unavailable");
+  assert.equal(noOrder.error, "merchant answered 401");
   const approve = checkoutOutcome({ decision: "approve", decision_id: "d_2", approval: { approval_id: "a_1", expires_at: 1 } }, 6349, "en");
   assert.equal(approve.status, "waiting_for_caregiver");
   assert.equal(approve.say_key, "asking_priya");

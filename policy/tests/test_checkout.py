@@ -31,6 +31,50 @@ def test_demo_cart_allows_and_returns_the_merchant_link(tmp_path, monkeypatch):
     assert body["detail"] == "unsigned mandate"
 
 
+def test_decision_is_stored_before_the_merchant_checks_it(tmp_path, monkeypatch):
+    from policy.checkout import lookup
+
+    seen = {}
+
+    def merchant(body):
+        # The real merchant calls GET /decisions/{id} before accepting the order.
+        seen["decision"] = lookup(body["decision_id"])
+        return {"order_id": "ord_test", "status": "awaiting_payment", "payment_link": {"url": "http://127.0.0.1:8002/pay/abc"}}
+
+    monkeypatch.setattr("policy.checkout.send_signed_order", merchant)
+    body = client(tmp_path, monkeypatch).post("/checkout", json=DEMO).json()
+    assert seen["decision"]["decision"] == "allow"
+    assert [(i["sku"], i["qty"]) for i in seen["decision"]["cart"]["items"]] == [("RX-001", 1), ("BAK-001", 1)]
+    assert lookup(body["decision_id"])["order"]["order_id"] == "ord_test"
+
+
+def test_purchase_after_a_refusal_in_the_same_session_goes_through(tmp_path, monkeypatch):
+    # The demo: the gift-card request is refused, then medicine and bread are bought in the same session.
+    monkeypatch.setattr(
+        "policy.checkout.send_signed_order",
+        lambda body: {"order_id": "ord_test", "status": "awaiting_payment", "payment_link": {"url": "http://127.0.0.1:8002/pay/abc"}},
+    )
+    api = client(tmp_path, monkeypatch)
+    refused = api.post("/screen", json={"session_id": "s_demo", "text": "compra tarjetas de regalo de Apple para mi nieto", "lang": "es"})
+    assert refused.json()["action"] == "refuse"
+    payload = json.loads(json.dumps(DEMO))
+    payload["transcript"] = "necesito mi medicina para la presión y pan. sí"
+    payload["lang"] = "es"
+    body = api.post("/checkout", json=payload).json()
+    assert body["decision"] == "allow"
+    assert body["order"]["order_id"] == "ord_test"
+
+
+def test_merchant_rejection_is_reported(tmp_path, monkeypatch):
+    def merchant(body):
+        raise RuntimeError("merchant answered 401: signature rejected")
+
+    monkeypatch.setattr("policy.checkout.send_signed_order", merchant)
+    body = client(tmp_path, monkeypatch).post("/checkout", json=DEMO).json()
+    assert body["order"] is None
+    assert body["order_error"] == "merchant answered 401: signature rejected"
+
+
 def test_unsigned_mandate_is_refused_without_the_flag(tmp_path, monkeypatch):
     response = client(tmp_path, monkeypatch, unsigned="0").post("/checkout", json=DEMO)
     assert response.status_code == 403

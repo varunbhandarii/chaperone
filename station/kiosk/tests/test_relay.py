@@ -126,7 +126,8 @@ def test_cors_allows_only_the_station_origins(client):
 
 
 def test_relay_mounts_ledger_routes_only_when_present(client):
-    paths = {route.path for route in main.app.routes}
-    assert {"/session/token", "/health"} <= paths
-    ledger_routes = any(p.startswith(("/events", "/sessions", "/audio", "/.well-known")) for p in paths)
+    # Ask the app instead of walking app.routes: FastAPI 0.141 keeps included routers as one opaque entry.
+    assert client.get("/health").status_code == 200
+    assert client.post("/session/token").status_code != 404
+    ledger_routes = client.get("/.well-known/jwks.json").status_code != 404
     assert ledger_routes == (main.ledger is not None)
