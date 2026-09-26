@@ -48,6 +48,21 @@ contexts:
     es: ["re:enlace", "re:pag(?:ar|ue|o)", "re:haga clic"]
     hi: ["लिंक", "re:भुगतान", "re:पेमेंट"]
     hi_latn: ["re:link", "re:pay kar", "re:payment"]
+  soon:
+    en: ["today", "tonight", "re:in (?:an|one|two|\\d+) hours?", "re:within (?:an|one|two|\\d+) hours?", "re:right (?:now|away)", "immediately"]
+    es: ["hoy", "re:esta noche", "re:(?:en|dentro de) (?:una|dos|\\d+) horas?", "re:ahora mismo", "re:de inmediato"]
+    hi: ["re:आज(?: रात)?", "re:(?:एक|दो|\\d+) घंटे", "re:अभी", "तुरंत"]
+    hi_latn: ["re:aaj(?: raat)?", "re:(?:ek|do|\\d+) ghante", "turant"]
+  grandchild:
+    en: ["re:grand(?:son|daughter|child|kid)s?"]
+    es: ["re:niet[oa]s?"]
+    hi: ["re:पोत(?:ा|ी|े)", "re:नात(?:ी|िन)"]
+    hi_latn: ["re:pot(?:a|i|e)", "re:nati(?:n)?"]
+  money_ask:
+    en: ["re:\\d+ dollars", "re:(?:hundred|thousand) dollars", "money", "cash", "bail", "re:gift ?cards?", "re:wire"]
+    es: ["re:\\d+ dolares", "dinero", "efectivo", "fianza", "re:tarjetas? de regalo"]
+    hi: ["re:पैसे|पैसा", "re:(?:ज़मानत|जमानत)", "re:डॉलर", "कैश"]
+    hi_latn: ["re:paise|paisa", "re:jamanat", "dollar", "cash"]
   deadline:
     en: ["re:within (?:24|48|twenty four|forty eight) hours", "re:(?:by|before) (?:today|tonight|midnight|the end of (?:the )?day)", "re:call (?:us |them |back )?(?:now|immediately|right away)"]
     es: ["re:(?:en|dentro de) (?:24|48|veinticuatro) horas", "hoy mismo", "re:llame (?:ahora|de inmediato)"]
@@ -481,9 +496,12 @@ rules:
         - "re:share (?:your|my) screen"
         - "re:screen ?shar(?:e|ing)"
         - "re:remote (?:access|desktop)"
+        - "re:(?:ultra ?viewer|rust ?desk|log ?me ?in|splash ?top|quick ?support|zoho assist|supremo)"
+        - "re:(?:give|let) (?:him|her|them) (?:control|access) (?:of|to) (?:my|the) (?:computer|pc|laptop|phone|screen)"
       es:
         - "re:acceso remoto"
         - "re:compartir (?:su |mi |la )?pantalla"
+        - "re:(?:ultra ?viewer|rust ?desk|quick ?support)"
         - "re:any ?desk"
         - "re:team ?viewer"
       hi:
@@ -637,3 +655,102 @@ rules:
       hi_latn:
         - "re:cyber cell"
         - "re:refund department"
+
+  # ------------------------------------------------------------------ v2 families (the Ask guard)
+
+  R_utility_shutoff:
+    severity: soft
+    hard_with: [soon]
+    pattern: utility_shutoff
+    detail: '"We will cut your power tonight unless you pay": utilities do not disconnect by one phone call.'
+    terms:
+      en:
+        - "re:(?:cut|shut|turn|switch) (?:off )?(?:my |the |your )?(?:power|electricity|gas|water|service)(?: off)?"
+        - "re:(?:disconnect|disconnected|disconnection) (?:my |the |your )?(?:power|electricity|service)"
+        - "re:(?:power|electricity|gas|water|service) (?:will be |is being |is going to be |gets )?(?:disconnected|cut off|shut off|turned off)"
+      es:
+        - "re:(?:cortar|cortan|cortaran|cortarle|suspender|suspenden) (?:la |el |su |mi )?(?:luz|electricidad|gas|agua|servicio)"
+        - "re:desconexion"
+      hi:
+        - "re:(?:बिजली|लाइट|गैस|पानी) (?:काट|कट|बंद)"
+      hi_latn:
+        - "re:(?:bijli|light|gas) (?:kat|kaat|band)"
+
+  R_safe_account:
+    severity: hard
+    pattern: safe_account
+    detail: 'A "safe" or "secure" account for moving money is always a bank-impersonation scam.'
+    terms:
+      en:
+        - "re:(?:safe|secure|protected|safety) account"
+      es:
+        - "re:cuenta (?:segura|protegida)"
+      hi:
+        - "re:(?:सुरक्षित|सेफ) (?:खाते|खाता|अकाउंट)"
+      hi_latn:
+        - "re:(?:safe|surakshit) (?:account|khata|khate)"
+
+  R_move_money:
+    severity: soft
+    pattern: safe_account
+    detail: Moving savings on a caller's instructions.
+    terms:
+      en:
+        - "re:(?:move|transfer|withdraw) (?:all )?(?:your|my|her) (?:money|savings|funds)"
+      es:
+        - "re:(?:mover|mueva|transferir|transfiera|retirar|retire) (?:todo )?(?:su|mi|sus|mis) (?:dinero|ahorros)"
+      hi:
+        - "re:(?:सारे )?पैसे (?:ट्रांसफर|निकाल)"
+      hi_latn:
+        - "re:(?:sare )?paise (?:transfer|nikal)"
+
+  R_crypto_atm:
+    severity: hard
+    pattern: crypto_atm
+    detail: Cash into a Bitcoin or crypto machine on someone's instructions.
+    terms:
+      en:
+        - "re:(?:bitcoin|crypto|coin|btc) (?:atm|machine|kiosk)s?"
+        - "re:(?:scan|use) (?:the |a |this )?qr code (?:at|on) (?:the )?(?:machine|atm|kiosk)"
+      es:
+        - "re:(?:cajero|maquina) (?:de )?(?:bitcoin|cripto\\S*)"
+      hi:
+        - "re:(?:बिटकॉइन|क्रिप्टो) (?:एटीएम|मशीन)"
+      hi_latn:
+        - "re:(?:bitcoin|crypto) (?:atm|machine)"
+
+  R_courier_pickup:
+    severity: hard
+    pattern: courier_pickup
+    detail: A courier or driver coming to collect cash or gold.
+    terms:
+      en:
+        - "re:(?:courier|driver|messenger|agent|someone|a man|a woman) (?:will |is going to |is coming to |is coming |to )?(?:come |stop by )?(?:and )?(?:to )?(?:pick up|collect|get) (?:the |my |your )?(?:cash|money|gold|envelope)"
+        - "re:(?:put|seal|wrap|hand) (?:the )?(?:cash|money|gold) (?:in|into|to) (?:an? )?(?:envelope|box|package|courier|driver)"
+      es:
+        - "re:(?:un )?(?:mensajero|chofer|conductor) (?:viene|va a venir|pasara) (?:a )?(?:recoger|buscar) (?:el )?(?:dinero|efectivo|oro)"
+        - "re:recoger (?:el )?(?:dinero|efectivo|oro)"
+      hi:
+        - "re:(?:कूरियर|आदमी|ड्राइवर) (?:पैसे|कैश|सोना) (?:लेने|लेकर)"
+        - "re:(?:पैसे|कैश|सोना|गहने) लेने (?:आएगा|आएंगे|आ रहा|आ रही)"
+      hi_latn:
+        - "re:(?:courier|aadmi|driver) (?:vala )?(?:paise|cash|sona) (?:lene|lekar)"
+        - "re:(?:paise|cash|sona) lene (?:ayega|aayega|aa raha|aa rahi)"
+
+  R_family_secrecy:
+    severity: hard
+    needs: [grandchild, money_ask]
+    pattern: grandparent_secrecy
+    detail: A grandchild asking for money and to keep it from the family is the grandparent scam, voice clone or not.
+    terms:
+      en:
+        - "re:(?:dont|do not|please dont|please do not) (?:tell|call|say anything to) (?:my |his |her |your )?(?:mom|mother|dad|father|parents|mum|daughter|son|family|anyone)"
+        - "re:(?:keep|its) (?:it |this )?(?:a )?secret"
+        - "re:between (?:us|you and me)"
+      es:
+        - "re:no (?:le )?(?:digas|diga|cuentes|cuente) (?:nada )?(?:a (?:mi|su|tu) )?(?:mama|madre|papa|padre|padres|hija|hijo|familia|nadie)"
+        - "re:(?:es )?(?:un )?secreto"
+      hi:
+        - "re:(?:मम्मी|मां|माँ|पापा|घर वालों|किसी) को (?:मत|ना|नहीं) (?:बताना|बताओ|बताइए|बताइएगा)"
+      hi_latn:
+        - "re:(?:mummy|mummi|maa|papa|ghar valon|kisi) ko (?:mat|na|nahi) (?:batana|batao|bataiye)"

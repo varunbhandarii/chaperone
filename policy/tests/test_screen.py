@@ -542,3 +542,41 @@ def test_ones_own_cards_plural_proceed(text):
 def test_repeat_triggers_cover_every_language():
     triggers = json.loads((ROOT / "ai/prompts/repeat_triggers.json").read_text(encoding="utf-8"))
     assert set(triggers) == {"en", "es", "hi"} and all(len(v) >= 5 for v in triggers.values())
+
+
+# ---------------------------------------------------------------- v2 families: the Ask guard
+
+V2_SCAMS = [
+    ("R_utility_shutoff", "Peachtree Power says they'll cut my power tonight unless I pay $480"),
+    ("R_utility_shutoff", "Llamaron de la compañía de luz, me cortan la luz hoy si no pago"),
+    ("R_utility_shutoff", "बिजली वाले ने कहा आज रात बिजली काट देंगे"),
+    ("R_safe_account", "The bank says move your money to a safe account"),
+    ("R_safe_account", "Mueva su dinero a una cuenta segura"),
+    ("R_safe_account", "सुरक्षित खाते में पैसे ट्रांसफर करो"),
+    ("R_crypto_atm", "He said to put cash in the Bitcoin ATM"),
+    ("R_crypto_atm", "Vaya al cajero de bitcoin"),
+    ("R_courier_pickup", "A courier will come to pick up the cash"),
+    ("R_courier_pickup", "Un mensajero viene a recoger el dinero"),
+    ("R_courier_pickup", "courier wala cash lene aayega"),
+    ("R_family_secrecy", "My grandson Alex needs $2,000 for bail, he said don't tell his mom"),
+    ("R_family_secrecy", "Mi nieto necesita dinero, me dijo que no le diga a su mamá"),
+    ("R_family_secrecy", "मेरे पोते को पैसे चाहिए, उसने कहा मम्मी को मत बताना"),
+    ("R_remote_access", "Install UltraViewer so I can fix it"),
+]
+
+
+@pytest.mark.parametrize("rule,text", V2_SCAMS)
+def test_v2_families_refuse(rule, text):
+    v = evaluate(text)
+    assert v.action == "refuse" and rule in v.rules, v
+
+
+@pytest.mark.parametrize("text", [
+    "pay my power bill", "what do I owe Peachtree Power", "my grandson is visiting Sunday", "call my grandson",
+    "put the medicine on my card", "how much is left on my card", "paga mi recibo de luz", "¿cuánto debo de luz?",
+    "बिजली का बिल भर दो", "mera pota Sunday ko aa raha hai", "turn off the lights please", "is my power bill paid?",
+    "the power went out last night", "the TV remote control is broken", "can you move my money to savings",
+    "my grandson needs money for college books", "My grandson is visiting, don't tell his mom, it's a surprise party",
+])
+def test_v2_hard_negatives_are_not_refused(text):
+    assert action(text) != "refuse"

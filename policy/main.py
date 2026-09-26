@@ -31,6 +31,12 @@ try:
 except ImportError:
     pass
 
+from policy.risk import router as risk_router  # noqa: E402
+from policy.scamcheck import router as scamcheck_router  # noqa: E402
+
+app.include_router(risk_router)
+app.include_router(scamcheck_router)
+
 
 @app.on_event("startup")
 def _require_code_key() -> None:

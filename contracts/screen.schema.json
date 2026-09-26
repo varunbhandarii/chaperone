@@ -31,11 +31,12 @@
           "required": ["rule_id", "spoken_key", "patterns", "lang", "text", "audio_url"],
           "properties": {
             "rule_id": { "type": "string" },
-            "spoken_key": { "enum": ["blocked_category", "scam_pattern", "code_reading"] },
+            "spoken_key": { "enum": ["blocked_category", "scam_pattern", "code_reading", "refund_scam"] },
             "patterns": { "type": "array", "items": { "type": "string" } },
             "lang": { "enum": ["en", "es", "hi"] },
             "text": { "type": "string", "minLength": 1 },
-            "audio_url": { "type": "string", "pattern": "^/audio/refusal\\.[a-z_]+\\.(en|es|hi)\\.mp3$" }
+            "audio_url": { "type": "string", "pattern": "^/audio/refusal\\.[a-z_]+\\.(en|es|hi)\\.mp3$" },
+            "decision_id": { "type": "string", "description": "set on final screens: the stored decision Priyank's Why? explains" }
           }
         }
       ]
