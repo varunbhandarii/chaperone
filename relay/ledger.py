@@ -9,7 +9,8 @@ GET  /events/stream?session_id=&types=&once=
                                    SSE, `id: <seq>`, replays after Last-Event-ID (header or ?last_event_id=),
                                    `:` heartbeat after 15 s without a write; once=1 replays and closes (curl,
                                    tests). A reader that falls 1000 events behind is closed and reconnects.
-GET  /sessions/{id}                that session's events, JSON
+GET  /sessions/{id}[?format=html]  that session's events, JSON; html is the read-only page behind the receipt's
+                                   QR code (relay/session_view.py), served publicly by the caregiver app at /s/<id>
 GET  /jwks.json, /.well-known/jwks.json
 GET  /audio/{name}                 refusal clips from ai/warnings/
 GET  /wall                         the wall page; /wall/data/{panel,mandate,budget} proxy merchant and policy
@@ -32,6 +33,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 
 from common.config import JWKS_PATH, ROOT, ledger_path
+from relay import session_view
 
 SCHEMA = json.loads((ROOT / "contracts" / "events.schema.json").read_text(encoding="utf-8"))
 VALIDATOR = jsonschema.Draft202012Validator(SCHEMA)
@@ -192,11 +194,32 @@ async def stream(
 
 
 @router.get("/sessions/{session_id}")
-def session_events(session_id: str):
+async def session_events(session_id: str, format: str = "json"):
     try:
-        return _read_jsonl(LEDGER.session_path(session_id))
+        path = LEDGER.session_path(session_id)
     except ValueError:
         raise HTTPException(404, "unknown session") from None
+    events = _read_jsonl(path)
+    if format != "html":
+        return events
+    if not path.exists():
+        raise HTTPException(404, "unknown session")
+    return HTMLResponse(session_view.render(session_id, events, await _receipt_for(events)),
+                        headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
+
+async def _receipt_for(events: list[dict]) -> dict | None:
+    """The merchant's receipt for this session's latest order; the page renders without it if the merchant is slow."""
+    order_id = next((e.get("order_id") for e in reversed(events)
+                     if e.get("type") in ("paid", "payment_link_created") and e.get("order_id")), None)
+    if not order_id or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", str(order_id)):
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=0.8) as client:
+            r = await client.get(f"{_service('MERCHANT_URL', 'http://127.0.0.1:8002')}/orders/{order_id}/receipt")
+        return r.json() if r.is_success else None
+    except (httpx.HTTPError, ValueError):
+        return None
 
 
 @router.get("/jwks.json")

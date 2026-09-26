@@ -179,3 +179,33 @@ def test_overflowing_reader_is_closed_to_reconnect(tmp_path, monkeypatch):
     sub = asyncio.run(run())
     assert sub.overflowed and sub not in book._subscribers
     assert len(book.read_live()) == 5  # nothing lost: the reconnect replays from the file
+
+
+def test_session_page_shows_one_line_per_turn_rules_checks_and_payment(client):
+    client.post("/events", json=event("heard", role="shopper", text="necesito", item_id="t1", lang="es"))
+    client.post("/events", json=event("heard", role="shopper", text="necesito pan y mi medicina", item_id="t1"))
+    client.post("/events", json=event("heard", role="agent", text="<script>alert(1)</script>", item_id="t2"))
+    client.post("/events", json={**event("policy_decision", decision="allow", decision_id="d_1",
+                                         rules_failed=[], total=11.49), "source": "policy"})
+    checks = [{"id": c, "passed": True, "detail": "ok"} for c in ("content_digest", "signature", "window", "nonce", "decision")]
+    client.post("/events", json={**event("signature_verified", keyid="chaperone-agent-1", nonce="n-123",
+                                         checks=checks, decision_id="d_1"), "source": "merchant"})
+    client.post("/events", json={**event("paid", order_id="ord_1", total="11.49", via="host"), "source": "merchant"})
+    r = client.get("/sessions/s1", params={"format": "html"})
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
+    page = r.text
+    assert page.count("necesito") == 1 and "necesito pan y mi medicina" in page
+    assert "<script>" not in page and "&lt;script&gt;" in page
+    assert "ALLOW · every rule passed" in page and "5 of 5 checks passed" in page
+    assert "n-123" in page and "Paid $11.49" in page
+    assert client.get("/sessions/nobody", params={"format": "html"}).status_code == 404
+    assert client.get("/sessions/s1").json()[0]["type"] == "heard"  # JSON stays the default
+
+
+def test_session_page_loads_fast_with_the_merchant_down(client):
+    for i in range(300):
+        client.post("/events", json=event("heard", text=f"turn {i}", item_id=f"t{i}"))
+    client.post("/events", json={**event("paid", order_id="ord_1", total="11.49"), "source": "merchant"})
+    started = time.perf_counter()
+    assert client.get("/sessions/s1", params={"format": "html"}).status_code == 200
+    assert time.perf_counter() - started < 2
