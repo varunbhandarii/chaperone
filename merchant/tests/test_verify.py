@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import json
 import os
@@ -35,12 +36,16 @@ def parts(prepared, body=None):
 ALLOWED = {"decision_id": "dec-001", "decision": "allow", "cart": {"items": [{"sku": "RX-001", "qty": 1}]}}
 
 
+def run_verify(*args, **kwargs):
+    return asyncio.run(verify.verify_request(*args, **kwargs))
+
+
 def policy_says(decision):
     return lambda decision_id: decision if decision and decision_id == decision.get("decision_id") else None
 
 
 def check(prepared, store, body=None, decision=ALLOWED):
-    return verify.verify_request(*parts(prepared, body), public_key=KEY.public_key(), nonce_store=store,
+    return run_verify(*parts(prepared, body), public_key=KEY.public_key(), nonce_store=store,
                                  fetch_decision=policy_says(decision))
 
 
@@ -121,7 +126,7 @@ def test_signed_order_goes_through_the_endpoint(monkeypatch):
 
 def test_off_mode_skips(monkeypatch):
     monkeypatch.setenv("MERCHANT_VERIFY", "off")
-    result = verify.verify_request("POST", "testserver", "/orders", {}, b"{}")
+    result = run_verify("POST", "testserver", "/orders", {}, b"{}")
     assert result.ok
     assert result.checks[0]["passed"] is None
 
@@ -159,7 +164,23 @@ def test_cart_lines_are_compared_by_sku_and_total_qty():
 
 def test_policy_down_fails_closed(monkeypatch):
     monkeypatch.setenv("POLICY_URL", "http://127.0.0.1:9")  # nothing listens there
-    result = verify.verify_request(*parts(sign_request(URL, ORDER, private_key=KEY)), public_key=KEY.public_key(),
+    result = run_verify(*parts(sign_request(URL, ORDER, private_key=KEY)), public_key=KEY.public_key(),
                                    nonce_store=verify.NonceStore())
     assert not result.ok
     assert result.checks[-1]["id"] == "decision" and "policy unreachable" in result.checks[-1]["detail"]
+
+
+def test_policy_5xx_is_a_decision_failure_not_a_signature_failure(monkeypatch):
+    import httpx
+
+    def boom(request):
+        return httpx.Response(503, text="policy restarting")
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(verify.httpx, "AsyncClient",
+                        lambda **kw: real_client(transport=httpx.MockTransport(boom), **kw))
+    result = run_verify(*parts(sign_request(URL, ORDER, private_key=KEY)), public_key=KEY.public_key(),
+                        nonce_store=verify.NonceStore())
+    assert not result.ok
+    assert all(c["passed"] for c in result.checks[:-1])
+    assert result.checks[-1] == {"id": "decision", "passed": False, "detail": "policy answered 503"}

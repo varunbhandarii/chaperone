@@ -16,8 +16,10 @@ policy contract pins one: cart under "cart" or "priced_cart", lines under "items
 from __future__ import annotations
 
 import datetime
+import inspect
 import json
 import os
+import threading
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -69,20 +71,26 @@ def _cart_counts(cart) -> Counter:
     return counts
 
 
-def fetch_decision(decision_id: str) -> dict | None:
+async def fetch_decision(decision_id: str) -> dict | None:
+    """Every policy failure (down, slow, 5xx, not JSON) is a failed decision check, never a signature failure."""
     base = os.environ.get("POLICY_URL", "http://127.0.0.1:8001").rstrip("/")
     try:
-        r = httpx.get(f"{base}/decisions/{decision_id}", timeout=DECISION_TIMEOUT)
+        async with httpx.AsyncClient(timeout=DECISION_TIMEOUT) as client:
+            r = await client.get(f"{base}/decisions/{decision_id}")
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+        return r.json()
+    except httpx.HTTPStatusError as exc:
+        raise DecisionError(f"policy answered {exc.response.status_code}") from exc
     except httpx.HTTPError as exc:
         raise DecisionError(f"policy unreachable: {type(exc).__name__}") from exc
-    if r.status_code == 404:
-        return None
-    r.raise_for_status()
-    return r.json()
+    except ValueError as exc:
+        raise DecisionError("policy answered with something other than JSON") from exc
 
 
-def check_decision(body: bytes, fetch=None) -> str:
-    """Contract step 6. Returns the passing detail or raises DecisionError."""
+async def check_decision(body: bytes, fetch=None) -> str:
+    """Contract step 6. Returns the passing detail or raises DecisionError. fetch may be sync or async."""
     fetch = fetch or fetch_decision  # looked up at call time so tests can patch the module
     try:
         order = json.loads(body)
@@ -90,6 +98,10 @@ def check_decision(body: bytes, fetch=None) -> str:
     except (ValueError, KeyError, TypeError) as exc:
         raise DecisionError("body has no decision_id") from exc
     decision = fetch(decision_id)
+    if inspect.isawaitable(decision):
+        decision = await decision
+    if decision is not None and not isinstance(decision, dict):
+        raise DecisionError(f"policy sent an unreadable decision for {decision_id}")
     if decision is None:
         raise DecisionError(f"unknown decision {decision_id}")
     outcome = decision.get("decision")
@@ -108,13 +120,15 @@ def check_decision(body: bytes, fetch=None) -> str:
 class NonceStore:
     def __init__(self):
         self._seen: dict[str, datetime.datetime] = {}
+        self._lock = threading.Lock()
 
     def consume(self, nonce: str, expires_at: datetime.datetime) -> None:
         now = datetime.datetime.now(datetime.timezone.utc)
-        self._seen = {key: expiry for key, expiry in self._seen.items() if expiry > now}
-        if nonce in self._seen:
-            raise ReplayError("rejected: replay")
-        self._seen[nonce] = expires_at + NONCE_GRACE
+        with self._lock:
+            self._seen = {key: expiry for key, expiry in self._seen.items() if expiry > now}
+            if nonce in self._seen:
+                raise ReplayError("rejected: replay")
+            self._seen[nonce] = expires_at + NONCE_GRACE
 
 
 NONCES = NonceStore()
@@ -161,7 +175,7 @@ class Verification:
 STEPS = ("content_digest", "signature", "window", "nonce", "decision")
 
 
-def verify_request(
+async def verify_request(
     method: str,
     authority: str,
     path: str,
@@ -185,7 +199,7 @@ def verify_request(
     request = prepared_from_parts(method, f"http://{authority}{path}", headers, body)
     try:
         result = verify_prepared(request, nonce_store or NONCES, public_key=public_key)
-        decision_detail = check_decision(body, fetch_decision)
+        decision_detail = await check_decision(body, fetch_decision)
     except Exception as exc:  # every failure becomes a red check on the wall, never a 500
         if isinstance(exc, DigestMismatch):
             failed = "content_digest"

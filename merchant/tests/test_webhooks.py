@@ -41,7 +41,7 @@ def notify(client, body: str, headers: dict):
 
 
 def new_order(client):
-    return client.post("/orders", json=DEMO).json()
+    return client.post("/orders", json={**DEMO, "decision_id": "d_" + secrets.token_hex(6)}).json()
 
 
 def test_signed_payment_marks_the_order_paid(client):
@@ -50,11 +50,11 @@ def test_signed_payment_marks_the_order_paid(client):
     r = notify(client, body, webhooks.headers_for(body, KEY_ID, KEY))
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "paid" and r.json()["order_id"] == order["order_id"]
-    assert client.get(f"/orders/{order['order_id']}").json()["paid_via"] == "cybersource_webhook (payload)"
+    assert client.get(f"/orders/{order['order_id']}").json()["paid_via"] == "cybersource_webhook (raw_body)"
     assert client.get("/panel").json()["events"][-1]["type"] == "paid"
 
 
-def test_official_message_is_timestamp_dot_compact_payload():
+def test_plugin_message_is_timestamp_dot_compact_payload():
     body = {"payload": [{"data": {"x": "ñ", "n": 1}}], "eventType": "e"}
     t = 1790000000000
     expected = base64.b64encode(__import__("hmac").new(
@@ -109,14 +109,55 @@ def test_unknown_purchase_number_is_acknowledged_not_paid(client):
     assert r.status_code == 200 and r.json()["matched"] is False
 
 
-def test_raw_body_variant_is_also_accepted(client):
+def test_payload_variant_is_also_accepted(client):
     order = new_order(client)
     body = json.dumps(envelope(order))
-    t = int(time.time() * 1000)
-    headers = {"Content-Type": "application/json",
-               "v-c-signature": f"t={t};keyId={KEY_ID};sig={webhooks.sign(KEY, t, body)}"}
-    r = notify(client, body, headers)
+    r = notify(client, body, webhooks.headers_for(body, KEY_ID, KEY, variant="payload"))
     assert r.status_code == 200 and r.json()["status"] == "paid"
+    assert client.get(f"/orders/{order['order_id']}").json()["paid_via"] == "cybersource_webhook (payload)"
+
+
+def test_tampered_envelope_cannot_pay_another_order(client):
+    """A notification signed (payload variant) for order A, with order B's ids added to the unsigned envelope."""
+    a, b = new_order(client), new_order(client)
+    env = envelope(a)
+    env["extra"] = {"purchaseNumber": b["payment_link"]["purchase_number"], "id": b["payment_link"]["id"]}
+    env["eventType"] = "payByLink.merchant.payment"
+    body = json.dumps(env)
+    signed_for_a = webhooks.headers_for(json.dumps(envelope(a) | {"payload": env["payload"]}), KEY_ID, KEY,
+                                        variant="payload")
+    r = notify(client, body, signed_for_a)
+    assert r.status_code == 200 and r.json()["order_id"] == a["order_id"]
+    assert client.get(f"/orders/{b['order_id']}").json()["status"] == "awaiting_payment"
+
+
+def test_unsigned_event_type_is_not_trusted(client):
+    """Payload variant: a payload with no payment in it stays unpaid whatever the envelope's eventType says."""
+    order = new_order(client)
+    env = envelope(order)
+    env["payload"][0]["data"]["status"] = "CANCELLED"
+    body = json.dumps(env)
+    r = notify(client, body, webhooks.headers_for(body, KEY_ID, KEY, variant="payload"))
+    assert r.status_code == 200 and r.json()["matched"] is True and "ignored" in r.json()
+    assert client.get(f"/orders/{order['order_id']}").json()["status"] == "awaiting_payment"
+
+
+def test_non_ascii_key_id_is_401_not_500(client):
+    body = json.dumps(envelope(new_order(client)))
+    headers = webhooks.headers_for(body, KEY_ID, KEY)
+    headers["v-c-signature"] = headers["v-c-signature"].replace(KEY_ID, "clé-ñ")
+    r = notify(client, body, {k: v.encode("utf-8") for k, v in headers.items()})
+    assert r.status_code == 401 and r.json()["detail"] == "unknown keyId"
+
+
+def test_replay_of_a_paid_notification_does_not_pay_again(client):
+    order = new_order(client)
+    body = json.dumps(envelope(order))
+    notify(client, body, webhooks.headers_for(body, KEY_ID, KEY))
+    fresh = webhooks.headers_for(body, KEY_ID, KEY, t=int(time.time() * 1000) + 1)  # new signature, same order
+    r = notify(client, body, fresh)
+    assert r.status_code == 200 and r.json()["duplicate"] is True
+    assert [e["type"] for e in client.get("/panel").json()["events"]].count("paid") == 1
 
 
 def test_missing_or_malformed_header(client):

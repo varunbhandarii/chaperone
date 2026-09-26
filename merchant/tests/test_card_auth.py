@@ -1,4 +1,5 @@
 import os
+import secrets
 
 os.environ["MOCK_VISA"] = "1"
 os.environ["MERCHANT_VERIFY"] = "off"
@@ -35,7 +36,7 @@ def card_auth_on(monkeypatch):
 
 def test_checkout_is_off_by_default():
     with TestClient(orders.app) as client:
-        order = client.post("/orders", json=DEMO).json()
+        order = client.post("/orders", json={**DEMO, "decision_id": "dec-" + secrets.token_hex(4)}).json()
         assert order["checkout_url"] is None
         assert client.get(f"/checkout/{order['order_id']}").status_code == 404
 
@@ -44,7 +45,7 @@ def test_authorized_card_marks_order_paid(card_auth_on):
     fake, calls = card_auth_on
     fake(AuthResult(True, "AUTHORIZED", "7903900000000000000001", "ours", approval_code="831000", card_brand="Visa"))
     with TestClient(orders.app) as client:
-        order = client.post("/orders", json=DEMO).json()
+        order = client.post("/orders", json={**DEMO, "decision_id": "dec-" + secrets.token_hex(4)}).json()
         assert order["checkout_url"].endswith(f"/checkout/{order['order_id']}")
         assert "Pay $11.49" in client.get(f"/checkout/{order['order_id']}").text
 
@@ -62,7 +63,7 @@ def test_failed_authorization_keeps_order_unpaid_and_is_not_retried(card_auth_on
     fake, calls = card_auth_on
     fake(AuthResult(False, "SERVER_ERROR", "7903900000000000000002", "ours", reason="Error - General system failure."))
     with TestClient(orders.app) as client:
-        order = client.post("/orders", json=DEMO).json()
+        order = client.post("/orders", json={**DEMO, "decision_id": "dec-" + secrets.token_hex(4)}).json()
         page = client.post(f"/checkout/{order['order_id']}", data=FORM)
         assert "Host can mark the order paid" in page.text
         assert len(calls) == 1
@@ -74,7 +75,7 @@ def test_paid_order_never_authorizes_twice(card_auth_on):
     fake, calls = card_auth_on
     fake(AuthResult(True, "AUTHORIZED", "7903900000000000000003", "ours"))
     with TestClient(orders.app) as client:
-        order = client.post("/orders", json=DEMO).json()
+        order = client.post("/orders", json={**DEMO, "decision_id": "dec-" + secrets.token_hex(4)}).json()
         client.post(f"/checkout/{order['order_id']}", data=FORM)
         client.post(f"/checkout/{order['order_id']}", data=FORM)
         assert len(calls) == 1

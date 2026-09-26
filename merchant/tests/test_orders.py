@@ -1,4 +1,5 @@
 import os
+import secrets
 
 os.environ["MOCK_VISA"] = "1"
 os.environ["MERCHANT_VERIFY"] = "off"
@@ -18,9 +19,14 @@ DEMO = {
 }
 
 
+def demo(**changes):
+    """DEMO under a fresh decision id: the merchant takes one order per decision."""
+    return {**DEMO, "decision_id": "dec-" + secrets.token_hex(4), **changes}
+
+
 def test_demo_order_prices_from_catalog_and_pays_on_mock_page():
     with TestClient(app) as client:
-        r = client.post("/orders", json=DEMO)
+        r = client.post("/orders", json=demo())
         assert r.status_code == 200, r.text
         order = r.json()
         assert order["amount"] == "11.49"
@@ -38,14 +44,14 @@ def test_demo_order_prices_from_catalog_and_pays_on_mock_page():
 
 
 def test_agent_supplied_prices_are_ignored():
-    body = {**DEMO, "cart": {"items": [{"sku": "NUT-002", "qty": 1, "price": 0.01}]}}
+    body = {**demo(), "cart": {"items": [{"sku": "NUT-002", "qty": 1, "price": 0.01}]}}
     with TestClient(app) as client:
         assert client.post("/orders", json=body).json()["amount"] == "52.00"
 
 
 def test_callback_fallback_marks_paid_once():
     with TestClient(app) as client:
-        order_id = client.post("/orders", json=DEMO).json()["order_id"]
+        order_id = client.post("/orders", json=demo()).json()["order_id"]
         first = client.post(f"/orders/{order_id}/paid").json()
         second = client.post(f"/orders/{order_id}/paid?via=webhook").json()
         assert first["paid_at"] == second["paid_at"] and second["paid_via"] == "callback"
@@ -54,7 +60,7 @@ def test_callback_fallback_marks_paid_once():
 def test_rejects_unknown_sku_bad_qty_and_empty_cart():
     with TestClient(app) as client:
         for items in ([{"sku": "NOPE", "qty": 1}], [{"sku": "BAK-001", "qty": 0}], []):
-            assert client.post("/orders", json={**DEMO, "cart": {"items": items}}).status_code == 422
+            assert client.post("/orders", json={**demo(), "cart": {"items": items}}).status_code == 422
 
 
 def test_purchase_number_fits_visa_rules():
@@ -65,7 +71,7 @@ def test_purchase_number_fits_visa_rules():
 
 def test_reset_clears_orders_and_panel():
     with TestClient(app) as client:
-        client.post("/orders", json=DEMO)
+        client.post("/orders", json=demo())
         assert client.post("/reset").json()["ok"]
         assert client.get("/orders").json() == []
         assert client.get("/panel").json()["events"] == []
@@ -80,8 +86,34 @@ def test_events_follow_the_ledger_contract():
     schema = json.loads((Path(__file__).resolve().parents[2] / "contracts" / "events.schema.json").read_text())
     with TestClient(app) as client:
         client.post("/reset")
-        order = client.post("/orders", json=DEMO).json()
+        order = client.post("/orders", json=demo()).json()
         client.post(f"/orders/{order['order_id']}/paid")
         for event in client.get("/panel").json()["events"]:
             jsonschema.validate(event, schema)
             assert event["source"] == "merchant" and isinstance(event["t"], int)
+
+
+def test_one_decision_buys_once():
+    body = demo()
+    with TestClient(app) as client:
+        first = client.post("/orders", json=body)
+        assert first.status_code == 200
+        again = client.post("/orders", json=body)
+        assert again.status_code == 409 and again.json()["detail"]["order_id"] == first.json()["order_id"]
+        client.post("/reset")  # a reset does not free the decision either
+        assert client.post("/orders", json=body).status_code == 409
+        rejected = client.get("/panel").json()["events"][-1]
+        assert rejected["type"] == "signature_rejected" and "already has order" in rejected["checks"][-1]["detail"]
+
+
+def test_a_failed_payment_link_frees_the_decision(monkeypatch):
+    from merchant import orders
+
+    body = demo()
+    with TestClient(app) as client:
+        async def down(**kwargs):
+            raise RuntimeError("visa down")
+        monkeypatch.setattr(orders.payment_links, "create", down)
+        assert client.post("/orders", json=body).status_code == 502
+        monkeypatch.undo()
+        assert client.post("/orders", json=body).status_code == 200

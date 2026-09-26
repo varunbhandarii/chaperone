@@ -1,11 +1,12 @@
 """Cybersource webhook signature (v-c-signature) and payment matching.
 
 Header: v-c-signature: t=<ms since epoch>;keyId=<uuid>;sig=<base64>
-Signature, as Cybersource's own plugins compute it (commercetools AuthenticationHelper.authenticateNetToken,
-Salesforce B2C WebhookNotification.js):
-    sig = base64(HMAC-SHA256(base64decode(key), f"{t}.{JSON.stringify(body['payload'])}"))
-JSON.stringify is compact with keys in order, which is json.dumps(separators=(",", ":"), ensure_ascii=False).
-We also accept f"{t}.{raw_body}" because Pay by Link's exact variant is undocumented; both need the key.
+    sig = base64(HMAC-SHA256(base64decode(key), f"{t}.{message}"))
+The message is the raw request body, as the Cybersource webhook docs specify. Cybersource's own plugins
+(commercetools AuthenticationHelper.authenticateNetToken, Salesforce B2C WebhookNotification.js) sign only
+JSON.stringify(body["payload"]) instead, which is json.dumps(separators=(",", ":"), ensure_ascii=False), so
+that variant is accepted too. Whatever the variant, only the part the signature covers is trusted
+(Verified.signed): with the payload variant the envelope, eventType included, is attacker-controlled.
 
 Key: CYBS_WEBHOOK_KEY_ID / CYBS_WEBHOOK_KEY (base64), from Cybersource's key service when the webhook is
 registered, or any local key for merchant.simulate_payment.
@@ -34,8 +35,9 @@ class Verified:
     body: dict
     t: int
     key_id: str
-    variant: str  # "payload" (official) or "raw_body"
+    variant: str  # "raw_body" or "payload"
     duplicate: bool
+    signed: dict  # the part the signature covers: the whole body, or {"payload": body["payload"]}
 
 
 def parse_signature_header(value: str) -> tuple[int, str, str]:
@@ -54,9 +56,13 @@ def compact(value) -> str:
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
 
 
-def sign(key_b64: str, t: int, message: str) -> str:
-    digest = hmac.new(base64.b64decode(key_b64), f"{t}.{message}".encode(), hashlib.sha256).digest()
-    return base64.b64encode(digest).decode()
+def _digest(key_b64: str, t: int, message: bytes) -> bytes:
+    return hmac.new(base64.b64decode(key_b64), f"{t}.".encode() + message, hashlib.sha256).digest()
+
+
+def sign(key_b64: str, t: int, message: str | bytes) -> str:
+    message = message.encode() if isinstance(message, str) else message
+    return base64.b64encode(_digest(key_b64, t, message)).decode()
 
 
 def configured_key() -> tuple[str, str]:
@@ -71,7 +77,7 @@ def verify(raw_body: bytes, header: str | None, now_ms: int | None = None) -> Ve
         raise WebhookError("missing v-c-signature")
     key_id, key = configured_key()
     t, got_key_id, sig = parse_signature_header(header)
-    if not hmac.compare_digest(got_key_id, key_id):
+    if not hmac.compare_digest(got_key_id.encode(), key_id.encode()):  # str compare raises on non-ASCII
         raise WebhookError("unknown keyId")
     now_ms = now_ms if now_ms is not None else int(time.time() * 1000)
     if abs(now_ms - t) > TOLERANCE_MS:
@@ -80,17 +86,23 @@ def verify(raw_body: bytes, header: str | None, now_ms: int | None = None) -> Ve
         body = json.loads(raw_body)
     except ValueError as exc:
         raise WebhookError("body is not JSON") from exc
-    candidates = [("raw_body", raw_body.decode("utf-8", "replace"))]
-    if isinstance(body, dict) and "payload" in body:
-        candidates.insert(0, ("payload", compact(body["payload"])))
-    for variant, message in candidates:
-        if hmac.compare_digest(sign(key, t, message), sig):
+    if not isinstance(body, dict):
+        raise WebhookError("body is not a JSON object")
+    try:
+        got = base64.b64decode(sig, validate=True)
+    except ValueError as exc:
+        raise WebhookError("sig is not base64") from exc
+    candidates = [("raw_body", raw_body, body)]
+    if "payload" in body:
+        candidates.append(("payload", compact(body["payload"]).encode(), {"payload": body["payload"]}))
+    for variant, message, signed in candidates:
+        if hmac.compare_digest(_digest(key, t, message), got):
             for old_sig, old_t in list(_seen_signatures.items()):
                 if now_ms - old_t > TOLERANCE_MS:
                     del _seen_signatures[old_sig]
             duplicate = sig in _seen_signatures
             _seen_signatures[sig] = t
-            return Verified(body=body, t=t, key_id=got_key_id, variant=variant, duplicate=duplicate)
+            return Verified(body=body, t=t, key_id=got_key_id, variant=variant, duplicate=duplicate, signed=signed)
     raise WebhookError("signature mismatch")
 
 
@@ -108,11 +120,37 @@ def strings_in(tree) -> list[str]:
     return out
 
 
-def headers_for(body: bytes | str, key_id: str, key_b64: str, t: int | None = None) -> dict[str, str]:
-    """Headers Cybersource sends, signed the official way. Used by merchant.simulate_payment and tests."""
+PAID_STATUSES = {"PAID", "COMPLETED", "AUTHORIZED", "CAPTURED", "SETTLED", "TRANSMITTED"}
+
+
+def is_payment(signed: dict) -> tuple[bool, str]:
+    """Whether the signed part says a payment happened, and what it said. Never reads the unsigned envelope."""
+    event_type = str(signed.get("eventType") or "")
+    if event_type:
+        return "payment" in event_type.lower(), event_type
+    statuses = set()
+    stack = [signed.get("payload")]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            if isinstance(node.get("eventType"), str):
+                return "payment" in node["eventType"].lower(), node["eventType"]
+            if isinstance(node.get("status"), str):
+                statuses.add(node["status"].upper())
+            stack.extend(node.values())
+        elif isinstance(node, list):
+            stack.extend(node)
+    paid = sorted(statuses & PAID_STATUSES)
+    return (True, f"status {paid[0]}") if paid else (False, "no payment in the signed payload")
+
+
+def headers_for(body: bytes | str, key_id: str, key_b64: str, t: int | None = None,
+                variant: str = "raw_body") -> dict[str, str]:
+    """Headers Cybersource sends. Used by merchant.simulate_payment and tests."""
     t = t if t is not None else int(time.time() * 1000)
-    parsed = json.loads(body)
-    sig = sign(key_b64, t, compact(parsed["payload"]))
+    raw = body.encode() if isinstance(body, str) else body
+    parsed = json.loads(raw)
+    sig = sign(key_b64, t, raw if variant == "raw_body" else compact(parsed["payload"]))
     return {
         "Content-Type": "application/json",
         "v-c-signature": f"t={t};keyId={key_id};sig={sig}",
