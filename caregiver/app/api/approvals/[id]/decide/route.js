@@ -5,9 +5,13 @@ import { saveChallenge } from "@/lib/challenges";
 import { loadCredentials, origin, rpID } from "@/lib/passkeys";
 
 const policy = () => (process.env.POLICY_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
+// Only real approval ids reach policy: Next decodes the path segment, so an unchecked id could carry "../".
+const APPROVAL_ID = /^a_[0-9a-f]{12}$/;
 
 export async function POST(request, { params }) {
-  const { id } = await params;
+  const { id: rawId } = await params;
+  if (!APPROVAL_ID.test(rawId)) return Response.json({ error: "unknown approval" }, { status: 404 });
+  const id = encodeURIComponent(rawId);
   const body = await request.json();
   if (body.prepare) {
     const challenge = await fetch(`${policy()}/approvals/${id}/challenge`, { cache: "no-store" });

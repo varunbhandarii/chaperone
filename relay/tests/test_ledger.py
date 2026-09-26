@@ -133,6 +133,16 @@ def test_append_is_fast(tmp_path):
     assert (time.perf_counter() - start) / 200 < 0.005
 
 
+def test_reset_is_lan_only(client):
+    assert client.post("/reset", headers={"X-Forwarded-For": "203.0.113.9"}).status_code == 403
+
+
+def test_events_without_a_session_have_no_page(client):
+    client.post("/events", json=event(session_id="none"))
+    assert client.get("/sessions/none?format=html").status_code == 404
+    assert client.get("/sessions/none").status_code == 404
+
+
 def test_bad_session_id_is_404(client):
     assert client.get("/sessions/live").status_code == 404
     assert client.get("/sessions/a.b").status_code == 404

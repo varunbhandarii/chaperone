@@ -89,7 +89,8 @@ export default function Page() {
         .catch(() => {});
     };
     pull();
-    const timer = setInterval(pull, 1000);
+    // A safety net only: the alert stream refreshes approvals at once. ngrok's free tier is 20k requests a month.
+    const timer = setInterval(pull, 10000);
     const clock = setInterval(() => setNow(Date.now()), 1000);
     return () => {
       clearInterval(timer);

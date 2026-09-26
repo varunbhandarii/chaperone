@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from policy.approvals import code_mac, find_approval, public_approval, public_decision, state_of
+from policy.approvals import code_mac, find_approval, forget_host_code, host_code, public_approval, public_decision, state_of
 from policy.checkout import CartRejected, ReadBackRequired, UnsignedMandate, checkout as run_checkout
 from policy.checkout import send_signed_order
 from policy.engine import dollars, to_cents
@@ -70,6 +71,7 @@ def decision(decision_id: str):
 @app.post("/reset")
 def reset():
     reset_store()
+    forget_host_code()
     return {"ok": True, "spent": dollars(load_spent_cents())}
 
 
@@ -94,6 +96,7 @@ def get_mandate():
 
 def _finish_approval(document: dict, method: str) -> dict:
     approval = document["approval"]
+    forget_host_code(approval["approval_id"])
     if state_of(approval) == "expired":
         post_event(
             "approval_result",
@@ -205,6 +208,7 @@ def decide(approval_id: str, payload: dict):
     if payload.get("approved") is False:
         approval["approved"] = False
         approval["used"] = True
+        forget_host_code(approval_id)
         post_event(
             "approval_result",
             document["session_id"],
@@ -248,6 +252,25 @@ def decide(approval_id: str, payload: dict):
     return _finish_approval(document, "passkey")
 
 
+PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-real-ip", "forwarded", "ngrok-trace-id", "x-original-url")
+
+
+@app.get("/approvals/{approval_id}/host_code")
+def approval_host_code(approval_id: str, request: Request):
+    """The fallback code for the relay's LAN-only Host page. Refused for proxied or non-LAN callers."""
+    client = request.client.host if request.client else ""
+    try:
+        on_lan = client == "testclient" or ipaddress.ip_address(client).is_private or ipaddress.ip_address(client).is_loopback
+    except ValueError:
+        on_lan = False
+    if not on_lan or any(header in request.headers for header in PROXY_HEADERS):
+        raise HTTPException(403, "LAN only")
+    entry = host_code(approval_id)
+    if not entry:
+        raise HTTPException(404, "no open code for this approval")
+    return JSONResponse(entry, headers={"Cache-Control": "no-store"})
+
+
 @app.post("/approvals/{approval_id}/code")
 def submit_code(approval_id: str, payload: dict):
     document = find_approval(approval_id)
@@ -258,12 +281,14 @@ def submit_code(approval_id: str, payload: dict):
         raise HTTPException(400, "approval is closed")
     if approval.get("attempts", 0) >= 5:
         approval["used"] = True
+        forget_host_code(approval_id)
         save_decision(document)
         raise HTTPException(400, "too many attempts")
     if code_mac(str(payload.get("code", "")), approval_id) != approval.get("code_hash"):
         approval["attempts"] = approval.get("attempts", 0) + 1
         if approval["attempts"] >= 5:
             approval["used"] = True
+            forget_host_code(approval_id)
         save_decision(document)
         raise HTTPException(400, "code rejected")
     approval["approved"] = True

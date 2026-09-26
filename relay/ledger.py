@@ -197,6 +197,9 @@ async def stream(
 
 @router.get("/sessions/{session_id}")
 async def session_events(session_id: str, format: str = "json"):
+    # "none" collects events without a shopper session (webhook rejections, resets); it is not a session page.
+    if session_id == "none":
+        raise HTTPException(404, "unknown session")
     try:
         path = LEDGER.session_path(session_id)
     except ValueError:
@@ -284,11 +287,15 @@ async def _reset_one(client: httpx.AsyncClient, url: str) -> str:
 
 
 @router.post("/reset")
-async def reset():
+async def reset(request: Request):
     """Back to the demo start in well under 15 s. Seq keeps counting so stream readers stay valid.
 
     Policy resets spend, decisions, approvals and the screen's session memory; the merchant its orders.
+    LAN only, like /host/api/reset.
     """
+    from relay.host import lan_only  # host imports this module; import here to avoid a cycle
+
+    lan_only(request)
     started = time.perf_counter()
     LEDGER.truncate_live()
     services = {"policy": _service("POLICY_URL", "http://127.0.0.1:8001"),

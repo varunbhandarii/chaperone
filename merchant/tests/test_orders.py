@@ -136,3 +136,13 @@ def test_receipt_has_the_d3_shape(monkeypatch):
         assert r["session_url"] == "https://chaperone-demo.ngrok.app/s/s1"
         assert client.get(f"/orders/{order['order_id']}/receipt?lang=es").json()["lang"] == "es"
         assert client.get("/orders/ord_nope/receipt").status_code == 404
+
+
+def test_receipt_has_no_lan_url_without_a_tunnel(monkeypatch):
+    monkeypatch.delenv("TUNNEL_HOST", raising=False)
+    with TestClient(app) as client:
+        order = client.post("/orders", json=demo()).json()
+        assert client.get(f"/orders/{order['order_id']}/receipt").json()["session_url"] is None
+    monkeypatch.setenv("TUNNEL_HOST", "http://chaperone-demo.ngrok.app/")
+    from merchant.orders import session_url
+    assert session_url("s1") == "https://chaperone-demo.ngrok.app/s/s1"

@@ -84,7 +84,7 @@ def verify(raw_body: bytes, header: str | None, now_ms: int | None = None) -> Ve
         raise WebhookError("stale timestamp")
     try:
         body = json.loads(raw_body)
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:  # deeply nested JSON from the public URL must be a 401, not a 500
         raise WebhookError("body is not JSON") from exc
     if not isinstance(body, dict):
         raise WebhookError("body is not a JSON object")

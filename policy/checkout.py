@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 
 from common.config import KEY_ID, merchant_public_url
-from policy.approvals import code_mac, new_nonce
+from policy.approvals import code_mac, new_nonce, remember_host_code
 from policy.engine import dollars, evaluate, mandate_category, to_cents
 from policy.events import post_event
 from policy.mandate import DEFAULT_MANDATE
@@ -218,7 +218,7 @@ def checkout(payload: dict) -> dict:
             "code_hash": code_mac(code, approval_id),
             "attempts": 0,
         }
-        print(f"approval code for {approval_id}: {code}")
+        remember_host_code(approval_id, code, approval["expires_at"])
         post_event(
             "approval_requested",
             session_id,

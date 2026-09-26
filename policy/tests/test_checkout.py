@@ -138,6 +138,26 @@ def test_passkey_approval_places_the_order_once(tmp_path, monkeypatch):
     assert again.status_code == 400
 
 
+def test_host_page_code_approves_and_then_disappears(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "policy.main.send_signed_order",
+        lambda body: {"order_id": "ord_code", "status": "awaiting_payment", "payment_link": {"url": "http://127.0.0.1:8002/pay/abc"}},
+    )
+    api = client(tmp_path, monkeypatch)
+    payload = json.loads(json.dumps(DEMO))
+    payload["cart"]["items"] = [{"sku": "BAK-001", "name": "bread", "category": "grocery", "qty": 15, "price": 3.49}]
+    approval_id = api.post("/checkout", json=payload).json()["approval"]["approval_id"]
+    proxied = api.get(f"/approvals/{approval_id}/host_code", headers={"X-Forwarded-For": "203.0.113.9"})
+    assert proxied.status_code == 403
+    code = api.get(f"/approvals/{approval_id}/host_code").json()["code"]
+    assert len(code) == 6 and code.isdigit()
+    assert code not in json.dumps(api.get(f"/decisions/{api.get(f'/approvals/{approval_id}').json()['decision_id']}").json())
+    approved = api.post(f"/approvals/{approval_id}/code", json={"code": code})
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["order"]["order_id"] == "ord_code"
+    assert api.get(f"/approvals/{approval_id}/host_code").status_code == 404
+
+
 def test_rejection_closes_the_approval(tmp_path, monkeypatch):
     api = client(tmp_path, monkeypatch)
     payload = json.loads(json.dumps(DEMO))

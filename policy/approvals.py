@@ -27,6 +27,33 @@ def code_mac(code: str, approval_id: str) -> str:
     return hmac.new(code_key(), f"{code}{approval_id}".encode(), hashlib.sha256).hexdigest()
 
 
+# The plain six-digit fallback code lives only in this process's memory, for the relay's LAN-only Host page.
+# It is never written to decisions.json, the ledger or the stream, and it is dropped once the approval closes.
+_HOST_CODES: dict[str, tuple[str, str]] = {}
+
+
+def remember_host_code(approval_id: str, code: str, expires_at: str) -> None:
+    _HOST_CODES[approval_id] = (code, expires_at)
+
+
+def host_code(approval_id: str) -> dict | None:
+    entry = _HOST_CODES.get(approval_id)
+    if not entry:
+        return None
+    code, expires_at = entry
+    if datetime.now(timezone.utc) > datetime.fromisoformat(expires_at):
+        _HOST_CODES.pop(approval_id, None)
+        return None
+    return {"code": code, "expires_at": expires_at}
+
+
+def forget_host_code(approval_id: str | None = None) -> None:
+    if approval_id is None:
+        _HOST_CODES.clear()
+    else:
+        _HOST_CODES.pop(approval_id, None)
+
+
 def new_nonce() -> str:
     return base64.urlsafe_b64encode(secrets.token_bytes(16)).decode().rstrip("=")
 

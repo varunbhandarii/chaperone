@@ -114,6 +114,8 @@ const DEFAULT_SAY = "I can't help with that purchase on this account.";
 const RECONNECT_DELAYS_MS = [500, 1000, 2000];
 /** Poll the caregiver approval for up to 95 s (the policy expires it at 90 s). */
 const APPROVAL_WAIT_MS = 95_000;
+/** Policy records the approval before the merchant answers (the merchant checks it), so the order follows it. */
+const ORDER_AFTER_APPROVAL_MS = 12_000;
 /** Do not ask the relay to reset again for a reset event that our own key caused. */
 const RESET_ECHO_MS = 10_000;
 
@@ -229,6 +231,8 @@ export class StationAgent {
   /** Recording of this session (audio, transcripts, tool calls) that can be saved as a cached session. */
   private rec: { t0: number; events: CachedEvent[] } = { t0: performance.now(), events: [] };
   private replaying: { gen: number } | null = null;
+  /** Set by the Host's "Arm replay" (relay event replay_armed); consumed by the next press. */
+  private replayArmed = false;
   private replayGen = 0;
   private pendingForce: { text: string; at: number } | null = null;
   private deferredRefusal: { turn: Turn; result: ScreenResult } | null = null;
@@ -259,7 +263,7 @@ export class StationAgent {
 
     this.rateReady = this.setupCapture(ctx, micDeviceId);
     void health.start();
-    this.stream = new RelayStream(["paid", "reset"], (ev) => this.onStreamEvent(ev), (m) => this.warn("stream", m));
+    this.stream = new RelayStream(["paid", "reset", "replay_armed"], (ev) => this.onStreamEvent(ev), (m) => this.warn("stream", m));
     void this.stream.open();
     const tokenPromise = fetchToken();
 
@@ -427,6 +431,11 @@ export class StationAgent {
 
   press(): void {
     if (this.replaying) this.stopReplay();
+    if (this.replayArmed) {
+      this.replayArmed = false;
+      void this.replay(this.lang);
+      return;
+    }
     if (!this.started || this.pressed) return;
     this.pressed = true;
     this.pressStart = performance.now();
@@ -1150,12 +1159,21 @@ export class StationAgent {
     const wait = { id: approvalId };
     this.approvalWait = wait;
     const deadline = performance.now() + APPROVAL_WAIT_MS;
+    let approvedAt = 0;
     console.info(`[${ts()}] waiting for the caregiver on ${approvalId}`);
     const tick = async (): Promise<void> => {
       if (this.approvalWait !== wait || !this.started) return;
       this.ui.waiting(Math.max(0, Math.ceil((deadline - performance.now()) / 1000)));
       const status = await getApproval(approvalId);
       if (this.approvalWait !== wait) return;
+      if (status?.state === "approved" && !status.order_id) {
+        // Approved, and policy is still getting the order from the merchant: keep polling a little longer.
+        approvedAt ||= performance.now();
+        if (performance.now() - approvedAt < ORDER_AFTER_APPROVAL_MS) {
+          setTimeout(() => void tick(), 1000);
+          return;
+        }
+      }
       if (status && status.state !== "pending") return this.finishApproval(status, totalCents, lines, decisionId);
       if (performance.now() >= deadline) return this.finishApproval({ approval_id: approvalId, state: "expired" }, totalCents, lines, decisionId);
       setTimeout(() => void tick(), 1000);
@@ -1218,6 +1236,10 @@ export class StationAgent {
     } else if (ev.type === "reset") {
       if (performance.now() - this.lastLocalReset < RESET_ECHO_MS) return; // our own reset coming back
       void this.resetSession("reset from the relay", false);
+    } else if (ev.type === "replay_armed") {
+      // The Host's "Arm replay": the next button press plays the recorded session instead of talking live.
+      this.replayArmed = true;
+      this.ui.note("Replay armed: the next press plays the recorded session.", "warn");
     }
   }
 

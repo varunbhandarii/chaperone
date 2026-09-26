@@ -166,6 +166,11 @@ def test_missing_or_malformed_header(client):
     assert notify(client, body, {"v-c-signature": "garbage"}).status_code == 401
 
 
+def test_deeply_nested_body_is_401_not_500(client):
+    header = f"t={int(time.time() * 1000)};keyId={KEY_ID};sig=AAAA"
+    assert notify(client, "[" * 200_000, {"v-c-signature": header}).status_code == 401
+
+
 def test_unconfigured_key_is_503(client, monkeypatch):
     monkeypatch.delenv("CYBS_WEBHOOK_KEY")
     body = json.dumps(envelope(new_order(client)))

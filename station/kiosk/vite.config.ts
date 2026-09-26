@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv, type ProxyOptions } from "vite";
 
@@ -42,8 +42,18 @@ export default defineConfig(({ mode }) => {
     "/svc/policy": proxyTo("policy", servicesHost),
     "/svc/merchant": proxyTo("merchant", servicesHost),
     "/svc/catalog": proxyTo("catalog", servicesHost),
-    // The print helper runs on the station laptop itself, next to the printer.
-    "/svc/printer": proxyTo("printer", "127.0.0.1"),
+    // The print helper runs on the station laptop itself, next to the printer. The dev server listens on the
+    // LAN (for the tablet), so only this laptop may reach the printer and the cached sessions through it.
+    "/svc/printer": {
+      ...proxyTo("printer", "127.0.0.1"),
+      bypass: (req: IncomingMessage, res: ServerResponse) => {
+        const from = req.socket.remoteAddress ?? "";
+        if (from === "127.0.0.1" || from === "::1" || from === "::ffff:127.0.0.1") return undefined;
+        res.statusCode = 403;
+        res.end("printer is local to the station laptop");
+        return false;
+      },
+    },
   };
   return {
     define: {
