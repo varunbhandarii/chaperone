@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chaperone Wall</title>
+<style>
+  :root {
+    --bg: #0b0f17; --panel: #121a27; --line: #223047; --text: #e8edf5; --muted: #8fa0b8;
+    --green: #3fb950; --red: #ff6b61; --amber: #e3b341; --blue: #6cb6ff; --violet: #c297ff; --flash: #1f3a5c;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 22px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display: grid; grid-template-rows: auto 1fr; padding: 20px 28px; gap: 18px; }
+  header { display: flex; align-items: baseline; gap: 24px; flex-wrap: wrap; }
+  h1 { font-size: 40px; margin: 0; letter-spacing: 0.5px; }
+  .sub { color: var(--muted); font-size: 20px; }
+  .month { margin-left: auto; text-align: right; }
+  .month .big { font-size: 48px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .month .cap { color: var(--muted); font-size: 20px; }
+  .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: var(--red); margin-right: 8px; vertical-align: middle; }
+  .dot.on { background: var(--green); }
+  main { display: grid; grid-template-columns: minmax(420px, 38%) 1fr; gap: 18px; min-height: 0; }
+  .col { display: grid; grid-template-rows: auto 1fr; gap: 18px; min-height: 0; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-height: 0; overflow: hidden; }
+  h2 { margin: 0 0 12px; font-size: 26px; display: flex; align-items: center; gap: 12px; }
+  .badge { font-size: 16px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+  .ok { color: var(--green); } .bad { color: var(--red); } .warn { color: var(--amber); } .muted { color: var(--muted); }
+  .badge.ok { background: #12321b; } .badge.bad { background: #3d1614; } .badge.warn { background: #3a2e0c; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; }
+  dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: 18px var(--mono); padding: 2px 9px; border-radius: 8px; background: #1b2638; }
+  .chip.block { background: #3d1614; color: var(--red); }
+  .mono { font-family: var(--mono); font-size: 19px; }
+  .checks { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 4px; }
+  .checks li { display: grid; grid-template-columns: 30px 170px 1fr; gap: 8px; align-items: baseline; }
+  .checks .detail { color: var(--muted); font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status { font-size: 30px; font-weight: 700; margin: 6px 0 10px; }
+  #ledger { list-style: none; margin: 0; padding: 0; overflow: hidden; height: calc(100% - 48px); }
+  #ledger li { display: grid; grid-template-columns: 112px 118px 250px 1fr; gap: 12px; padding: 7px 8px; border-bottom: 1px solid var(--line); align-items: baseline; transition: background 2s ease-out; }
+  #ledger li.new { background: var(--flash); }
+  #ledger .time { font: 18px var(--mono); color: var(--muted); }
+  #ledger .src { font-size: 17px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  #ledger .type { font: 20px var(--mono); }
+  #ledger .sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .src.station { color: var(--blue); } .src.policy { color: var(--violet); } .src.merchant { color: var(--amber); }
+  .src.caregiver { color: var(--green); } .src.relay { color: var(--muted); }
+  .empty { color: var(--muted); padding: 12px 8px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } #ledger li { grid-template-columns: 90px 1fr; } #ledger .src, #ledger .time { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Chaperone</h1>
+  <span class="sub">Corner Market · Visa sandbox · no real money · <span class="dot" id="conn"></span><span id="connText">connecting</span></span>
+  <div class="month"><div class="big" id="spent">$142.10</div><div class="cap" id="cap">spent this month of $300.00</div></div>
+</header>
+<main>
+  <div class="col">
+    <section id="mandate">
+      <h2>Caregiver mandate <span class="badge warn" id="signed">loading</span></h2>
+      <dl id="mandateBody"></dl>
+    </section>
+    <section id="merchant">
+      <h2>Merchant check <span class="badge" id="backend"></span></h2>
+      <div id="merchantBody" class="muted">No order yet.</div>
+    </section>
+  </div>
+  <section>
+    <h2>Live ledger <span class="muted" id="count" style="font-size:18px;font-weight:400"></span></h2>
+    <ul id="ledger"><li class="empty">Waiting for the first event.</li></ul>
+  </section>
+</main>
+<script>
+"use strict";
+const MAX_ROWS = 40;
+const $ = (id) => document.getElementById(id);
+const money = (v) => (v === undefined || v === null || v === "") ? "" : "$" + Number(v).toFixed(2);
+const short = (s, n = 10) => (s && String(s).length > n) ? String(s).slice(0, n) + "…" : (s ?? "");
+let total = 0;
+let lastMonthly = null;
+
+function el(tag, attrs = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v; else node.setAttribute(k, v);
+  }
+  for (const kid of kids) node.append(kid instanceof Node ? kid : document.createTextNode(String(kid ?? "")));
+  return node;
+}
+
+function failedRules(rules) {
+  return (rules || []).filter((r) => r && r.passed === false).map((r) => r.id);
+}
+
+function summary(e) {
+  switch (e.type) {
+    case "heard": return `“${e.text || e.transcript || ""}”`;
+    case "items_found": return (e.items || []).map((i) => `${i.sku} ${money(i.price)}`).join(", ") || e.query || "";
+    case "cart_updated": return `${(e.lines || e.items || []).length} lines · ${money(e.total)}`;
+    case "checkout_requested": return money(e.total);
+    case "policy_decision": {
+      const failed = failedRules(e.rules);
+      return `${(e.decision || "").toUpperCase()} ${e.decision_id || ""}${failed.length ? " · failed " + failed.join(", ") : ""}${e.total !== undefined ? " · " + money(e.total) : ""}`;
+    }
+    case "refusal": return `${e.rule_id || e.rule || ""} ${(e.patterns || []).join(", ")}`.trim();
+    case "judge_scored": return `score ${e.scam_score ?? ""} · ${(e.patterns || []).join(", ")} · ${e.action || ""}`;
+    case "request_signed": return `keyid ${e.keyid || ""} · nonce ${short(e.nonce)} · expires ${e.expires ? new Date(e.expires * 1000).toLocaleTimeString() : ""}`;
+    case "signature_verified": return `${(e.checks || []).filter((c) => c.passed).length}/${(e.checks || []).length} checks · keyid ${e.keyid || "-"} · nonce ${short(e.nonce)}`;
+    case "signature_rejected": { const bad = (e.checks || []).find((c) => c.passed === false); return bad ? `${bad.id}: ${bad.detail}` : ""; }
+    case "payment_link_created": return `${money(e.amount)} · ${e.backend === "visa" ? "Visa sandbox" : "mock"} · ${e.order_id || ""}`;
+    case "order_created": return `${e.order_id || ""} ${money(e.amount)}`;
+    case "card_authorized": return `AUTHORIZED · request ${e.request_id || ""}`;
+    case "card_auth_failed": return `${e.status || ""} · ${e.reason || ""}`;
+    case "paid": return `${money(e.amount)} · ${e.order_id || ""} · via ${e.via || ""}`;
+    case "approval_requested": return `${money(e.amount)} · ${e.rule || ""} · ${e.approval_id || ""}`;
+    case "approval_result": return `${e.approved ? "APPROVED" : "REJECTED"} · ${e.approval_id || ""}`;
+    case "caregiver_alerted": return e.reason || e.rule_id || "";
+    case "mandate_signed": return `${e.mandate_id || ""} by passkey`;
+    case "receipt_printed": return e.order_id || "";
+    case "reset": return "demo reset";
+    default: return "";
+  }
+}
+
+function addRow(e) {
+  const list = $("ledger");
+  if (list.firstElementChild && list.firstElementChild.classList.contains("empty")) list.innerHTML = "";
+  const when = new Date(e.rt || e.t || Date.now()).toLocaleTimeString([], { hour12: false });
+  const row = el("li", { class: "new" },
+    el("span", { class: "time" }, when),
+    el("span", { class: "src " + (e.source || "") }, e.source || ""),
+    el("span", { class: "type " + (/(rejected|failed|refusal)/.test(e.type) ? "bad" : e.type === "paid" ? "ok" : "") }, e.type),
+    el("span", { class: "sum" }, summary(e)));
+  list.prepend(row);
+  setTimeout(() => row.classList.remove("new"), 50);
+  while (list.children.length > MAX_ROWS) list.lastElementChild.remove();
+  $("count").textContent = `${++total} events`;
+  if (e.type === "policy_decision" && e.monthly_total_after !== undefined) lastMonthly = e.monthly_total_after;
+}
+
+function connect() {
+  const source = new EventSource("/events/stream");
+  source.onopen = () => { $("conn").classList.add("on"); $("connText").textContent = "live"; };
+  source.onerror = () => { $("conn").classList.remove("on"); $("connText").textContent = "reconnecting"; };
+  source.onmessage = (msg) => {
+    let e;
+    try { e = JSON.parse(msg.data); } catch { return; }
+    if (e.type === "reset") {
+      $("ledger").innerHTML = ""; total = 0; lastMonthly = null;
+      $("merchantBody").replaceChildren(document.createTextNode("No order yet."));
+    }
+    addRow(e);
+  };
+}
+
+async function getJSON(path) {
+  try {
+    const r = await fetch(path, { cache: "no-store" });
+    return r.ok ? await r.json() : null;
+  } catch { return null; }
+}
+
+async function refreshBudget() {
+  const b = await getJSON("/wall/data/budget");
+  const spent = b && b.spent !== undefined ? b.spent : (lastMonthly ?? 142.10);
+  $("spent").textContent = money(spent);
+  $("cap").textContent = `spent this month of ${money(b && b.monthly_cap !== undefined ? b.monthly_cap : 300)}`;
+}
+
+async function refreshMandate() {
+  const data = await getJSON("/wall/data/mandate");
+  const m = data && (data.mandate || (data.mandate_id ? data : null));
+  const signed = !!(m && (m.passkey || data.signed));
+  $("signed").textContent = !m ? "policy offline" : signed ? "signed by Priyank's passkey"
+    : data.fallback ? "policy offline · default rules" : "unsigned";
+  $("signed").className = "badge " + (signed ? "ok" : "warn");
+  if (!m) return;
+  const chips = (list, cls = "") => el("div", { class: "chips" }, ...(list || []).map((x) => el("span", { class: "chip " + cls }, x)));
+  $("mandateBody").replaceChildren(
+    el("dt", {}, "Per purchase"), el("dd", {}, `up to ${money(m.per_purchase_cap)}`),
+    el("dt", {}, "Ask Priyank"), el("dd", {}, `over ${money(m.approval_threshold)}`),
+    el("dt", {}, "Monthly cap"), el("dd", {}, money(m.monthly_cap)),
+    el("dt", {}, "Stores"), el("dd", {}, chips(m.allowed_merchants)),
+    el("dt", {}, "Allowed"), el("dd", {}, chips(m.allowed_categories)),
+    el("dt", {}, "Blocked"), el("dd", {}, chips(m.blocked_categories, "block")),
+    el("dt", {}, "Mandate"), el("dd", { class: "mono" }, m.mandate_id || ""));
+}
+
+function checkRow(c) {
+  const mark = c.passed === true ? "✓" : c.passed === false ? "✗" : "–";
+  const cls = c.passed === true ? "ok" : c.passed === false ? "bad" : "muted";
+  return el("li", {}, el("span", { class: cls }, mark), el("span", { class: "mono" }, c.id), el("span", { class: "detail" }, c.detail || ""));
+}
+
+async function refreshPanel() {
+  const p = await getJSON("/wall/data/panel");
+  if (!p || p.unavailable) { $("backend").textContent = "merchant offline"; $("backend").className = "badge bad"; return; }
+  $("backend").textContent = p.backend === "visa" ? "Visa sandbox" : "mock";
+  $("backend").className = "badge " + (p.backend === "visa" ? "ok" : "warn");
+  const events = p.events || [];
+  const lastCheck = [...events].reverse().find((e) => e.type === "signature_verified" || e.type === "signature_rejected");
+  const order = (p.orders || [])[0];
+  if (!order && !lastCheck) return;
+  const parts = [];
+  if (order) {
+    const paid = order.status === "paid";
+    parts.push(el("div", { class: "status " + (paid ? "ok" : "warn") }, `${money(order.amount)} · ${paid ? "PAID" : "awaiting payment"}`));
+    parts.push(el("dl", {},
+      el("dt", {}, "Order"), el("dd", { class: "mono" }, order.order_id),
+      el("dt", {}, "Decision"), el("dd", { class: "mono" }, order.decision_id || ""),
+      el("dt", {}, "Link"), el("dd", {}, `${order.payment_link && order.payment_link.backend === "visa" ? "Visa Pay by Link" : "mock page"} · ${short(order.payment_link && order.payment_link.id, 18)}`)));
+    if (order.card_auth) parts.push(el("div", { class: order.card_auth.ok ? "ok" : "bad" }, `Card auth: ${order.card_auth.status || ""} ${order.card_auth.reason || ""}`));
+  }
+  if (lastCheck) {
+    const exp = lastCheck.expires ? new Date(lastCheck.expires * 1000).toLocaleTimeString([], { hour12: false }) : "";
+    parts.push(el("dl", { style: "margin-top:10px" },
+      el("dt", {}, "Key id"), el("dd", { class: "mono" }, lastCheck.keyid || "-"),
+      el("dt", {}, "Nonce"), el("dd", { class: "mono" }, short(lastCheck.nonce, 22)),
+      el("dt", {}, "Expires"), el("dd", { class: "mono" }, exp)));
+    parts.push(el("ul", { class: "checks" }, ...(lastCheck.checks || []).map(checkRow)));
+  }
+  if (p.visa_last_error) parts.push(el("div", { class: "warn", style: "margin-top:8px;font-size:18px" }, `Visa: ${p.visa_last_error}`));
+  $("merchantBody").replaceChildren(...parts);
+}
+
+connect();
+refreshMandate(); refreshBudget(); refreshPanel();
+setInterval(refreshPanel, 1000);
+setInterval(refreshBudget, 3000);
+setInterval(refreshMandate, 5000);
+</script>
+</body>
+</html>

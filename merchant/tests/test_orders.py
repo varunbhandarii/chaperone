@@ -33,7 +33,7 @@ def test_demo_order_prices_from_catalog_and_pays_on_mock_page():
 
         client.post(f"/pay/{link['id']}")
         assert client.get(f"/orders/{order['order_id']}").json()["status"] == "paid"
-        events = [e["event"] for e in client.get("/panel").json()["events"]]
+        events = [e["type"] for e in client.get("/panel").json()["events"]]
         assert events[-3:] == ["signature_verified", "payment_link_created", "paid"]
 
 
@@ -61,3 +61,27 @@ def test_purchase_number_fits_visa_rules():
     for _ in range(50):
         pn = new_purchase_number()
         assert pn.isalnum() and len(pn) < 20
+
+
+def test_reset_clears_orders_and_panel():
+    with TestClient(app) as client:
+        client.post("/orders", json=DEMO)
+        assert client.post("/reset").json()["ok"]
+        assert client.get("/orders").json() == []
+        assert client.get("/panel").json()["events"] == []
+
+
+def test_events_follow_the_ledger_contract():
+    import json
+    from pathlib import Path
+
+    import jsonschema
+
+    schema = json.loads((Path(__file__).resolve().parents[2] / "contracts" / "events.schema.json").read_text())
+    with TestClient(app) as client:
+        client.post("/reset")
+        order = client.post("/orders", json=DEMO).json()
+        client.post(f"/orders/{order['order_id']}/paid")
+        for event in client.get("/panel").json()["events"]:
+            jsonschema.validate(event, schema)
+            assert event["source"] == "merchant" and isinstance(event["t"], int)

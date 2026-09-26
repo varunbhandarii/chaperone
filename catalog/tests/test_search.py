@@ -94,3 +94,16 @@ def test_suggestions_stay_close_to_the_product():
 def test_real_listing_of_a_demo_product_is_deduped():
     names = [it["name"].lower() for it in catalog.items.values() if it["group"] == "bread"]
     assert sum(n.startswith("nature's own honey wheat bread") for n in names) == 1
+
+
+def test_every_item_has_a_mandate_category():
+    allowed = {"grocery", "pharmacy", "gift_card", "prepaid_card"}
+    assert all(it.get("mandate_category") in allowed for it in catalog.items.values())
+
+
+def test_gift_and_prepaid_cards_never_map_to_grocery_or_pharmacy():
+    for it in catalog.items.values():
+        if it["category"] in ("gift_card", "prepaid_card"):
+            assert it["mandate_category"] == it["category"]
+    assert catalog.items["RX-001"]["mandate_category"] == "pharmacy"
+    assert catalog.items["BAK-001"]["mandate_category"] == "grocery"
