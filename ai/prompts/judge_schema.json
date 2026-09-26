@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "properties": {
+    "scam_score": {
+      "type": "number",
+      "description": "Probability from 0 to 1 that this purchase is being coached or directed by a scammer."
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["family_emergency", "urgency", "secrecy", "authority_impersonation", "code_reading", "amount_anomaly"]
+      }
+    },
+    "rationale": {
+      "type": "string",
+      "description": "One or two plain sentences, no jargon."
+    },
+    "action": {
+      "type": "string",
+      "enum": ["proceed", "ask_clarifying", "refuse_and_alert"]
+    }
+  },
+  "required": ["scam_score", "patterns", "rationale", "action"],
+  "additionalProperties": false
+}
