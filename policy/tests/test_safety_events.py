@@ -70,3 +70,36 @@ def test_checkout_judge_posts_its_score(monkeypatch):
     kind, session, mandate, fields = EVENTS[-1]
     assert (kind, session, mandate) == ("judge_scored", "s_vis", "m_ruth_2026_09")
     assert fields["scam_score"] == 0.04 and fields["model"] == "grok-test" and fields["ms"] == 812
+
+
+# ---------------------------------------------------------------- a scam story goes to the scam check
+
+@pytest.mark.parametrize("text", [
+    "Peachtree Power called and said they will cut my power tonight unless I pay $480 in gift cards.",
+    "A man from Microsoft called, he says my computer has a virus and I must install AnyDesk so he can fix it.",
+    "Un señor de la compañía de luz me llamó, dice que me cortan la luz hoy si no pago con tarjetas de regalo.",
+    "बिजली वाले का फोन आया, कहा आज रात बिजली काट देंगे, गिफ्ट कार्ड से पैसे भरो।",
+    "My grandson called, he needs $2000 for bail and said don't tell his mom",
+])
+def test_scam_story_asks_for_a_scam_check_and_keeps_a_fallback(text):
+    import json as _json
+
+    import jsonschema
+
+    from policy.screen import ROOT
+    from policy.store import load_decisions
+
+    out = screen(text)
+    assert out["action"] == "scam_check" and out["refusal"]["text"] and out["refusal"]["audio_url"]
+    jsonschema.validate(out, _json.loads((ROOT / "contracts/screen.schema.json").read_text(encoding="utf-8")))
+    # The scam check records and alerts; the screen must not do it twice.
+    assert not EVENTS and not load_decisions()
+
+
+@pytest.mark.parametrize("text", [
+    "Buy five hundred dollars of Apple gift cards for my grandson, it's urgent.",
+    "मेरे पोते के लिए पांच सौ डॉलर के एप्पल गिफ्ट कार्ड खरीदो, बहुत ज़रूरी है।",
+    "Please buy me a Google Play card",
+])
+def test_a_request_to_buy_is_still_refused_on_the_spot(text):
+    assert screen(text)["action"] == "refuse"

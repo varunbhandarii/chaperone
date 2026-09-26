@@ -2,6 +2,9 @@
 
     POST /screen  {session_id, text, lang?, partial?}
                -> {action, hits: [{rule_id, pattern, lang, term}], refusal | null}  (contracts/screen.schema.json)
+               A hard hit inside a story about someone else ("Peachtree Power called and said...") answers
+               action "scam_check" instead of "refuse": the station then calls POST /scam-check, which sets
+               the cool-down and alerts Priyank. The refusal is still attached as the fallback if that fails.
     POST /judge   {transcript, cart? (list or {items}), mandate_summary?, history_summary?, session_id?, mandate_id?}
                -> contracts/judge.schema.json; posts judge_scored to the relay
 
@@ -128,6 +131,10 @@ def refusal_for(key: str, lang: str, rule_id: str, patterns: list[str]) -> dict:
 def screen(text: str, lang: str | None = None, *, session_id: str | None = None,
            partial: bool = False) -> dict:
     """Return the C6 screen result for one utterance."""
+    return _screen(text, lang, session_id=session_id, partial=partial)[0]
+
+
+def _screen(text: str, lang: str | None, *, session_id: str | None, partial: bool) -> tuple[dict, Verdict]:
     verdict = evaluate(text, lang)
     lang_out = detect_lang(text, lang, verdict)
     action = verdict.action
@@ -154,7 +161,7 @@ def screen(text: str, lang: str | None = None, *, session_id: str | None = None,
                      if ((rules.get(h.rule_id) or {}).get("spoken_key") or _RULE_KEYS.get(h.rule_id)) == key),
                     hard_hits[0])
         refusal = refusal_for(key, lang_out, hard.rule_id, verdict.patterns)
-    return {"action": action, "hits": hits, "refusal": refusal}
+    return {"action": action, "hits": hits, "refusal": refusal}, verdict
 
 
 # ---------------------------------------------------------------- relay events
@@ -196,7 +203,12 @@ router = APIRouter()
 
 @router.post("/screen")
 def screen_route(body: ScreenBody) -> dict:
-    out = screen(body.text, body.lang, session_id=body.session_id, partial=body.partial)
+    out, verdict = _screen(body.text, body.lang, session_id=body.session_id, partial=body.partial)
+    if out["action"] == "refuse" and verdict.story:
+        # Ruth is telling us about a call, not asking to buy: the scam check answers, cools the card
+        # and alerts Priyank (it records its own check, so no decision or alert here).
+        out["action"] = "scam_check"
+        return out
     if not body.partial:
         report(out, body.text, body.session_id, body.mandate_id or DEFAULT_MANDATE_ID)
     return out

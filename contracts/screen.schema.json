@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "screen.schema.json",
   "title": "Rule screen result (POST /screen)",
-  "description": "Request: {session_id, text, lang?, partial?}. slow = exactly one soft rule; judge = two or more soft rules, or any final screen after a refusal in the same session; refuse = a hard rule. Only action refuse carries a refusal.",
+  "description": "Request: {session_id, text, lang?, partial?}. slow = exactly one soft rule; judge = two or more soft rules, or any final screen after a refusal in the same session; refuse = a hard rule in a request to buy; scam_check = a hard rule inside a story about someone else (Ruth reporting a call, text or pop-up): the station calls POST /scam-check and speaks its say, and the refusal here is the fallback if that fails. Only refuse and scam_check carry a refusal.",
   "type": "object",
   "additionalProperties": false,
   "required": ["action", "hits", "refusal"],
   "properties": {
-    "action": { "enum": ["refuse", "judge", "slow", "proceed"] },
+    "action": { "enum": ["refuse", "scam_check", "judge", "slow", "proceed"] },
     "hits": {
       "type": "array",
       "items": {

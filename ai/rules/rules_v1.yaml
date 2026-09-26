@@ -48,6 +48,14 @@ contexts:
     es: ["re:enlace", "re:pag(?:ar|ue|o)", "re:haga clic"]
     hi: ["लिंक", "re:भुगतान", "re:पेमेंट"]
     hi_latn: ["re:link", "re:pay kar", "re:payment"]
+  story:
+    en: ["re:(?:called|calls|calling|phoned|texted|messaged|emailed)", "re:(?:said|says|told|asked) (?:me|that|to|i|we|my)",
+         "re:(?:a|the|this) (?:call|text|message|email|pop ?up|voicemail)", "re:(?:someone|somebody|a man|a woman|a lady|a guy|the caller)",
+         "re:on the (?:phone|line)", "re:(?:he|she|they) (?:said|says|told|wants|want)"]
+    es: ["re:(?:llamo|llamaron|me llama|me escribio|me escribieron)", "re:(?:dijo|dijeron|dice|dicen) que",
+         "re:(?:una|la) (?:llamada|mensaje|correo)", "re:(?:un|el|una|la) (?:senor|senora|hombre|mujer)", "re:por telefono"]
+    hi: ["re:(?:फोन|कॉल|मैसेज) (?:आया|आई|किया)", "re:(?:ने )?कहा", "re:बोला", "re:(?:वाले|वाली) ने", "re:फोन पर"]
+    hi_latn: ["re:(?:phone|fone|call|message) (?:aaya|aayi|kiya)", "re:(?:ne )?kaha", "re:bola", "re:(?:vale|vali) ne", "re:(?:phone|fone) (?:pe|par)"]
   soon:
     en: ["today", "tonight", "re:in (?:an|one|two|\\d+) hours?", "re:within (?:an|one|two|\\d+) hours?", "re:right (?:now|away)", "immediately"]
     es: ["hoy", "re:esta noche", "re:(?:en|dentro de) (?:una|dos|\\d+) horas?", "re:ahora mismo", "re:de inmediato"]
