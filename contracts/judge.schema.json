@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "judge.schema.json",
+  "title": "Scam judgment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scam_score", "patterns", "rationale", "action"],
+  "properties": {
+    "scam_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "family_emergency",
+          "urgency",
+          "secrecy",
+          "authority_impersonation",
+          "code_reading",
+          "amount_anomaly",
+          "none"
+        ]
+      }
+    },
+    "rationale": { "type": "string", "maxLength": 600 },
+    "action": { "enum": ["proceed", "ask_clarifying", "refuse_and_alert"] }
+  }
+}

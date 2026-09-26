@@ -19,6 +19,9 @@ venv/
 # local data and editor noise
 sessions/*.jsonl
 !sessions/sample.jsonl
+sessions/decisions.json
+sessions/monthly.json
+caregiver/data/
 .DS_Store
 Thumbs.db
 .vscode/

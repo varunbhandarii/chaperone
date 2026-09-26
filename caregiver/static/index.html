@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chaperone caregiver</title>
+  <style>
+    body { font-family: Georgia, serif; margin: 1.5rem; background: #f6f1e7; color: #1c140c; }
+    button, input { font-size: 1.3rem; padding: 0.7rem 1rem; margin: 0.3rem 0.4rem 0.3rem 0; }
+    pre { white-space: pre-wrap; background: white; padding: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Caregiver</h1>
+  <p>Priyank signs Ruth's mandate. Relying party: <span id="rp">...</span></p>
+  <pre id="mandate"></pre>
+  <p><button id="register" type="button">Register passkey</button></p>
+  <p><button id="sign" type="button">Sign mandate</button></p>
+  <h2>Six-digit fallback</h2>
+  <p><button id="issue" type="button">Issue code</button> <strong id="code"></strong></p>
+  <p><input id="entered" inputmode="numeric"><button id="check" type="button">Verify code</button></p>
+  <pre id="log"></pre>
+  <script src="/vendor/webauthn.js"></script>
+  <script>
+    const MANDATE = {
+      mandate_id: "m_ruth_2026_09", shopper: "ruth", caregiver: "priya", currency: "USD",
+      per_purchase_cap: 60, monthly_cap: 300, approval_threshold: 40,
+      allowed_merchants: ["corner_market"], allowed_categories: ["grocery", "pharmacy"],
+      blocked_categories: ["gift_card", "prepaid_card", "wire", "crypto", "lottery"],
+      languages: ["es", "en", "hi"], valid_from: "2026-09-01", valid_to: "2026-12-31"
+    };
+    document.getElementById("mandate").textContent = JSON.stringify(MANDATE, null, 2);
+    const logEl = document.getElementById("log");
+    function note(line) { logEl.textContent += line + "\n"; }
+    async function post(url, body) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "1" },
+        body: JSON.stringify(body || {})
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || response.statusText);
+      return payload;
+    }
+    fetch("/api/config", { headers: { "ngrok-skip-browser-warning": "1" } })
+      .then((response) => response.json())
+      .then((config) => { document.getElementById("rp").textContent = config.rpID; });
+    document.getElementById("register").onclick = async () => {
+      try {
+        const optionsJSON = await post("/api/passkeys/generate-registration-options");
+        const attestation = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON });
+        const verified = await post("/api/passkeys/verify-registration", attestation);
+        note("registration verified=" + verified.verified);
+      } catch (error) { note(String(error)); }
+    };
+    document.getElementById("sign").onclick = async () => {
+      try {
+        const optionsJSON = await post("/api/passkeys/generate-authentication-options", { mandate: MANDATE });
+        const assertion = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON });
+        const verified = await post("/api/passkeys/verify-authentication", { mandate: MANDATE, response: assertion });
+        note("assertion verified=" + verified.verified + " counter=" + verified.counter);
+      } catch (error) { note(String(error)); }
+    };
+    document.getElementById("issue").onclick = async () => {
+      try {
+        const issued = await post("/api/code/issue");
+        document.getElementById("code").textContent = issued.code;
+        note("code issued");
+      } catch (error) { note(String(error)); }
+    };
+    document.getElementById("check").onclick = async () => {
+      try {
+        const verified = await post("/api/code/verify", { code: document.getElementById("entered").value });
+        note("code verified=" + verified.verified);
+      } catch (error) { note(String(error)); }
+    };
+  </script>
+</body>
+</html>

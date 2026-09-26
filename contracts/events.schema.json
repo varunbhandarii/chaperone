@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "events.schema.json",
+  "title": "Ledger event",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["type", "session_id", "mandate_id", "t"],
+  "properties": {
+    "type": {
+      "enum": [
+        "session_started",
+        "heard",
+        "items_found",
+        "cart_updated",
+        "checkout_requested",
+        "policy_decision",
+        "approval_requested",
+        "approval_result",
+        "refusal",
+        "request_signed",
+        "signature_verified",
+        "payment_link_created",
+        "paid",
+        "receipt_printed",
+        "caregiver_alerted"
+      ]
+    },
+    "session_id": { "type": "string", "minLength": 1 },
+    "mandate_id": { "type": "string", "minLength": 1 },
+    "t": { "type": "string", "minLength": 1 },
+    "rt": { "type": "string" }
+  }
+}

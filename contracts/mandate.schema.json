@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mandate.schema.json",
+  "title": "Mandate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "mandate_id",
+    "shopper",
+    "caregiver",
+    "currency",
+    "per_purchase_cap",
+    "monthly_cap",
+    "approval_threshold",
+    "allowed_merchants",
+    "allowed_categories",
+    "blocked_categories",
+    "languages",
+    "valid_from",
+    "valid_to"
+  ],
+  "properties": {
+    "mandate_id": { "type": "string", "minLength": 1 },
+    "shopper": { "type": "string" },
+    "caregiver": { "type": "string" },
+    "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+    "per_purchase_cap": { "type": "number", "minimum": 0 },
+    "monthly_cap": { "type": "number", "minimum": 0 },
+    "approval_threshold": { "type": "number", "minimum": 0 },
+    "allowed_merchants": { "type": "array", "items": { "type": "string" } },
+    "allowed_categories": { "type": "array", "items": { "type": "string" } },
+    "blocked_categories": { "type": "array", "items": { "type": "string" } },
+    "languages": { "type": "array", "items": { "type": "string" } },
+    "valid_from": { "type": "string" },
+    "valid_to": { "type": "string" },
+    "passkey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["credential_id", "assertion"],
+      "properties": {
+        "credential_id": { "type": "string" },
+        "assertion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authenticatorData", "clientDataJSON", "signature"],
+          "properties": {
+            "authenticatorData": { "type": "string" },
+            "clientDataJSON": { "type": "string" },
+            "signature": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

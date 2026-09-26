@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "order_request.schema.json",
+  "title": "Signed order request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["headers", "body"],
+  "properties": {
+    "headers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Content-Type", "Content-Digest", "Signature-Input", "Signature"],
+      "properties": {
+        "Content-Type": { "const": "application/json" },
+        "Content-Digest": { "type": "string", "pattern": "^sha-256=:[A-Za-z0-9+/=]+:$" },
+        "Signature-Input": { "type": "string", "pattern": "sig1=" },
+        "Signature": { "type": "string", "pattern": "^sig1=:" }
+      }
+    },
+    "body": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mandate_id", "decision_id", "cart", "approval_id"],
+      "properties": {
+        "mandate_id": { "type": "string" },
+        "decision_id": { "type": "string" },
+        "cart": { "$ref": "cart.schema.json" },
+        "approval_id": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

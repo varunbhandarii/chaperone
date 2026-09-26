@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "decision.schema.json",
+  "title": "Policy decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "rules", "monthly_total_after"],
+  "properties": {
+    "decision": { "enum": ["allow", "approve", "deny"] },
+    "decision_id": { "type": "string" },
+    "mandate_id": { "type": "string" },
+    "session_id": { "type": "string" },
+    "judge_error": { "type": "string" },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "passed"],
+        "properties": {
+          "id": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "monthly_total_after": { "type": "number" },
+    "spoken_reason_key": { "type": "string" },
+    "judge": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["scam_score", "patterns", "rationale", "action"],
+      "properties": {
+        "scam_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "patterns": { "type": "array", "items": { "type": "string" } },
+        "rationale": { "type": "string" },
+        "action": { "enum": ["proceed", "ask_clarifying", "refuse_and_alert"] }
+      }
+    }
+  }
+}

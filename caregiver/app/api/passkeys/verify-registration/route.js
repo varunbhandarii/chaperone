@@ -1,0 +1,30 @@
+import { verifyRegistrationResponse } from "@simplewebauthn/server";
+import { isoBase64URL } from "@simplewebauthn/server/helpers";
+import { cookies } from "next/headers";
+import { origin, requireUV, rpID, saveCredential } from "@/lib/passkeys";
+
+export async function POST(request) {
+  const response = await request.json();
+  const expectedChallenge = (await cookies()).get("wa_challenge")?.value;
+  if (!expectedChallenge) return Response.json({ error: "missing challenge cookie" }, { status: 400 });
+  try {
+    const verified = await verifyRegistrationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: origin(),
+      expectedRPID: rpID(),
+      requireUserVerification: requireUV(),
+    });
+    if (!verified.verified) return Response.json({ verified: false }, { status: 400 });
+    const credential = verified.registrationInfo.credential;
+    saveCredential({
+      id: credential.id,
+      publicKey: isoBase64URL.fromBuffer(credential.publicKey),
+      counter: credential.counter,
+      transports: credential.transports || [],
+    });
+    return Response.json({ verified: true, id: credential.id });
+  } catch (error) {
+    return Response.json({ error: String(error) }, { status: 400 });
+  }
+}

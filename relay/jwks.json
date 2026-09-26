@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "OKP",
+      "kid": "chaperone-agent-1",
+      "crv": "Ed25519",
+      "x": "mFrJBOGQ8EC262oXm2CK1z829n3w8gN4lTaSGgBPifY",
+      "alg": "EdDSA",
+      "use": "sig"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+---
+description: Chaperone conventions
+alwaysApply: true
+---
+
+- Policy is a pure function with no network calls.
+- No secret ever reaches a browser.
+- Every event carries session_id and t.
+- Read-back before checkout.

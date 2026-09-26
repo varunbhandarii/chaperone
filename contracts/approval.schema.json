@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "approval.schema.json",
+  "title": "Approval request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["approval_id", "session_id", "amount", "excerpt", "rule", "expires_at"],
+  "properties": {
+    "approval_id": { "type": "string" },
+    "session_id": { "type": "string" },
+    "amount": { "type": "number" },
+    "excerpt": { "type": "string" },
+    "rule": { "type": "string" },
+    "expires_at": { "type": "string" },
+    "approved": { "type": "boolean" },
+    "assertion": { "type": "object" },
+    "message": { "type": "string" }
+  }
+}

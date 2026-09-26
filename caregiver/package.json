@@ -1,0 +1,19 @@
+{
+  "name": "caregiver",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "dev:next": "next dev --port 5175",
+    "build": "next build",
+    "start": "next start --port 5175"
+  },
+  "dependencies": {
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.3",
+    "canonicalize": "^1.0.8",
+    "next": "^15.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  }
+}
