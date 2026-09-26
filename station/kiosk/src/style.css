@@ -40,7 +40,7 @@ kbd { font-family: ui-monospace, Consolas, monospace; background: #26304a; borde
 .state-off, .state-connecting { color: var(--muted); }
 .state-ready { color: var(--ok); }
 .state-listening { color: var(--accent); }
-.state-thinking { color: var(--info); }
+.state-thinking, .state-checking { color: var(--info); }
 .state-speaking { color: var(--tool); }
 .state-waiting { color: var(--warn); }
 
@@ -68,7 +68,7 @@ kbd { font-family: ui-monospace, Consolas, monospace; background: #26304a; borde
 .ptt.state-ready { background: #1d2b22; border-color: var(--ok); color: var(--text); }
 .ptt.state-listening { background: var(--accent); border-color: #fff; color: #111; }
 .ptt.state-listening .ptt-hint { color: #222; }
-.ptt.state-thinking { background: #1b2640; border-color: var(--info); }
+.ptt.state-thinking, .ptt.state-checking { background: #1b2640; border-color: var(--info); }
 .ptt.state-speaking { background: #2a1d3a; border-color: var(--tool); }
 .ptt.state-waiting { background: #3a2a0d; border-color: var(--warn); }
 

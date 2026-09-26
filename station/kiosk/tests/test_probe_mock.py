@@ -64,8 +64,9 @@ def test_probe_round_trip(mock_url):
     assert proc.returncode == 0, proc.stderr
     assert "RESULT: PASS" in out
     assert "TOOL CALL search_catalog" in out
-    assert "AGENT: Un momento." in out
-    assert "first audio delta after response.create #2" in out
+    assert "AGENT: Un momento." not in out  # tools are called without a spoken preamble
+    assert "AGENT: Tengo" in out
+    assert "first audio delta after response.create" in out  # the spoken reply after the tool result
     assert "mock-secret-" not in out  # the token is never printed
 
     log = httpx.get(f"{mock_url}/mock/log").json()
@@ -82,8 +83,9 @@ def test_probe_round_trip(mock_url):
     assert session["turn_detection"] == {"type": None}
     assert session["reasoning"] == {"effort": "none"}
     assert session["instructions"] == voice["session"]["instructions"]
-    assert [t["name"] for t in session["tools"]] == ["search_catalog", "add_to_cart", "remove_from_cart", "read_cart", "budget_left", "checkout",
-                                                    "order_status", "cancel_order", "request_refund", "purchase_history"]
+    assert [t["name"] for t in session["tools"]] == ["scam_check", "search_catalog", "bill_status", "add_to_cart", "remove_from_cart", "read_cart",
+                                                    "budget_left", "checkout", "order_status", "cancel_order", "request_refund", "purchase_history"]
+    assert "one moment" not in voice["session"]["instructions"].lower().replace("never say \"one moment\"", "")
     checkout_tool = next(t for t in session["tools"] if t["name"] == "checkout")
     assert checkout_tool["parameters"] == {"type": "object", "properties": {}}  # checkout takes no list from the model
 

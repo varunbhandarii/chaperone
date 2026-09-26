@@ -20,7 +20,11 @@ export interface VoiceConfig {
   session: SessionConfig;
   /** voice per shopper language, e.g. {"hi": "naksh"}; ?voice= overrides it for the whole session */
   voice_by_lang?: Partial<Record<"es" | "hi" | "en", string>>;
-  measured: { release_to_first_audio_ms: number | null };
+  /** the soft tick while the station checks: after_ms from release with no reply yet, then every interval_ms */
+  earcon: { after_ms: number; interval_ms: number; gain_db: number };
+  /** Ruth's billers (the signed mandate's billers[] wins when it has one) */
+  billers: Record<string, { name: string; account_ref: string }>;
+  measured: { release_to_first_audio_ms: number | null; [k: string]: unknown };
 }
 
 export interface SessionConfig {

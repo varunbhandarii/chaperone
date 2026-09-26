@@ -601,3 +601,150 @@ test("repeat: added phrases count, a bare phir se does not", () => {
   assert.equal(isRepeatRequest("phir se"), false); // how "phir se bread dalo" starts
   assert.equal(isRepeatRequest("फिर से बोलिए"), true);
 });
+
+// ---------- the checking tick ----------
+
+import { Earcon, TICK_NOTES, dbToGain } from "../src/earcon.ts";
+
+function fakeAudioContext() {
+  const started = [];
+  const stopped = [];
+  const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} });
+  return {
+    started,
+    stopped,
+    currentTime: 1,
+    destination: {},
+    createGain: () => ({ gain: param(), connect() {} }),
+    createOscillator() {
+      const osc = { type: "", frequency: param(), connect() {}, start: (t) => started.push({ f: osc.frequency.value, t }), stop: () => stopped.push(osc), onended: null };
+      return osc;
+    },
+  };
+}
+
+test("the checking tick: two soft notes per tick at -24 dB, one timer, silent at once on stop", () => {
+  assert.ok(Math.abs(dbToGain(-24) - 0.0631) < 0.001);
+  const ctx = fakeAudioContext();
+  const e = new Earcon(ctx, { intervalMs: 700, gainDb: -24 });
+  let ticks = 0;
+  e.onTick = () => ticks++;
+  e.start();
+  e.start(); // a second start does not add a second timer or tick
+  assert.equal(e.running, true);
+  assert.equal(ticks, 1);
+  assert.deepEqual(ctx.started.map((n) => n.f), TICK_NOTES.map(([f]) => f));
+  e.stop();
+  assert.equal(e.running, false);
+  // stop() also silences the tick that is playing (each note's scheduled stop plus the forced one)
+  assert.ok(ctx.stopped.length >= TICK_NOTES.length * 2);
+});
+
+// ---------- the Ask guard ----------
+
+import { billItem, billSayKey, billerId, parseBill, parseScamReply, scamToolOutput, spokenDate } from "../src/guards.ts";
+import { historySummary } from "../src/postpurchase.ts";
+
+test("scam check replies: the contract shape, sources without URLs for the model, unusable replies rejected", () => {
+  const v = parseScamReply({
+    check_id: "sc_1",
+    verdict: "scam",
+    pattern: "grandparent_emergency",
+    say: "Ruth, esto es una estafa muy común. Por favor cuelgue.",
+    actions: ["hang_up", "call_trusted:Alex", 3],
+    facts_checked: [{ fact: "Alex's number on file", result: "different from the caller" }, { nope: 1 }],
+    sources: [{ title: "FTC: Family emergency scams", url: "https://consumer.ftc.gov/x" }, { title: "no url" }],
+    cooldown_until: "2026-09-27T19:05:00Z",
+    ms: 6120,
+    from_cache: false,
+  });
+  assert.equal(v.verdict, "scam");
+  assert.deepEqual(v.actions, ["hang_up", "call_trusted:Alex"]);
+  assert.equal(v.facts_checked.length, 1);
+  assert.deepEqual(v.sources, [{ title: "FTC: Family emergency scams", url: "https://consumer.ftc.gov/x" }]);
+  const out = scamToolOutput(v);
+  assert.equal(out.say, v.say);
+  assert.deepEqual(out.sources, ["FTC: Family emergency scams"]); // the model never reads a URL aloud
+  assert.match(String(out.instruction), /exactly/);
+  assert.equal(parseScamReply({ verdict: "maybe", say: "x" }), null);
+  assert.equal(parseScamReply({ verdict: "ok", say: "" }), null);
+  assert.equal(parseScamReply(null), null);
+});
+
+test("bills: the biller's answer, which line fits, spoken dates, and the bill as a cart item", () => {
+  const bill = parseBill({ biller: "Peachtree Power", account_ref: "PP-2231-0098", balance_due: "86.40", due_date: "2026-10-15", past_due: false, autopay: false, last_payment: { amount: "91.12", at: "2026-09-12" }, disconnect_notice: false });
+  assert.equal(bill.balance_due, 86.4);
+  assert.deepEqual(bill.last_payment, { amount: 91.12, at: "2026-09-12" });
+  assert.equal(billSayKey(bill), "bill_due");
+  assert.equal(billSayKey({ ...bill, past_due: true }), "bill_past_due");
+  assert.equal(billSayKey({ ...bill, balance_due: 0 }), "bill_paid");
+  assert.equal(parseBill({ biller: "x" }), null);
+  assert.equal(spokenDate("2026-10-15", "en"), "October 15");
+  assert.equal(spokenDate("2026-10-15", "es"), "15 de octubre");
+  assert.match(spokenDate("2026-10-15", "hi"), /15/);
+  const item = billItem("peachtree_power", "Peachtree Power", bill);
+  assert.equal(item.sku, "BILL-peachtree_power");
+  assert.equal(item.price, 86.4);
+  assert.equal(item.category, "utility_bill");
+  assert.equal(item.name, "Peachtree Power bill …0098");
+  const known = ["peachtree_power"];
+  assert.equal(billerId(undefined, known), "peachtree_power");
+  assert.equal(billerId("Peachtree Power", known), "peachtree_power");
+  assert.equal(billerId("la luz", known), "peachtree_power");
+  assert.equal(billerId("gas company", ["peachtree_power", "atl_water"]), null);
+});
+
+test("history as policy sends it: '2 x Bread' lines, newest first, the orders total, cancelled orders left out", () => {
+  const h = parseHistory({
+    orders: [
+      { order_id: "o_2", at: "2026-09-26T15:00:00Z", total: 11.49, status: "paid", items: ["1 x Lisinopril", "2 x Bread"] },
+      { order_id: "o_1", at: "2026-09-20T15:00:00Z", total: 3.49, status: "picked_up", items: ["1 x Bread"] },
+      { order_id: "o_0", at: "2026-09-19T15:00:00Z", total: 52, status: "cancelled", items: ["1 x Ensure"] },
+    ],
+    refunds: [],
+    refusals: [],
+    totals: { orders: 14.98, refunds: 0 },
+  });
+  assert.deepEqual(h.orders[0].items, ["Lisinopril", "2 Bread"]);
+  assert.equal(h.spent, 14.98);
+  assert.deepEqual(historySummary(h), { count: 2, spentCents: 1498, lastItems: ["Lisinopril", "2 Bread"] });
+  assert.deepEqual(historySummary(parseHistory({ orders: [] })), { count: 0, spentCents: 0, lastItems: [] });
+});
+
+test("search results name the store and the same product at her other stores", () => {
+  const item = compactItem({
+    sku: "BAK-001", name: "Honey Wheat Bread", brand: "Nature's Own", category: "bakery", price: 3.49, store: "Corner Market", merchant: "corner_market",
+    elsewhere: [{ merchant: "parkside_pharmacy", store: "Parkside Pharmacy", sku: "PK-BAK-001", price: 3.79 }, { store: "bad" }],
+  });
+  assert.equal(item.store, "Corner Market");
+  assert.deepEqual(item.elsewhere, [{ store: "Parkside Pharmacy", price: 3.79, sku: "PK-BAK-001" }]);
+  assert.equal("elsewhere" in compactItem({ sku: "X", name: "X", category: "c", price: 1 }), false);
+});
+
+test("the Ask guard and history lines exist in every language, and no line asks Ruth to wait 'one moment'", () => {
+  const vars = { biller: "Peachtree Power", amount: "$86.40", due: "October 15", status: "being prepared", code: "4-7-2", count: "2", days: "30", spent: "$14.98", items: "bread" };
+  for (const key of ["scam_check_unavailable", "bill_due", "bill_past_due", "bill_paid", "order_status_pickup", "history_summary", "history_summary_one", "history_last", "history_none"]) {
+    assert.ok(hasSay(key), key);
+    for (const lang of ["es", "hi", "en"]) {
+      const line = sayFor(key, lang, vars);
+      assert.ok(line.length > 5 && !/\{\w+\}/.test(line), `${key} ${lang}: ${line}`);
+    }
+  }
+  assert.equal(sayFor("bill_due", "en", vars), "Your Peachtree Power bill is $86.40, due October 15. It is not past due.");
+  assert.match(sayFor("order_status_pickup", "en", vars), /after 3 pm.*4-7-2/);
+  for (const lang of ["es", "hi", "en"]) {
+    const line = sayFor("asking_priya", lang);
+    assert.ok(!/one moment|un momento|एक पल|एक मिनट/i.test(line), line);
+  }
+});
+
+test("the screen's scam_check action parses, with its refusal kept as the fallback", () => {
+  const r = parseScreen({
+    action: "scam_check",
+    hits: [{ rule_id: "R1_blocked_category", pattern: "gift_card", lang: "es", term: "tarjetas de regalo" }],
+    refusal: { rule_id: "R1_blocked_category", spoken_key: "blocked_category", patterns: ["gift_card"], lang: "es", text: "No puedo comprar tarjetas de regalo.", audio_url: "/audio/refusal.blocked_category.es.mp3" },
+  });
+  assert.equal(r.action, "scam_check");
+  assert.equal(r.refusal.audio_url, "/audio/refusal.blocked_category.es.mp3");
+  assert.equal(parseScreen({ action: "maybe", hits: [], refusal: null }), null);
+});

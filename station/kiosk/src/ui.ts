@@ -18,6 +18,7 @@ const STATE_LABEL: Record<AgentState, string> = {
   ready: "Hold to talk",
   listening: "Listening... release when done",
   thinking: "Thinking...",
+  checking: "Checking...",
   speaking: "Speaking... press to interrupt",
   waiting: "Waiting for Priyank... hold to talk",
 };
@@ -29,6 +30,7 @@ const STRIP_LABEL: Record<AgentState, string> = {
   ready: "Ready: hold the button and talk",
   listening: "Listening",
   thinking: "Thinking",
+  checking: "Checking…",
   speaking: "Speaking",
   waiting: "Waiting for Priyank",
 };
@@ -48,6 +50,7 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
   const pttLabel = $("ptt-label");
   const latencyEl = $("latency");
   const statsEl = $("latency-stats");
+  const soundEl = $("first-sound");
   const rulesEl = $("rules");
   const log = $("log");
   const itemsPanel = $("items-panel");
@@ -127,6 +130,10 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
 
     note(text, kind: NoteKind = "info") {
       addLine(`note ${kind}`, (el) => el.append(document.createTextNode(text)));
+    },
+
+    firstSound(ms, via) {
+      soundEl.textContent = `first sound ${ms} ms (${via === "earcon" ? "tick" : via})`;
     },
 
     latency(ms, stats, label) {

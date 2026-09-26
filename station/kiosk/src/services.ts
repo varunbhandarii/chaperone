@@ -16,6 +16,7 @@ import {
 import { FALLBACK_ITEMS, mergeResults, parseResolveResponse, parseSearchResponse, type CatalogItem, type CheckoutBody } from "./cart.ts";
 import type { Lang } from "./lang.ts";
 import { parseScreen, type ScreenResult } from "./screen.ts";
+import { parseBill, parseScamReply, type BillView, type ScamVerdict } from "./guards.ts";
 
 export type Warn = (msg: string) => void;
 
@@ -154,7 +155,7 @@ export interface SearchResult {
 }
 
 /** Profile phrases first ("my blood pressure medicine" -> the saved pickup, marked usual), then catalog search. */
-export async function searchCatalog(query: string, warn: Warn): Promise<SearchResult> {
+export async function searchCatalog(query: string, warn: Warn, store?: string): Promise<SearchResult> {
   const fallback = (why: string): SearchResult => ({ query, items: FALLBACK_ITEMS.map((i) => ({ ...i })), source: "fallback", error: why });
   if (health.isDown("catalog")) {
     warn(`catalog down at ${URLS.catalog}; using fallback items (rechecked every ${RECHECK_MS / 1000} s)`);
@@ -168,7 +169,7 @@ export async function searchCatalog(query: string, warn: Warn): Promise<SearchRe
         async (res) => (res.ok ? parseResolveResponse(await readJson(res)) : []),
         () => [] as CatalogItem[],
       ),
-      call(`${URLS.catalog}/search?q=${q}&limit=3`, { signal: AbortSignal.timeout(2500) }),
+      call(`${URLS.catalog}/search?q=${q}&limit=3${store ? `&store=${encodeURIComponent(store)}` : ""}`, { signal: AbortSignal.timeout(2500) }),
     ]);
     health.mark("catalog", "up");
     if (!searched.ok) throw new Error(`HTTP ${searched.status}`);
@@ -425,6 +426,61 @@ export async function getHistory(mandateId: string, days: number): Promise<Histo
     return res.ok ? parseHistory(await readJson(res)) : null;
   } catch (err) {
     if (isNetworkFailure(err)) health.mark("policy", "down");
+    return null;
+  }
+}
+
+// ---------- the Ask guard: scam check and billers ----------
+
+export type ScamReply = { kind: "ok"; verdict: ScamVerdict } | { kind: "not_ready"; status: number } | { kind: "error"; error: string };
+
+/** POST {policy}/scam-check: rules first, then the facts, then Grok with search (policy keeps it under 12 s). */
+export async function scamCheck(body: Record<string, unknown>): Promise<ScamReply> {
+  try {
+    const res = await call(`${URLS.policy}/scam-check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(14000),
+    });
+    health.mark("policy", "up");
+    if (res.status === 404 || res.status === 405 || res.status === 501) return { kind: "not_ready", status: res.status };
+    const verdict = parseScamReply(await readJson(res));
+    return verdict ? { kind: "ok", verdict } : { kind: "error", error: `unexpected scam-check reply (HTTP ${res.status})` };
+  } catch (err) {
+    if (isNetworkFailure(err)) health.mark("policy", "down");
+    return { kind: "error", error: `policy unreachable (${describe(err)})` };
+  }
+}
+
+/** GET {merchant}/billers/{id}/accounts/{ref}: what Ruth really owes. */
+export async function getBill(billerId: string, accountRef: string): Promise<BillView | null> {
+  try {
+    const res = await call(`${URLS.merchant}/billers/${encodeURIComponent(billerId)}/accounts/${encodeURIComponent(accountRef)}`, {
+      signal: AbortSignal.timeout(3000),
+      cache: "no-store",
+    });
+    health.mark("merchant", "up");
+    return res.ok ? parseBill(await readJson(res)) : null;
+  } catch (err) {
+    if (isNetworkFailure(err)) health.mark("merchant", "down");
+    return null;
+  }
+}
+
+/** Ruth's billers from the signed mandate (v2 `billers[]`), e.g. [{merchant_id, account_ref, monthly_cap}]. */
+export async function getMandateBillers(): Promise<Array<{ merchant_id: string; account_ref: string }> | null> {
+  try {
+    const res = await call(`${URLS.policy}/mandate`, { signal: AbortSignal.timeout(2500) });
+    if (!res.ok) return null;
+    const body = (await readJson(res)) as { mandate?: { billers?: unknown } } | null;
+    const list = body?.mandate?.billers;
+    if (!Array.isArray(list)) return null;
+    return list
+      .filter((b): b is Record<string, unknown> => !!b && typeof b === "object")
+      .filter((b) => typeof b.merchant_id === "string" && typeof b.account_ref === "string")
+      .map((b) => ({ merchant_id: String(b.merchant_id), account_ref: String(b.account_ref) }));
+  } catch {
     return null;
   }
 }
