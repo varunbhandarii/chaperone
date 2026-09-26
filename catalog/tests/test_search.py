@@ -107,3 +107,23 @@ def test_gift_and_prepaid_cards_never_map_to_grocery_or_pharmacy():
             assert it["mandate_category"] == it["category"]
     assert catalog.items["RX-001"]["mandate_category"] == "pharmacy"
     assert catalog.items["BAK-001"]["mandate_category"] == "grocery"
+
+
+@pytest.mark.parametrize("q", ["my blood pressure medicine", "blood pressure pills", "medicina de la presion",
+                               "meri bp ki dawai"])
+def test_generic_medicine_words_do_not_pull_in_otc_items(q):
+    assert [i["sku"] for i in catalog.search(q)] == ["RX-001"]
+
+
+def test_generic_words_alone_still_list_medicines():
+    found = catalog.search("medicine")
+    assert found and all(i["category"] == "otc_medicine" for i in found)
+
+
+def test_unknown_medicine_is_not_answered_with_another():
+    assert catalog.search("cough medicine") == []
+
+
+def test_specific_medicine_words_still_rank():
+    assert all(i["group"] == "allergy" for i in catalog.search("allergy medicine", 5))
+    assert all(i["group"] == "pain_relief" for i in catalog.search("dard ki dawai", 5))

@@ -44,6 +44,17 @@ STOPWORDS = {
 }
 
 
+# Words that name "some medicine" without saying which. They match every OTC item (category otc_medicine),
+# so they only rank items when nothing in the query is more specific.
+GENERIC_WORDS = [
+    "medicine", "medicines", "medication", "medications", "meds", "otc", "pill", "pills", "tablet", "tablets",
+    "medicina", "medicinas", "medicamento", "medicamentos", "pastilla", "pastillas",
+    "dawai", "dawa", "dava", "goli", "दवाई", "दवा", "गोली",
+]
+GENERIC_WEIGHT = 0.5
+PROFILE_GROUP_BONUS = 4
+
+
 def normalize(text: str) -> str:
     # Strip Latin accents only (U+0300-036F); Devanagari vowel signs are also combining marks and must stay.
     text = unicodedata.normalize("NFKD", text.lower())
@@ -66,6 +77,9 @@ def tokens(text: str) -> list[str]:
 
 def contains_phrase(haystack: str, phrase: str) -> bool:
     return re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", haystack) is not None
+
+
+GENERIC = {t for w in GENERIC_WORDS for t in tokens(w)}
 
 
 class Catalog:
@@ -94,13 +108,20 @@ class Catalog:
     def search(self, q: str, limit: int = 10) -> list[dict]:
         qn = normalize(q)
         qtokens = tokens(q)
+        specific = [t for t in qtokens if t not in GENERIC]
+        generic = [t for t in qtokens if t in GENERIC]
+        # A multi-word profile phrase ("blood pressure medicine", "la presion") says which group the shopper means.
+        profile_groups = {
+            self.items[u["sku"]]["group"] for u in self.profile.get("usuals", []) if u["sku"] in self.items
+            and any(" " in normalize(p) and contains_phrase(qn, normalize(p)) for p in u["phrases"])
+        }
         scored = []
         for sku, it in self.items.items():
             own, group = self._index[sku]
             if it["category"] in GIFT_LIKE_CATEGORIES:
                 own = set()  # "apples" must not surface the Apple Gift Card; only gift-card words find these
             score = 0.0
-            for t in qtokens:
+            for t in specific:
                 if t in own:
                     score += 3
                 if t in group:
@@ -109,10 +130,15 @@ class Catalog:
                     score += 1  # "ibuprofeno" ~ "ibuprofen", "chick" ~ "chicken"
             if any(contains_phrase(qn, a) for a in self.group_aliases.get(it["group"], []) if " " in a):
                 score += 5  # multi-word alias like "gift card" or "dard ki dawai"
-            if score > 0:
-                scored.append((score, sku in self.usual_skus, -it["price"], it))
-        scored.sort(key=lambda s: s[:3], reverse=True)
-        return [self.view(s[3]) for s in scored[:limit]]
+            if it["group"] in profile_groups:
+                score += PROFILE_GROUP_BONUS
+            weak = GENERIC_WEIGHT * sum((t in own) + (t in group) for t in generic)
+            if score > 0 or weak > 0:
+                scored.append((score, weak, sku in self.usual_skus, -it["price"], it))
+        if specific or profile_groups:  # "my blood pressure medicine" or "cough medicine" must not list every OTC
+            scored = [s for s in scored if s[0] > 0]  # item; only a bare "medicine" does
+        scored.sort(key=lambda s: (s[0] + s[1], s[2], s[3]), reverse=True)
+        return [self.view(s[4]) for s in scored[:limit]]
 
     def resolve(self, q: str) -> list[dict]:
         """Profile phrases found in the utterance, longest phrase first, one hit per saved item."""
