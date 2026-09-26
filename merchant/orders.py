@@ -1,4 +1,6 @@
-"""Corner Market merchant (port 8002).
+"""The merchant service (port 8002): every storefront in contracts/merchants.json (Corner Market, Parkside
+Pharmacy, Main Street Home, Peachtree Power). The signed order's cart.merchant picks the storefront (default
+corner_market); each storefront makes its Pay by Link on its own Cybersource account, or on the main one, tagged.
 
     python -m uvicorn merchant.orders:app --host 0.0.0.0 --port 8002
 
@@ -19,6 +21,7 @@ POST /webhooks/cybersource            signed Cybersource webhook -> order paid (
 
 import asyncio
 import datetime
+import json
 import os
 import secrets
 import time
@@ -35,10 +38,10 @@ from pydantic import BaseModel, Field, ValidationError
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from catalog.search import Catalog  # noqa: E402
-from common import host_header  # noqa: E402
+from common import host_header, merchants  # noqa: E402
 from merchant import aftercare, card_auth, events, webhooks  # noqa: E402
 from merchant.verify import verify_request  # noqa: E402
-from merchant.visa import LineItem, get_payment_links, money, new_purchase_number  # noqa: E402
+from merchant.visa import LineItem, StorefrontLinks, money  # noqa: E402
 
 PUBLIC_URL = os.environ.get("MERCHANT_PUBLIC_URL", "http://192.168.8.10:8002")
 MAX_QTY = 24
@@ -48,7 +51,8 @@ CARD_AUTH = os.environ.get("CARD_AUTH") == "1"
 RECEIPT_LANGS = {"en", "es", "hi"}
 
 catalog = Catalog.load()
-payment_links = get_payment_links(PUBLIC_URL)
+storefront_links = StorefrontLinks(PUBLIC_URL)
+payment_links = storefront_links.links()  # Corner Market's; with MOCK_VISA every store shares this mock
 ORDERS: dict[str, dict] = {}
 LINK_TO_ORDER: dict[str, str] = {}
 PURCHASE_TO_ORDER: dict[str, str] = {}  # Cybersource purchaseNumber -> order, for webhooks
@@ -60,12 +64,12 @@ TIMERS: dict[str, set[asyncio.Task]] = {}  # order_id -> lifecycle and refund ti
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await payment_links.start()
+    await storefront_links.start()
     yield
-    await payment_links.close()
+    await storefront_links.close()
 
 
-app = FastAPI(title="Corner Market", lifespan=lifespan)
+app = FastAPI(title="Chaperone merchants", lifespan=lifespan)
 
 
 class CartLine(BaseModel):
@@ -76,6 +80,7 @@ class CartLine(BaseModel):
 
 class Cart(BaseModel):
     items: list[CartLine] = Field(min_length=1)
+    merchant: str | None = None  # the storefront policy decided for; absent means corner_market
 
 
 class CancelRequest(BaseModel):
@@ -108,16 +113,28 @@ class OrderRequest(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "backend": payment_links.backend}
+    return {"ok": True, "backend": payment_links.backend,
+            "storefronts": {s["merchant"]: s["backend"] for s in storefront_links.describe()}}
+
+
+def _body_merchant(body: bytes) -> str:
+    """The storefront named in the signed body, read before verification only to keep its nonces apart."""
+    try:
+        merchant = json.loads(body)["cart"].get("merchant")
+    except (ValueError, KeyError, TypeError, AttributeError):
+        merchant = None
+    return merchant if isinstance(merchant, str) and merchant else merchants.DEFAULT
 
 
 @app.post("/orders")
 async def create_order(request: Request):
     body = await request.body()
     headers = {k.lower(): v for k, v in request.headers.items()}
-    verification = await verify_request(request.method, request.url.netloc, request.url.path, headers, body)
+    merchant = _body_merchant(body)
+    verification = await verify_request(request.method, request.url.netloc, request.url.path, headers, body,
+                                        merchant=merchant)
     if not verification.ok:
-        await events.emit("signature_rejected", checks=verification.checks)
+        await events.emit("signature_rejected", checks=verification.checks, merchant=merchant)
         raise HTTPException(401, {"error": "signature rejected", "checks": verification.checks})
 
     try:
@@ -125,6 +142,12 @@ async def create_order(request: Request):
     except ValidationError as e:
         raise HTTPException(422, e.errors(include_url=False, include_context=False)) from e
     ids = {"session_id": order_req.session_id, "mandate_id": order_req.mandate_id, "decision_id": order_req.decision_id}
+    entry = merchants.get(merchant)
+    if entry is None or entry["kind"] not in merchants.BUYABLE_KINDS:
+        await events.emit("signature_rejected", checks=[*verification.checks, {
+            "id": "storefront", "passed": False,
+            "detail": f"{merchant} is {'not a known store' if entry is None else 'blocked'}"}], merchant=merchant, **ids)
+        raise HTTPException(403, {"error": "not a storefront the agent may buy from", "merchant": merchant})
     if order_req.decision_id in DECISION_TO_ORDER:
         await events.emit("signature_rejected", checks=[*verification.checks[:-1], {
             "id": "decision", "passed": False,
@@ -133,16 +156,17 @@ async def create_order(request: Request):
         raise HTTPException(409, {"error": "decision already used", "order_id": DECISION_TO_ORDER[order_req.decision_id]})
     DECISION_TO_ORDER[order_req.decision_id] = ""  # claimed before the first await, so two racing requests cannot both pass
     try:
-        return await _place_order(order_req, verification, ids)
+        return await _place_order(order_req, verification, ids, entry)
     except BaseException:
         if not DECISION_TO_ORDER.get(order_req.decision_id):
             DECISION_TO_ORDER.pop(order_req.decision_id, None)  # nothing was made: the decision may try again
         raise
 
 
-async def _place_order(order_req: OrderRequest, verification, ids: dict) -> dict:
+async def _place_order(order_req: OrderRequest, verification, ids: dict, entry: dict) -> dict:
+    merchant, store = entry["id"], entry["name"]
     await events.emit("signature_verified", keyid=verification.keyid, checks=verification.checks,
-                      **verification.params, **ids)
+                      merchant=merchant, store=store, **verification.params, **ids)
 
     # Price from our own catalog; the agent only says which SKUs and how many.
     lines, total_cents = [], 0
@@ -154,17 +178,19 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict) -> dict
         total_cents += cents * line.qty
         regular = item.get("regular_price")
         lines.append({"sku": line.sku, "name": item["name"], "qty": line.qty, "unit_price": money(cents / 100),
+                      "merchant": item.get("merchant", merchants.DEFAULT),
                       "regular_price": money(regular) if regular and regular > item["price"] else None,
                       "category": item["category"], "mandate_category": item.get("mandate_category")})
     amount = money(total_cents / 100)
 
     try:
-        link = await payment_links.create(
-            purchase_number=new_purchase_number(),
+        link = await storefront_links.links(merchant).create(
+            purchase_number=storefront_links.purchase_number(merchant),
             amount=amount,
             currency="USD",
             line_items=[LineItem(productName=l["name"], quantity=l["qty"], unitPrice=l["unit_price"], productSKU=l["sku"])
                         for l in lines],
+            store=store,
         )
     except Exception as e:  # noqa: BLE001 - only reachable with VISA_FALLBACK_TO_MOCK=0
         raise HTTPException(502, f"payment link failed: {e}") from e
@@ -172,6 +198,8 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict) -> dict
     order = {
         "order_id": order_id,
         **ids,
+        "merchant": merchant,
+        "store": store,
         "approval_id": order_req.approval_id,
         "lang": order_req.lang if order_req.lang in RECEIPT_LANGS else None,
         "lines": lines,
@@ -202,7 +230,7 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict) -> dict
     LINK_TO_ORDER[link.id] = order_id
     PURCHASE_TO_ORDER[link.purchase_number] = order_id
     await events.emit("payment_link_created", order_id=order_id, amount=amount, link_id=link.id, url=link.url,
-                      backend=link.backend, **ids)
+                      backend=link.backend, merchant=merchant, store=store, purchase_number=link.purchase_number, **ids)
     return order
 
 
@@ -236,7 +264,8 @@ def receipt(order_id: str, lang: str | None = None):
     order = get_order(order_id)
     paid_at = order["paid_at"]
     return {
-        "merchant": "Corner Market",
+        "merchant": order.get("store") or "Corner Market",
+        "merchant_id": order.get("merchant") or merchants.DEFAULT,
         "items": [{"name": l["name"], "qty": l["qty"], "price": money(float(l["unit_price"]) * l["qty"]),
                    "unit_price": l["unit_price"], "sku": l["sku"]} for l in order["lines"]],
         "total": order["amount"],
@@ -310,7 +339,8 @@ async def _verified_action(request: Request, order_id: str, model):
     body = await request.body()
     headers = {k.lower(): v for k, v in request.headers.items()}
     verification = await verify_request(request.method, request.url.netloc, request.url.path, headers, body,
-                                        existing_order=order)
+                                        existing_order=order,
+                                        merchant=(order or {}).get("merchant") or merchants.DEFAULT)
     if not verification.ok:
         await events.emit("signature_rejected", checks=verification.checks, **(_ids(order) if order else {}))
         raise HTTPException(401, {"error": "signature rejected", "checks": verification.checks})
@@ -340,7 +370,8 @@ async def cancel_order(order_id: str, request: Request):
                                   "status": order["status"]})
     link = order["payment_link"]
     try:
-        result = await payment_links.deactivate(link["id"], order["amount"], link.get("line_item") or {})
+        result = await storefront_links.links(order.get("merchant")).deactivate(
+            link["id"], order["amount"], link.get("line_item") or {})
     except Exception as e:  # noqa: BLE001 - the order stays payable and unchanged if the link could not be closed
         raise HTTPException(502, f"could not deactivate the payment link: {e}") from e
     if order["status"] != "awaiting_payment":  # paid while the PATCH was in flight
@@ -466,6 +497,7 @@ async def checkout_submit(order_id: str, request: Request):
 def panel():
     return {
         "merchant": "Corner Market",
+        "storefronts": storefront_links.describe(),
         "backend": payment_links.backend,
         "visa_last_error": getattr(payment_links, "last_error", None),
         "orders": list_orders()[:10],
@@ -559,6 +591,7 @@ def render_checkout_page(order: dict) -> str:
 
 
 def render_pay_page(order: dict) -> str:
+    store = order.get("store") or "Corner Market"
     rows = "".join(
         f"<tr><td>{l['qty']} × {escape(l['name'])}</td><td>${l['unit_price']}</td></tr>" for l in order["lines"]
     )
@@ -570,7 +603,7 @@ def render_pay_page(order: dict) -> str:
         action = ('<form method="post"><button>Pay $' + order["amount"] + ' with Visa •••• 1111</button></form>'
                   '<p class="note">Sandbox test card. No real money moves.</p>')
     return f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Corner Market checkout</title><style>
+<title>{escape(store)} checkout</title><style>
 body{{font:20px/1.4 system-ui,sans-serif;margin:0;padding:24px;background:#f6f7fb;color:#111}}
 main{{max-width:520px;margin:auto;background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 12px #0001}}
 h1{{font-size:26px;margin:0 0 4px}} .sub{{color:#555;margin:0 0 16px;font-size:16px}}
@@ -580,6 +613,6 @@ button{{width:100%;margin-top:20px;padding:18px;font-size:22px;border:0;border-r
 .paid{{margin-top:20px;padding:18px;border-radius:12px;background:#e6f6ea;color:#0a6b2b;font-weight:700;text-align:center;font-size:22px}}
 .note{{color:#666;font-size:14px;text-align:center}}
 </style></head><body><main>
-<h1>Corner Market</h1><p class="sub">Order {escape(order['order_id'])} · decision {escape(order['decision_id'])}</p>
+<h1>{escape(store)}</h1><p class="sub">Order {escape(order['order_id'])} · decision {escape(order['decision_id'])}</p>
 <table>{rows}<tr class="total"><td>Total</td><td>${order['amount']}</td></tr></table>
 {action}</main></body></html>"""

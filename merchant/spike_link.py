@@ -2,6 +2,8 @@
 
     python -m merchant.spike_link            # demo cart ($11.49) through the running merchant on :8002
     python -m merchant.spike_link --direct   # $1.00 link straight through the Visa MCP (checks sandbox creds)
+    python -m merchant.spike_link --stores   # one real $1.00 link per storefront, on its own account or tagged
+                                             # on the main one; prints the table for docs/visa-merchants.md
 """
 
 import argparse
@@ -41,6 +43,29 @@ async def direct():
     return link.url
 
 
+async def per_store():
+    from merchant.visa import LineItem, StorefrontLinks
+
+    links = StorefrontLinks("http://127.0.0.1:8002")
+    rows = []
+    try:
+        for merchant, store in links.stores.items():
+            backend = links.links(merchant)
+            try:
+                link = await backend.create(links.purchase_number(merchant), "1.00", "USD",
+                                            [LineItem(productName="Chaperone sandbox test", quantity=1, unitPrice="1.00")],
+                                            store=store["name"])
+                rows.append((store["name"], link.backend, store["account"], "own account" if store["separate"]
+                             else f"main account, tagged {store['prefix']}", link.id, link.url))
+            except Exception as e:  # noqa: BLE001 - keep going so the table shows every store
+                rows.append((store["name"], "error", store["account"], "", f"{type(e).__name__}: {e}", ""))
+    finally:
+        await links.close()
+    for row in rows:
+        print(" | ".join(str(c) for c in row))
+    return rows[0][5] if rows else ""
+
+
 def via_merchant(base: str):
     r = httpx.post(f"{base}/orders", json=DEMO_ORDER, timeout=120)
     r.raise_for_status()
@@ -52,10 +77,14 @@ def via_merchant(base: str):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--direct", action="store_true", help="call the Visa MCP directly with a $1.00 link")
+    ap.add_argument("--stores", action="store_true", help="one real $1.00 link per storefront")
     ap.add_argument("--merchant", default="http://127.0.0.1:8002")
     ap.add_argument("--no-open", action="store_true")
     args = ap.parse_args()
-    url = asyncio.run(direct()) if args.direct else via_merchant(args.merchant)
+    if args.stores:
+        url = asyncio.run(per_store())
+    else:
+        url = asyncio.run(direct()) if args.direct else via_merchant(args.merchant)
     print(f"\nPAYMENT LINK: {url}")
     if not args.no_open:
         webbrowser.open(url)

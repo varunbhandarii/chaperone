@@ -184,3 +184,21 @@ def test_policy_5xx_is_a_decision_failure_not_a_signature_failure(monkeypatch):
     assert not result.ok
     assert all(c["passed"] for c in result.checks[:-1])
     assert result.checks[-1] == {"id": "decision", "passed": False, "detail": "policy answered 503"}
+
+
+def test_decision_for_one_store_cannot_buy_at_another():
+    at_parkside = {**ORDER, "cart": {**ORDER["cart"], "merchant": "parkside_pharmacy"}}
+    decided = {**ALLOWED, "cart": {**ALLOWED["cart"], "merchant": "corner_market"}}
+    result = check(sign_request(URL, at_parkside, private_key=KEY), verify.NonceStore(), decision=decided)
+    assert not result.ok and "was for corner_market, not parkside_pharmacy" in result.checks[-1]["detail"]
+    same = {**ALLOWED, "cart": {**ALLOWED["cart"], "merchant": "parkside_pharmacy"}}
+    assert check(sign_request(URL, at_parkside, private_key=KEY), verify.NonceStore(), decision=same).ok
+
+
+def test_nonces_are_kept_per_storefront():
+    store = verify.NonceStore()
+    expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=1)
+    store.consume("n1", expires, "corner_market")
+    store.consume("n1", expires, "parkside_pharmacy")
+    with pytest.raises(verify.ReplayError):
+        store.consume("n1", expires, "parkside_pharmacy")

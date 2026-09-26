@@ -123,24 +123,31 @@ async def check_decision(body: bytes, fetch=None, existing_order: dict | None = 
         if order.get("mandate_id") != existing_order.get("mandate_id"):
             raise DecisionError(f"order {order_id} belongs to another mandate")
         return f"{decision_id} is {outcome}, for order {order_id}"
-    decided = _cart_counts(decision.get("cart") or decision.get("priced_cart"))
-    if decided != _cart_counts(order.get("cart")):
+    decided_cart = decision.get("cart") or decision.get("priced_cart")
+    if _cart_counts(decided_cart) != _cart_counts(order.get("cart")):
         raise DecisionError(f"cart differs from decision {decision_id}")
+    decided_merchant = decided_cart.get("merchant") if isinstance(decided_cart, dict) else None
+    ordered_merchant = (order.get("cart") or {}).get("merchant") if isinstance(order.get("cart"), dict) else None
+    if decided_merchant and ordered_merchant and decided_merchant != ordered_merchant:
+        raise DecisionError(f"decision {decision_id} was for {decided_merchant}, not {ordered_merchant}")
     return f"{decision_id} is {outcome}, cart matches"
 
 
 class NonceStore:
+    """Nonces are kept per storefront (one service hosts every merchant; they share the agent's JWKS)."""
+
     def __init__(self):
         self._seen: dict[str, datetime.datetime] = {}
         self._lock = threading.Lock()
 
-    def consume(self, nonce: str, expires_at: datetime.datetime) -> None:
+    def consume(self, nonce: str, expires_at: datetime.datetime, merchant: str = "corner_market") -> None:
         now = datetime.datetime.now(datetime.timezone.utc)
+        key = f"{merchant}:{nonce}"
         with self._lock:
-            self._seen = {key: expiry for key, expiry in self._seen.items() if expiry > now}
-            if nonce in self._seen:
+            self._seen = {k: expiry for k, expiry in self._seen.items() if expiry > now}
+            if key in self._seen:
                 raise ReplayError("rejected: replay")
-            self._seen[nonce] = expires_at + NONCE_GRACE
+            self._seen[key] = expires_at + NONCE_GRACE
 
 
 NONCES = NonceStore()
@@ -150,7 +157,8 @@ def prepared_from_parts(method: str, url: str, headers, body: bytes) -> requests
     return requests.Request(method, url, headers=dict(headers), data=body).prepare()
 
 
-def verify_prepared(request: requests.PreparedRequest, nonce_store: NonceStore, *, public_key=None):
+def verify_prepared(request: requests.PreparedRequest, nonce_store: NonceStore, *, public_key=None,
+                    merchant: str = "corner_market"):
     raw = request.body if isinstance(request.body, bytes) else (request.body or b"")
     if isinstance(raw, str):
         raw = raw.encode()
@@ -172,7 +180,7 @@ def verify_prepared(request: requests.PreparedRequest, nonce_store: NonceStore, 
         raise InvalidSignature("unknown keyid")
     nonce = str(params["nonce"])
     expires_at = datetime.datetime.fromtimestamp(expires, datetime.timezone.utc)
-    nonce_store.consume(nonce, expires_at)
+    nonce_store.consume(nonce, expires_at, merchant)
     return results[0]
 
 
@@ -198,6 +206,7 @@ async def verify_request(
     nonce_store: NonceStore | None = None,
     fetch_decision=None,
     existing_order: dict | None = None,
+    merchant: str = "corner_market",
 ) -> Verification:
     mode = os.environ.get("MERCHANT_VERIFY", "off")
     has_sig = "signature" in headers and "signature-input" in headers
@@ -211,7 +220,7 @@ async def verify_request(
 
     request = prepared_from_parts(method, f"http://{authority}{path}", headers, body)
     try:
-        result = verify_prepared(request, nonce_store or NONCES, public_key=public_key)
+        result = verify_prepared(request, nonce_store or NONCES, public_key=public_key, merchant=merchant)
         decision_detail = await check_decision(body, fetch_decision, existing_order)
     except Exception as exc:  # every failure becomes a red check on the wall, never a 500
         if isinstance(exc, DigestMismatch):
@@ -243,7 +252,7 @@ async def verify_request(
             {"id": "content_digest", "passed": True, "detail": "sha-256 matches the body"},
             {"id": "signature", "passed": True, "detail": f"ed25519, keyid {keyid}, tag agent-payer-auth"},
             {"id": "window", "passed": True, "detail": f"{span}s window, inside 8 minutes"},
-            {"id": "nonce", "passed": True, "detail": "first use"},
+            {"id": "nonce", "passed": True, "detail": f"first use at {merchant}"},
             {"id": "decision", "passed": True, "detail": decision_detail},
         ],
     )
