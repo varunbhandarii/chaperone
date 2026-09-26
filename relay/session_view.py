@@ -94,7 +94,9 @@ def render(session_id: str, events: list[dict], receipt: dict | None) -> str:
         for e in events if e.get("type") in TITLES
     ) or '<li class="muted">Nothing checked yet.</li>'
 
-    verified = next((e for e in reversed(events) if e.get("type") in ("signature_verified", "signature_rejected")), None)
+    # The check that let the order through; later rejections (a replayed order) are still listed in the steps.
+    verified = next((e for e in reversed(events) if e.get("type") == "signature_verified"), None) \
+        or next((e for e in reversed(events) if e.get("type") == "signature_rejected"), None)
     signed = next((e for e in reversed(events) if e.get("type") == "request_signed"), None)
     checks = ""
     if verified:

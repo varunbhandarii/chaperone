@@ -191,6 +191,8 @@ def test_session_page_shows_one_line_per_turn_rules_checks_and_payment(client):
     checks = [{"id": c, "passed": True, "detail": "ok"} for c in ("content_digest", "signature", "window", "nonce", "decision")]
     client.post("/events", json={**event("signature_verified", keyid="chaperone-agent-1", nonce="n-123",
                                          checks=checks, decision_id="d_1"), "source": "merchant"})
+    client.post("/events", json={**event("signature_rejected", decision_id="d_1", checks=[
+        {"id": "decision", "passed": False, "detail": "decision d_1 already has order ord_1"}]), "source": "merchant"})
     client.post("/events", json={**event("paid", order_id="ord_1", total="11.49", via="host"), "source": "merchant"})
     r = client.get("/sessions/s1", params={"format": "html"})
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
@@ -199,6 +201,7 @@ def test_session_page_shows_one_line_per_turn_rules_checks_and_payment(client):
     assert "<script>" not in page and "&lt;script&gt;" in page
     assert "ALLOW · every rule passed" in page and "5 of 5 checks passed" in page
     assert "n-123" in page and "Paid $11.49" in page
+    assert "Merchant rejected the request" in page  # the replayed order is listed, the card shows the pass
     assert client.get("/sessions/nobody", params={"format": "html"}).status_code == 404
     assert client.get("/sessions/s1").json()[0]["type"] == "heard"  # JSON stays the default
 
