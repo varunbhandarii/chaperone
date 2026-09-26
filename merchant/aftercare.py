@@ -23,7 +23,7 @@ import time
 FULFILMENT = ("paid", "preparing", "ready_for_pickup", "picked_up")
 REFUND_STATES = ("partially_refunded", "refunded")
 REFUNDABLE = FULFILMENT + ("partially_refunded",)
-NOT_RETURNABLE = {"pharmacy_pickup"}
+NOT_RETURNABLE = {"pharmacy_pickup": "refund_not_allowed_rx", "utility_bill": "refund_not_allowed_bill"}
 RETURN_WINDOW_S = 30 * 24 * 3600
 STUB_LABEL = "Refund to the original card · sandbox processor stub"
 LOYALTY_PROGRAM = "Corner Market Rewards"
@@ -110,7 +110,7 @@ def check_refund(order: dict, sku: str, qty: int, claimed_amount: str | None) ->
     if line is None:
         raise RefundRefused(422, f"sku {sku} is not in order {order['order_id']}")
     if line.get("category") in NOT_RETURNABLE:
-        raise RefundRefused(409, "not returnable", say_key="refund_not_allowed_rx", sku=sku)
+        raise RefundRefused(409, "not returnable", say_key=NOT_RETURNABLE[line["category"]], sku=sku)
     left_qty = line["qty"] - refunded_qty(order, sku)
     if qty > left_qty:
         raise RefundRefused(409, "more than was bought", sku=sku, refundable_qty=left_qty)

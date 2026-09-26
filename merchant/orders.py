@@ -39,7 +39,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from catalog.search import Catalog  # noqa: E402
 from common import host_header, merchants  # noqa: E402
-from merchant import aftercare, card_auth, events, webhooks  # noqa: E402
+from merchant import aftercare, biller, card_auth, events, webhooks  # noqa: E402
 from merchant.verify import verify_request  # noqa: E402
 from merchant.visa import LineItem, StorefrontLinks, money  # noqa: E402
 
@@ -171,6 +171,14 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict, entry: 
     # Price from our own catalog; the agent only says which SKUs and how many.
     lines, total_cents = [], 0
     for line in order_req.cart.items:
+        if biller.is_bill(line.sku):
+            try:
+                bill_line = biller.price_line(line.sku, merchant, line.qty)
+            except biller.BillError as e:
+                raise HTTPException(e.http_status, e.error) from e
+            total_cents += aftercare.cents(bill_line["unit_price"])
+            lines.append(bill_line)
+            continue
         item = catalog.items.get(line.sku)
         if item is None:
             raise HTTPException(422, f"unknown sku {line.sku}")
@@ -213,14 +221,14 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict, entry: 
         "verification": verification.checks,
         "created_at": time.time(),
         "paid_at": None,
-        "pickup_code": aftercare.new_pickup_code(),
+        "pickup_code": None if entry["kind"] == "biller" else aftercare.new_pickup_code(),
         "fulfilment": None,
         "timeline": [],
         "refunds": [],
         "cancel": None,
         "card_last4": None,
         "savings": None,
-        "loyalty_points": aftercare.loyalty_points(amount),
+        "loyalty_points": aftercare.loyalty_points(amount) if merchant == merchants.DEFAULT else None,
     }
     saved = aftercare.savings_cents(lines)
     order["savings"] = money(saved / 100) if saved else None  # never shown when nothing was saved
@@ -270,7 +278,7 @@ def receipt(order_id: str, lang: str | None = None):
                    "unit_price": l["unit_price"], "sku": l["sku"]} for l in order["lines"]],
         "total": order["amount"],
         "currency": order["currency"],
-        "pickup": "after 3pm",
+        "pickup": "after 3pm" if order["pickup_code"] else None,
         "order_id": order_id,
         "decision_id": order["decision_id"],
         "session_id": order["session_id"],
@@ -301,9 +309,11 @@ async def mark_paid(order_id: str, via: str) -> dict:
     order["card_last4"] = auth.get("card_last4") or aftercare.SANDBOX_CARD_LAST4
     aftercare.record(order, "paid", via=via)
     await events.emit("paid", order_id=order_id, total=order["amount"], amount=order["amount"], via=via,
-                      session_id=order["session_id"],
+                      merchant=order.get("merchant"), store=order.get("store"), session_id=order["session_id"],
                       mandate_id=order["mandate_id"], decision_id=order["decision_id"])
-    _start(order_id, _fulfil(order_id), "fulfil")
+    biller.record_payment(order["lines"], order["paid_at"])
+    if order["pickup_code"]:  # a bill has nothing to prepare or pick up
+        _start(order_id, _fulfil(order_id), "fulfil")
     return order
 
 
@@ -493,6 +503,19 @@ async def checkout_submit(order_id: str, request: Request):
     return HTMLResponse(render_checkout_page(order))
 
 
+@app.get("/billers/{biller_id}/accounts/{account_ref}")
+async def bill_account(biller_id: str, account_ref: str, lang: str = "en", session_id: str | None = None):
+    """The real balance. Read-only; bill_status and the scam check both call it."""
+    try:
+        facts = biller.account(biller_id, account_ref, lang)
+    except biller.BillError as e:
+        raise HTTPException(e.http_status, e.error) from e
+    await events.emit("bill_checked", biller=facts["biller"], account_ref=facts["account_ref"],
+                      balance_due=facts["balance_due"], due_date=facts["due_date"], past_due=facts["past_due"],
+                      session_id=session_id)
+    return facts
+
+
 @app.get("/panel")
 def panel():
     return {
@@ -553,6 +576,7 @@ def reset(request: Request):
     ORDERS.clear()
     LINK_TO_ORDER.clear()
     PURCHASE_TO_ORDER.clear()
+    biller.reset()
     events.clear()
     return {"ok": True, "orders_cleared": cleared}
 

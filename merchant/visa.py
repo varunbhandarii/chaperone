@@ -91,7 +91,7 @@ def one_line(amount: str, line_items: list[LineItem], store: str = "Corner Marke
     if len(line_items) == 1:
         li = line_items[0]
         name = f"{li.quantity} x {li.productName}" if li.quantity != 1 else li.productName
-        if store != "Corner Market":
+        if store != "Corner Market" and not name.startswith(store):
             name = f"{store} - {name}"
     else:
         name = f"{store} order ({sum(li.quantity for li in line_items)} items)"
