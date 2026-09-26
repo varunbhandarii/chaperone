@@ -2,7 +2,7 @@
 // a missing or unreachable service produces a logged warning and a safe fallback, never a crash.
 
 import { URLS, VOICE } from "./config.ts";
-import { FALLBACK_ITEMS, parseSearchResponse, type CatalogItem, type CheckoutBody } from "./cart.ts";
+import { FALLBACK_ITEMS, mergeResults, parseResolveResponse, parseSearchResponse, type CatalogItem, type CheckoutBody } from "./cart.ts";
 import type { Lang } from "./lang.ts";
 import { parseScreen, type ScreenResult } from "./screen.ts";
 
@@ -54,7 +54,7 @@ class ServiceHealth {
   /** Any HTTP answer (even a 404) means something is listening; only a network error or timeout means down. */
   async probe(name: ServiceName): Promise<ServiceState> {
     try {
-      await fetch(`${URLS[name]}/`, { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+      await call(`${URLS[name]}/`, { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
       this.mark(name, "up");
     } catch {
       this.mark(name, "down");
@@ -89,7 +89,25 @@ export const health = new ServiceHealth();
 
 /** Network failures (not HTTP errors) mean the service is gone until the next probe says otherwise. */
 function isNetworkFailure(err: unknown): boolean {
-  return err instanceof TypeError || (err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError"));
+  return (
+    err instanceof ProxyUnreachable ||
+    err instanceof TypeError ||
+    (err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError"))
+  );
+}
+
+/** The dev-server proxy could not reach the service (vite.config.ts marks those 502s). */
+class ProxyUnreachable extends Error {}
+
+function proxyUnreachable(res: Response): boolean {
+  return res.status === 502 && res.headers.get("x-station-proxy") === "unreachable";
+}
+
+/** fetch that turns "the proxy could not reach the service" into a network failure. */
+async function call(url: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (proxyUnreachable(res)) throw new ProxyUnreachable(`${new URL(url).pathname.split("/")[2] ?? "service"} unreachable through the proxy`);
+  return res;
 }
 
 // ---------- relay: ephemeral token ----------
@@ -103,7 +121,7 @@ export async function fetchToken(): Promise<ClientSecret> {
   const url = `${URLS.relay}${VOICE.token_path}`;
   let res: Response;
   try {
-    res = await fetch(url, { method: "POST", signal: AbortSignal.timeout(10000) });
+    res = await call(url, { method: "POST", signal: AbortSignal.timeout(10000) });
   } catch (err) {
     throw new Error(`relay unreachable at ${URLS.relay} (${describe(err)}). Start it: .venv/Scripts/python -m uvicorn relay.main:app --host 0.0.0.0 --port 8000`);
   }
@@ -124,26 +142,55 @@ export interface SearchResult {
   error?: string;
 }
 
+/** Profile phrases first ("my blood pressure medicine" -> the saved pickup, marked usual), then catalog search. */
 export async function searchCatalog(query: string, warn: Warn): Promise<SearchResult> {
   const fallback = (why: string): SearchResult => ({ query, items: FALLBACK_ITEMS.map((i) => ({ ...i })), source: "fallback", error: why });
   if (health.isDown("catalog")) {
     warn(`catalog down at ${URLS.catalog}; using fallback items (rechecked every ${RECHECK_MS / 1000} s)`);
     return fallback("catalog down");
   }
-  const url = `${URLS.catalog}/search?q=${encodeURIComponent(query)}&limit=3`;
+  const q = encodeURIComponent(query);
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
+    const t0 = performance.now();
+    const [resolved, searched] = await Promise.all([
+      call(`${URLS.catalog}/resolve?q=${q}`, { signal: AbortSignal.timeout(2500) }).then(
+        async (res) => (res.ok ? parseResolveResponse(await readJson(res)) : []),
+        () => [] as CatalogItem[],
+      ),
+      call(`${URLS.catalog}/search?q=${q}&limit=3`, { signal: AbortSignal.timeout(2500) }),
+    ]);
     health.mark("catalog", "up");
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const body = await readJson(res);
-    const items = parseSearchResponse(body);
-    if (!items) throw new Error("response has no results list");
-    const took = (body as { took_ms?: unknown }).took_ms;
-    return { query, items: items.slice(0, 3), source: "catalog", took_ms: typeof took === "number" ? took : undefined };
+    if (!searched.ok) throw new Error(`HTTP ${searched.status}`);
+    const items = parseSearchResponse(await readJson(searched));
+    if (!items) throw new Error("response has no items list");
+    return { query, items: mergeResults(resolved, items, 3), source: "catalog", took_ms: Math.round(performance.now() - t0) };
   } catch (err) {
     if (isNetworkFailure(err)) health.mark("catalog", "down");
     warn(`catalog unavailable at ${URLS.catalog} (${describe(err)}); using fallback items`);
     return fallback(describe(err));
+  }
+}
+
+// ---------- policy: budget ----------
+
+export interface Budget {
+  monthly_cap: number;
+  spent: number;
+  left: number;
+}
+
+export async function getBudget(mandateId: string, warn: Warn): Promise<Budget | { error: string }> {
+  if (health.isDown("policy") && (await health.probe("policy")) === "down") return { error: "policy service is down" };
+  try {
+    const res = await call(`${URLS.policy}/budget?mandate_id=${encodeURIComponent(mandateId)}`, { signal: AbortSignal.timeout(2500) });
+    health.mark("policy", "up");
+    const body = (await readJson(res)) as Partial<Budget> | null;
+    if (!res.ok || !body || typeof body.left !== "number") return { error: `budget unavailable (HTTP ${res.status})` };
+    return { monthly_cap: Number(body.monthly_cap), spent: Number(body.spent), left: body.left };
+  } catch (err) {
+    if (isNetworkFailure(err)) health.mark("policy", "down");
+    warn(`budget unavailable at ${URLS.policy} (${describe(err)})`);
+    return { error: `budget unavailable (${describe(err)})` };
   }
 }
 
@@ -157,7 +204,7 @@ export async function postCheckout(body: CheckoutBody, warn: Warn): Promise<Reco
     return { error: "policy service is down; nothing was bought" };
   }
   try {
-    const res = await fetch(url, {
+    const res = await call(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -179,17 +226,18 @@ export async function postCheckout(body: CheckoutBody, warn: Warn): Promise<Reco
 
 // ---------- policy: rule screen ----------
 
-export async function screenText(sessionId: string, text: string, lang: Lang | undefined, warn: Warn): Promise<ScreenResult | null> {
+/** partial: true for live (cumulative) transcripts, false for the final one, so the policy counts each turn once. */
+export async function screenText(sessionId: string, text: string, lang: Lang | undefined, warn: Warn, partial = false): Promise<ScreenResult | null> {
   const url = `${URLS.policy}/screen`;
   if (health.isDown("policy")) {
     warn(`rule screen skipped: policy down at ${URLS.policy} (rechecked every ${RECHECK_MS / 1000} s)`);
     return null;
   }
   try {
-    const res = await fetch(url, {
+    const res = await call(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(lang ? { session_id: sessionId, text, lang } : { session_id: sessionId, text }),
+      body: JSON.stringify({ session_id: sessionId, text, ...(lang ? { lang } : {}), partial }),
       signal: AbortSignal.timeout(1200),
     });
     health.mark("policy", "up");

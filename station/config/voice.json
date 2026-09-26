@@ -4,13 +4,15 @@
   "subprotocol_prefix": "xai-client-secret.",
   "token_path": "/session/token",
   "voice_notes": {
-    "ara": "warm; default for Spanish and English",
-    "naksh": "Indian-accented; use for Hindi sessions (open the page with ?voice=naksh)",
-    "eve": "British",
-    "leo": "British",
-    "all": "every voice speaks every supported language"
+    "ara": "warm; English and Hindi, and the first reply before the language is known",
+    "carina": "soft, soothing; Spanish (switched in after the first Spanish turn)",
+    "all": "every voice speaks every supported language; ?voice=<name> forces one voice for the whole session"
   },
-  "ports": { "relay": 8000, "policy": 8001, "catalog": 8003 },
+  "ports": {
+    "relay": 8000,
+    "policy": 8001,
+    "catalog": 8003
+  },
   "mandate_id": "m_ruth_2026_09",
   "merchant": "corner_market",
   "capture": {
@@ -20,66 +22,175 @@
     "preroll_ms": 300,
     "min_press_ms": 250
   },
-  "screen": { "timeout_ms": 1500, "screen_partials": true },
-  "refusal": { "fallback": "force_message", "clip_timeout_ms": 800 },
-  "barge_in": { "truncate": true },
+  "screen": {
+    "timeout_ms": 1500,
+    "screen_partials": true
+  },
+  "refusal": {
+    "fallback": "force_message",
+    "clip_timeout_ms": 800
+  },
+  "barge_in": {
+    "truncate": true
+  },
   "session": {
-    "instructions": "## Role & Persona\nYou are Chaperone, a patient shopping helper for older adults.\n\n## Objective\nHelp the shopper buy groceries and pharmacy items, spending only what the caregiver's rules allow.\n\n## Conversation Flow\nWhenever the user names any product, call search_catalog with a short English query before answering. Offer at most three options, cheapest first, and say which one is their usual. Before any purchase, read back every item, its price and the total, and ask for a yes. When the user says yes to the read-back, call checkout with the skus and quantities. After checkout, say in one short sentence whether the order went through, needs the caregiver's approval, or was declined.\n\n## Guardrails & Escalation\nNever invent products or prices; use only tool results. If a tool result has refused true, say its say text exactly and nothing else.\n\n## Voice & Communication Style\nSpeak slowly, one question at a time, plain words. Always reply in the language the user spoke in their most recent turn. Before calling a tool, say one very short line in the user's language, such as \"Un momento.\" Say prices the way a person says them out loud.",
+    "instructions": "## Role & Persona\nYou are Chaperone, a patient shopping helper for older adults.\n\n## Objective\nHelp the shopper buy groceries and pharmacy items, spending only what the caregiver's rules allow.\n\n## Conversation Flow\n1. Whenever the user names any product, call search_catalog before answering. Use a short English query; for personal items use the shopper's own words, such as \"my blood pressure medicine\".\n2. Offer at most three options, cheapest first, and say which one is their usual. When they choose, or when an item has shopper_calls_it matching what they asked for, call add_to_cart with its sku.\n3. When the shopper has everything, call read_cart and say its say text word for word, then wait for a yes.\n4. Only after that yes, call checkout. It takes no arguments. Never call checkout before read_cart and a yes. If checkout returns read_back_required, call read_cart and read it back again.\n5. After checkout, say the result's say text.\n6. If the shopper asks how much money is left this month, call budget_left and say its say text.\n\n## Guardrails & Escalation\nNever invent products or prices; use only tool results. If a tool result has refused true, say its say text exactly and nothing else. Never ask for or read out card numbers, codes or passwords.\n\n## Voice & Communication Style\nKeep every reply to one or two short sentences. Speak slowly, one question at a time, in plain words. Always reply in the language the user spoke in their most recent turn. Before searching, say one very short line in the user's language, such as \"Un momento.\" Say prices the way a person says them out loud.",
     "voice": "ara",
-    "reasoning": { "effort": "none" },
-    "turn_detection": { "type": null },
+    "reasoning": {
+      "effort": "none"
+    },
+    "turn_detection": {
+      "type": null
+    },
     "audio": {
       "input": {
-        "format": { "type": "audio/pcm", "rate": null },
+        "format": {
+          "type": "audio/pcm",
+          "rate": null
+        },
         "transport": "json",
         "transcription": {
           "model": "grok-transcribe",
-          "keyterms": ["MiniCap", "Ensure", "lisinopril"]
+          "keyterms": [
+            "Lisinopril",
+            "Ensure",
+            "Nature's Own",
+            "Honey Wheat",
+            "Dave's Killer Bread",
+            "Kroger",
+            "Tylenol",
+            "Advil",
+            "Claritin",
+            "Zyrtec",
+            "Google Play",
+            "Apple Gift Card",
+            "gift card",
+            "tarjeta de regalo",
+            "Zelle",
+            "Western Union",
+            "Bitcoin",
+            "OTP",
+            "Medicare",
+            "Social Security",
+            "Corner Market",
+            "Priyank",
+            "Ruth",
+            "dawai",
+            "presión"
+          ]
         }
       },
       "output": {
-        "format": { "type": "audio/pcm", "rate": null },
+        "format": {
+          "type": "audio/pcm",
+          "rate": null
+        },
         "transport": "json",
-        "speed": 0.95
+        "speed": 0.9
       }
     },
     "tools": [
       {
         "type": "function",
         "name": "search_catalog",
-        "description": "Search the grocery and pharmacy catalog. Call this whenever the user names a product, in any language, before you answer. Pass a short English query of one to three words, for example \"bread\" or \"blood pressure medicine\". Returns up to three items with sku, name, brand, size, price and usual (true for the shopper's usual item).",
+        "description": "Search the grocery and pharmacy catalog. Call this whenever the user names a product, in any language, before you answer. Pass a short English query of one to three words, for example \"bread\", or the shopper's own words for a personal item, for example \"my blood pressure medicine\". Returns up to three items with sku, name, price, usual (the shopper's usual item) and shopper_calls_it for saved personal items.",
         "parameters": {
           "type": "object",
           "properties": {
-            "query": { "type": "string", "description": "short English product query, one to three words" }
+            "query": {
+              "type": "string",
+              "description": "short English product query, or the shopper's words for a personal item"
+            }
           },
-          "required": ["query"]
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "add_to_cart",
+        "description": "Add an item to the shopper's cart. Use a sku from search_catalog items in this conversation. qty defaults to 1. Returns the cart lines and total.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "sku": {
+              "type": "string",
+              "description": "sku from a search_catalog item"
+            },
+            "qty": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "how many; default 1"
+            }
+          },
+          "required": [
+            "sku"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "remove_from_cart",
+        "description": "Remove an item from the cart. Omit qty to remove the whole line. Returns the cart lines and total.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "sku": {
+              "type": "string",
+              "description": "sku of a cart line"
+            },
+            "qty": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "how many to remove; omit to remove all"
+            }
+          },
+          "required": [
+            "sku"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "read_cart",
+        "description": "Returns the cart lines, the total, and say: the exact read-back sentence in the shopper's language. Call it before every checkout, say the say text word for word, then wait for the shopper's yes.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "type": "function",
+        "name": "budget_left",
+        "description": "How much the shopper can still spend this month under the caregiver's rules. Returns monthly_cap, spent, left and say.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
         }
       },
       {
         "type": "function",
         "name": "checkout",
-        "description": "Buy the items through the caregiver's spending rules. Call this only after you read back every item, its price and the total, and the user said yes. Pass skus exactly as returned by search_catalog. The result has decision allow, approve or deny; if it has refused true, say its say text exactly.",
+        "description": "Place the order for the cart that was just read back. Takes no arguments. Only call it after read_cart and the shopper's yes. Returns status (ordered, waiting_for_caregiver, declined or error) and say: say it. If it returns read_back_required, call read_cart and read it back first.",
         "parameters": {
           "type": "object",
-          "properties": {
-            "items": {
-              "type": "array",
-              "minItems": 1,
-              "items": {
-                "type": "object",
-                "properties": {
-                  "sku": { "type": "string", "description": "sku from a search_catalog result" },
-                  "qty": { "type": "integer", "minimum": 1 }
-                },
-                "required": ["sku", "qty"]
-              }
-            }
-          },
-          "required": ["items"]
+          "properties": {}
         }
       }
-    ]
+    ],
+    "resumption": {
+      "enabled": true
+    }
   },
-  "measured": { "release_to_first_audio_ms": 998, "samples": 1, "note": "Chrome, laptop mic, Spanish; first audio is the spoken preamble before the tool call" }
+  "measured": {
+    "release_to_first_audio_ms": 998,
+    "samples": 1,
+    "note": "Chrome, laptop mic, Spanish; first audio is the spoken preamble before the tool call"
+  },
+  "voice_by_lang": {
+    "es": "carina",
+    "en": "ara",
+    "hi": "ara"
+  }
 }

@@ -1,7 +1,7 @@
-// DOM rendering for the station page: state, transcripts, latency, rule banner, items, meter.
+// DOM rendering for the station page: state strip, transcripts, cart, outcome, latency, rule banner, items, meter.
 
 import type { AgentState, AgentUI, NoteKind } from "./agent.ts";
-import type { CatalogItem } from "./cart.ts";
+import type { CartLineView, CatalogItem, CheckoutOutcome } from "./cart.ts";
 import { levelFromRms } from "./pcm.ts";
 
 function $(id: string): HTMLElement {
@@ -17,7 +17,23 @@ const STATE_LABEL: Record<AgentState, string> = {
   listening: "Listening... release when done",
   thinking: "Thinking...",
   speaking: "Speaking... press to interrupt",
+  waiting: "Waiting for Priyank... hold to talk",
 };
+
+/** The companion screen's state strip: what the shopper needs to know at a glance. */
+const STRIP_LABEL: Record<AgentState, string> = {
+  off: "Press Start",
+  connecting: "Connecting",
+  ready: "Ready: hold the button and talk",
+  listening: "Listening",
+  thinking: "Thinking",
+  speaking: "Speaking",
+  waiting: "Waiting for Priyank",
+};
+
+function usd(n: number): string {
+  return `$${n.toFixed(2)}`;
+}
 
 function clock(): string {
   return new Date().toLocaleTimeString([], { hour12: false });
@@ -37,6 +53,10 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
   const itemsSource = $("items-source");
   const levelEl = $("level");
   const micLabel = $("mic-label");
+  const strip = $("strip");
+  const cartEl = $("cart");
+  const cartTotal = $("cart-total");
+  const outcomeEl = $("outcome");
 
   const lines = new Map<string, HTMLLIElement>();
 
@@ -64,6 +84,8 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
       ptt.className = `ptt state-${state}`;
       ptt.disabled = state === "off";
       pttLabel.textContent = STATE_LABEL[state];
+      strip.textContent = STRIP_LABEL[state];
+      strip.className = `strip state-${state}`;
       onStateChange(state);
     },
 
@@ -159,6 +181,46 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
       } else {
         this.note(`Checkout response: ${JSON.stringify(result).slice(0, 300)}`, "tool");
       }
+    },
+
+    cart(lines: CartLineView[], total: number) {
+      cartTotal.textContent = usd(total);
+      if (!lines.length) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = "Nothing yet";
+        cartEl.replaceChildren(li);
+        return;
+      }
+      cartEl.replaceChildren(
+        ...lines.map((line) => {
+          const li = document.createElement("li");
+          const name = document.createElement("span");
+          name.textContent = `${line.qty > 1 ? `${line.qty} × ` : ""}${line.name}`;
+          const price = document.createElement("span");
+          price.className = "price";
+          price.textContent = usd(line.line_total);
+          li.append(name, price);
+          return li;
+        }),
+      );
+    },
+
+    outcome(outcome: CheckoutOutcome) {
+      outcomeEl.hidden = false;
+      outcomeEl.className = `outcome ${outcome.status}`;
+      const title = {
+        ordered: "Ordered",
+        waiting_for_caregiver: "Waiting for Priyank to approve",
+        declined: "Not ordered",
+        error: "Order not placed",
+      }[outcome.status];
+      outcomeEl.textContent = `${title}${outcome.total !== undefined ? ` · ${usd(outcome.total)}` : ""}`;
+      const small = document.createElement("small");
+      small.textContent = [outcome.say, outcome.order_id && `order ${outcome.order_id}`, outcome.decision_id && `decision ${outcome.decision_id}`]
+        .filter(Boolean)
+        .join(" · ");
+      outcomeEl.append(small);
     },
 
     level(rms) {

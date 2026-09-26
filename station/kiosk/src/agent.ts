@@ -2,22 +2,28 @@
 // rule screening in front of every tool, the search_catalog and checkout tools, refusals and the ledger.
 
 import { Capture, MIC_CONSTRAINTS, Player, createAudioContext, type CaptureBlock } from "./audio.ts";
-import { VOICE, buildSession, realtimeUrl } from "./config.ts";
+import { VOICE, VOICE_NAME, buildSession, languageHint, realtimeUrl, voiceFor } from "./config.ts";
 import {
+  Cart,
   ItemCache,
-  buildCart,
+  ReadBackGate,
   buildCheckoutBody,
+  checkoutOutcome,
   compactItem,
+  money,
   newSessionId,
-  parseCartLines,
+  readBackSay,
+  sayFor,
+  type CartLineView,
   type CatalogItem,
+  type CheckoutOutcome,
 } from "./cart.ts";
 import { detectLang, guessLang, type Lang } from "./lang.ts";
 import { ChunkAccumulator, PcmRing, base64ToPcm16, median, pcm16ToBase64 } from "./pcm.ts";
 import { ruleIds, type ScreenResult } from "./screen.ts";
-import { Ledger, fetchToken, health, loadClip, postCheckout, screenText, searchCatalog } from "./services.ts";
+import { Ledger, fetchToken, getBudget, health, loadClip, postCheckout, screenText, searchCatalog } from "./services.ts";
 
-export type AgentState = "off" | "connecting" | "ready" | "listening" | "thinking" | "speaking";
+export type AgentState = "off" | "connecting" | "ready" | "listening" | "thinking" | "speaking" | "waiting";
 export type NoteKind = "info" | "tool" | "warn" | "error" | "rule";
 
 export interface AgentUI {
@@ -30,6 +36,8 @@ export interface AgentUI {
   rules(ids: string[], action: string, say?: string): void;
   items(items: CatalogItem[], source: string): void;
   decision(result: Record<string, unknown>): void;
+  cart(lines: CartLineView[], total: number): void;
+  outcome(outcome: CheckoutOutcome): void;
   level(rms: number): void;
   micDevice(label: string): void;
 }
@@ -67,6 +75,7 @@ interface Turn {
 }
 
 const DEFAULT_SAY = "I can't help with that purchase on this account.";
+const RECONNECT_DELAYS_MS = [500, 1000, 2000];
 const SHORT_AUDIO_MS = 100;
 const MAX_OUTBOX = 1200;
 
@@ -100,8 +109,16 @@ export class StationAgent {
   private manualTurnRetried = false;
   private sessionUpdateSent = false;
   private setupRetried = false;
+  /** false after the server rejected audio.input.transcription.model; later session updates leave it out */
+  private transcriptionModel = true;
   private outbox: ClientEvent[] = [];
   private started = false;
+  /** From conversation.created; reconnecting with it resumes the conversation (history kept 30 min). */
+  private conversationId: string | null = null;
+  private reconnecting = false;
+  private resumed = false;
+  /** Bumps on every new socket; tool outputs computed for an older socket are dropped. */
+  private socketGen = 0;
 
   private pressed = false;
   private flushing = false;
@@ -128,6 +145,12 @@ export class StationAgent {
   private shopperTexts: string[] = [];
   private lastLang: Lang | undefined;
   private cache = new ItemCache();
+  private cart = new Cart();
+  private gate = new ReadBackGate();
+  /** Committed shopper turns (voice commits and typed messages); a turn after read_cart is the "yes". */
+  private userTurns = 0;
+  private waitingForCaregiver = false;
+  private sessionLang: Lang | undefined;
   private pendingForce: { text: string; at: number } | null = null;
   private deferredRefusal: { turn: Turn; result: ScreenResult } | null = null;
   private warned = new Set<string>();
@@ -244,10 +267,11 @@ export class StationAgent {
 
   // ---------------------------------------------------------------- socket
 
-  private openSocket(secret: string): void {
-    const url = realtimeUrl();
+  private openSocket(secret: string, conversationId?: string): void {
+    const url = realtimeUrl(conversationId);
     const ws = new WebSocket(url, [VOICE.subprotocol_prefix + secret]);
     this.ws = ws;
+    this.socketGen++;
     const openedAt = performance.now();
 
     ws.onopen = () => {
@@ -271,6 +295,10 @@ export class StationAgent {
     ws.onclose = (e) => {
       if (this.ws !== ws) return;
       console.warn(`[${ts()}] websocket closed code=${e.code} reason=${e.reason || "-"}`);
+      if (this.started && this.conversationId && VOICE.session.resumption) {
+        void this.reconnect(`socket closed (code ${e.code})`);
+        return;
+      }
       this.ui.status(`Voice session closed (code ${e.code}${e.reason ? `: ${e.reason}` : ""}). Press Start to reconnect.`, e.code === 1000 ? "info" : "error");
       void this.stop();
     };
@@ -278,6 +306,7 @@ export class StationAgent {
 
   private async sendSessionUpdate(withTranscriptionModel = true): Promise<void> {
     if (this.sessionUpdateSent && withTranscriptionModel) return;
+    if (!withTranscriptionModel) this.transcriptionModel = false;
     this.sessionUpdateSent = true;
     const rate = await (this.rateReady ?? Promise.resolve(24000));
     const session = buildSession(rate, { withTranscriptionModel });
@@ -360,6 +389,8 @@ export class StationAgent {
     }
 
     this.send({ type: "input_audio_buffer.commit" });
+    this.userTurns++;
+    this.waitingForCaregiver = false;
     this.tRelease = tRelease;
     this.latencyKind = "voice";
     this.awaitingFirstAudio = true;
@@ -435,6 +466,9 @@ export class StationAgent {
     if (turn.lang) this.lastLang = turn.lang;
     this.recordShopper(turn, text, `text-${turn.n}`, "guess");
     this.send({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } });
+    this.userTurns++;
+    this.waitingForCaregiver = false;
+    if (turn.lang) this.applyLanguage(turn.lang);
     this.tRelease = performance.now();
     this.latencyKind = "typed";
     this.awaitingFirstAudio = true;
@@ -504,7 +538,7 @@ export class StationAgent {
     if (text === turn.lastPartialScreened) return;
     turn.partialInFlight = true;
     turn.lastPartialScreened = text;
-    void screenText(this.sessionId, text, guessLang(text) ?? this.lastLang, (m) => this.warn("screen", m)).then((result) => {
+    void screenText(this.sessionId, text, guessLang(text) ?? this.lastLang, (m) => this.warn("screen", m), true).then((result) => {
       turn.partialInFlight = false;
       if (result?.action === "refuse") this.settleScreen(turn, result);
       const queued = turn.partialQueued;
@@ -616,6 +650,7 @@ export class StationAgent {
       case "session.created":
       case "conversation.created":
         console.info(`[${ts()}] ${ev.type}`);
+        if (ev.type === "conversation.created" && typeof ev.conversation?.id === "string") this.conversationId = ev.conversation.id;
         void this.sendSessionUpdate();
         break;
 
@@ -627,7 +662,7 @@ export class StationAgent {
           this.manualTurnRetried = true;
           this.ui.note("Server kept automatic turn detection; resending session with turn_detection null.", "warn");
           void this.rateReady?.then((rate) => {
-            const session = buildSession(rate ?? 24000) as unknown as Record<string, unknown>;
+            const session = buildSession(rate ?? 24000, { withTranscriptionModel: this.transcriptionModel }) as unknown as Record<string, unknown>;
             session.turn_detection = null;
             this.rawSend({ type: "session.update", session } as unknown as ClientEvent);
           });
@@ -637,10 +672,11 @@ export class StationAgent {
           this.flushOutbox();
           const mic = this.capture?.hasStream;
           this.ui.status(
-            `Session ready (${this.rate} Hz, voice ${s.voice ?? "?"}). ${mic ? "Hold the button and speak." : "Microphone unavailable: use typed input, or allow the mic and press Start again."}`,
+            `Session ready (${this.rate} Hz, voice ${s.voice ?? VOICE_NAME}). ${mic ? "Hold the button and speak." : "Microphone unavailable: use typed input, or allow the mic and press Start again."}`,
             mic ? "info" : "warn",
           );
-          this.ledger.post("session_started", { model: VOICE.model, voice: s.voice, rate: this.rate });
+          this.ledger.post("session_started", { model: VOICE.model, voice: s.voice, rate: this.rate, resumed: this.resumed });
+          if (this.resumed) this.afterResume();
           this.refreshState();
         }
         break;
@@ -675,6 +711,7 @@ export class StationAgent {
         const detected = detectLang(ev.language, text);
         turn.lang = detected.lang ?? this.lastLang;
         if (turn.lang) this.lastLang = turn.lang;
+        if (turn.lang && detected.source !== "none") this.applyLanguage(turn.lang);
         if (ev.language) console.info(`[${ts()}] detected language (api): ${ev.language}`);
         this.recordShopper(turn, text, `voice-${turn.n}`, detected.source);
         if (!turn.screenSettled) {
@@ -813,6 +850,7 @@ export class StationAgent {
     const callId = String(ev.call_id ?? "");
     const args = safeParse(ev.arguments);
     const turn = this.currentTurn();
+    const gen = this.socketGen;
     console.info(`%c[${ts()}] TOOL CALL ${name}(${JSON.stringify(args)})`, "color:#a0a;font-weight:bold");
     this.ui.note(`Tool call: ${name}(${JSON.stringify(args)})`, "tool");
 
@@ -827,17 +865,36 @@ export class StationAgent {
           turn.refusal = "tool";
           this.logRefusal(turn, screen, `tool ${name}`);
         }
-      } else if (name === "search_catalog") {
-        output = await this.toolSearch(args);
-      } else if (name === "checkout") {
-        output = await this.toolCheckout(args);
       } else {
-        output = { error: `unknown tool ${name}` };
+        output = await this.dispatchTool(name, args);
       }
     }
     console.info(`[${ts()}] TOOL RESULT ${name}:`, output);
+    if (gen !== this.socketGen) {
+      console.warn(`[${ts()}] ${name} finished after a reconnect; its output is dropped (the cart state was re-sent instead)`);
+      return;
+    }
     if (callId) {
       this.send({ type: "conversation.item.create", item: { type: "function_call_output", call_id: callId, output: JSON.stringify(output) } });
+    }
+  }
+
+  private async dispatchTool(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    switch (name) {
+      case "search_catalog":
+        return this.toolSearch(args);
+      case "add_to_cart":
+        return this.toolAdd(args);
+      case "remove_from_cart":
+        return this.toolRemove(args);
+      case "read_cart":
+        return this.toolReadCart();
+      case "budget_left":
+        return this.toolBudget();
+      case "checkout":
+        return this.toolCheckout();
+      default:
+        return { error: `unknown tool ${name}` };
     }
   }
 
@@ -861,6 +918,10 @@ export class StationAgent {
     this.refreshState();
   }
 
+  private get lang(): Lang {
+    return this.lastLang ?? "en";
+  }
+
   private async toolSearch(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const query = String(args.query ?? "").trim();
     if (!query) return { error: "query is required" };
@@ -868,39 +929,173 @@ export class StationAgent {
     this.cache.add(result.items);
     this.ui.items(result.items, result.source);
     this.ledger.post("items_found", { query, skus: result.items.map((i) => i.sku), catalog_source: result.source });
-    return { query, source: result.source, results: result.items.map(compactItem) };
+    return { query, source: result.source, items: result.items.map(compactItem) };
   }
 
-  private async toolCheckout(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const parsed = parseCartLines(args);
-    if (!parsed.ok) return { error: parsed.error };
-    const built = buildCart(parsed.lines, this.cache, VOICE.merchant);
-    if (!built.ok) return { error: built.error };
+  /** Every cart change: the version bumps (voiding an earlier read-back), cart_updated is posted, the screen redraws. */
+  private cartChanged(): { lines: CartLineView[]; total: number } {
+    const summary = this.cart.summary();
+    this.ledger.post("cart_updated", { cart: this.cart.priced(VOICE.merchant), version: this.cart.version });
+    this.ui.cart(summary.lines, summary.total);
+    return summary;
+  }
+
+  private toolAdd(args: Record<string, unknown>): Record<string, unknown> {
+    const sku = String(args.sku ?? "");
+    const qty = args.qty === undefined || args.qty === null ? 1 : Number(args.qty);
+    const item = this.cache.get(sku);
+    if (!item) return { error: `unknown sku ${sku || "(none)"}; call search_catalog and use a sku from its items` };
+    const added = this.cart.add(item, qty);
+    if (!added.ok) return { error: added.error };
+    return { ok: true, added: { sku, qty, name: compactItem(item).name }, cart: this.cartChanged() };
+  }
+
+  private toolRemove(args: Record<string, unknown>): Record<string, unknown> {
+    const sku = String(args.sku ?? "");
+    const qty = args.qty === undefined || args.qty === null ? undefined : Number(args.qty);
+    const removed = this.cart.remove(sku, qty);
+    if (!removed.ok) return { error: removed.error, cart: this.cart.summary() };
+    return { ok: true, removed: sku, qty_left: removed.qty, cart: this.cartChanged() };
+  }
+
+  /** Reads the cart back and arms the checkout gate for this cart version. */
+  private toolReadCart(): Record<string, unknown> {
+    const { lines, total } = this.cart.summary();
+    const say = readBackSay(lines, this.cart.totalCents, this.lang);
+    if (lines.length) this.gate.markRead(this.cart.version, this.userTurns);
+    console.info(`[${ts()}] read-back armed for cart v${this.cart.version} at user turn ${this.userTurns}`);
+    return { lines, total, say };
+  }
+
+  private async toolBudget(): Promise<Record<string, unknown>> {
+    const budget = await getBudget(VOICE.mandate_id, (m) => this.warn("budget", m));
+    if ("error" in budget) return { error: budget.error };
+    return { ...budget, say: sayFor("budget_left", this.lang, { left: money(Math.round(budget.left * 100), this.lang) }) };
+  }
+
+  /** Checks out the cart that was read back; the model cannot pass its own list. */
+  private async toolCheckout(): Promise<Record<string, unknown>> {
+    if (this.cart.isEmpty) return { error: "cart_empty", say: sayFor("cart_empty", this.lang) };
+    const gate = this.gate.check(this.cart.version, this.userTurns);
+    if (!gate.ok) {
+      console.warn(`[${ts()}] checkout held by the read-back gate: ${gate.reason}`);
+      this.ui.note(`Checkout held: read-back required (${gate.reason})`, "warn");
+      return {
+        error: "read_back_required",
+        reason: gate.reason,
+        say: readBackSay(this.cart.lines(), this.cart.totalCents, this.lang),
+        instruction: "Call read_cart, read its say text to the shopper, and wait for their yes before calling checkout again.",
+      };
+    }
+    const cart = this.cart.priced(VOICE.merchant);
+    const totalCents = this.cart.totalCents;
     const body = buildCheckoutBody({
       sessionId: this.sessionId,
       mandateId: VOICE.mandate_id,
-      cart: built.cart,
+      cart,
       transcript: this.shopperTexts.join(" "),
       lang: this.lastLang,
       readBack: true,
     });
-    this.ledger.post("checkout_requested", { cart: body.cart, read_back: true });
-    this.ui.note(`Checkout: ${body.cart.items.map((i) => `${i.qty} x ${i.name} $${i.price.toFixed(2)}`).join(", ")} = $${body.cart.total.toFixed(2)}`, "tool");
-    const result = await postCheckout(body, (m) => this.warn("policy", m));
-    if (typeof result.decision === "string") {
+    this.ledger.post("checkout_requested", { cart, read_back: true });
+    this.ui.note(`Checkout: ${cart.items.map((i) => `${i.qty} x ${i.name} $${i.price.toFixed(2)}`).join(", ")} = $${cart.total.toFixed(2)}`, "tool");
+    const reply = await postCheckout(body, (m) => this.warn("policy", m));
+    if (typeof reply.decision === "string") {
       this.ledger.post("policy_decision", {
-        decision_id: result.decision_id,
-        decision: result.decision,
-        rules: result.rules ?? [],
-        monthly_total_after: result.monthly_total_after,
+        decision_id: reply.decision_id,
+        decision: reply.decision,
+        rules: reply.rules ?? [],
+        monthly_total_after: reply.monthly_total_after,
       });
-      const failed = Array.isArray(result.rules)
-        ? (result.rules as Array<{ id?: string; passed?: boolean }>).filter((r) => r && r.passed === false).map((r) => String(r.id))
+      const failed = Array.isArray(reply.rules)
+        ? (reply.rules as Array<{ id?: string; passed?: boolean }>).filter((r) => r && r.passed === false).map((r) => String(r.id))
         : [];
-      if (failed.length) this.ui.rules(failed, String(result.decision));
+      if (failed.length) this.ui.rules(failed, String(reply.decision));
     }
-    this.ui.decision(result);
-    return result;
+    this.ui.decision(reply);
+    const outcome = checkoutOutcome(reply, totalCents, this.lang);
+    this.ui.outcome(outcome);
+    if (outcome.status === "ordered") {
+      this.cart.clear();
+      this.gate.reset();
+      this.cartChanged();
+    } else if (outcome.status === "waiting_for_caregiver") {
+      this.waitingForCaregiver = true;
+    }
+    return { ...outcome };
+  }
+
+  // ---------------------------------------------------------------- session resumption
+
+  /** The socket dropped: rejoin the same conversation with a fresh token; the cart and gate live in the page. */
+  private async reconnect(reason: string): Promise<void> {
+    if (this.reconnecting || !this.conversationId) return;
+    this.reconnecting = true;
+    this.ws = null;
+    this.configured = false;
+    this.sessionUpdateSent = false;
+    this.responseActive = false;
+    this.currentResponseId = null;
+    this.toolBatches.clear();
+    this.outbox = this.outbox.filter((m) => m.type === "input_audio_buffer.append");
+    this.generation++;
+    this.player?.stop();
+    this.awaitingFirstAudio = false;
+    this.ui.state("connecting");
+    this.ui.status(`Voice connection lost (${reason}); reconnecting and keeping the cart...`, "warn");
+    for (const [attempt, delay] of RECONNECT_DELAYS_MS.entries()) {
+      await new Promise((r) => setTimeout(r, delay));
+      if (!this.started) break;
+      try {
+        const token = await fetchToken();
+        this.resumed = true;
+        this.sessionLang = undefined; // the language hint is re-sent after the next detected turn
+        this.openSocket(token.value, this.conversationId);
+        console.info(`[${ts()}] reconnect attempt ${attempt + 1}: resuming conversation ${this.conversationId}`);
+        this.reconnecting = false;
+        return;
+      } catch (err) {
+        console.warn(`[${ts()}] reconnect attempt ${attempt + 1} failed:`, err);
+      }
+    }
+    this.reconnecting = false;
+    this.ui.status("Could not reconnect the voice session. Press Start to begin again; typed input still needs a session.", "error");
+    await this.stop();
+  }
+
+  /** After a resume: tell the model what the page knows (cart, read-back state) without a response. */
+  private afterResume(): void {
+    this.resumed = false;
+    const { lines, total } = this.cart.summary();
+    const state = { cart: lines, total, read_back_done: this.gate.check(this.cart.version, this.userTurns + 1).ok };
+    this.send({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "system",
+        content: [{ type: "text", text: `The connection dropped and was restored. Current state: ${JSON.stringify(state)}. Continue where you left off; do not greet again.` }],
+      },
+    });
+    this.ui.status("Reconnected; the cart was kept.", "info");
+    this.ui.note(`Resumed conversation ${this.conversationId} with ${lines.length} cart line(s)`, "info");
+  }
+
+  // ---------------------------------------------------------------- language
+
+  /** First detected language (or a change): send language_hint, and the voice for that language when configured. */
+  private applyLanguage(lang: Lang): void {
+    if (lang === this.sessionLang || !this.configured) return;
+    this.sessionLang = lang;
+    void this.rateReady?.then((rate) => {
+      // Always the full session: a partial session.update may not keep the tools and instructions.
+      const session = buildSession(rate ?? 24000, {
+        withTranscriptionModel: this.transcriptionModel,
+        languageHint: languageHint(lang),
+        voice: voiceFor(lang),
+      });
+      this.rawSend({ type: "session.update", session });
+      console.info(`[${ts()}] language ${lang}: language_hint ${languageHint(lang)}, voice ${session.voice}`);
+    });
   }
 
   // ---------------------------------------------------------------- state and warnings
@@ -912,7 +1107,7 @@ export class StationAgent {
     if (this.pressed) return this.ui.state("listening");
     if (this.player?.active) return this.ui.state("speaking");
     if (this.responseActive || this.continuing || this.awaitingFirstAudio) return this.ui.state("thinking");
-    this.ui.state("ready");
+    this.ui.state(this.waitingForCaregiver ? "waiting" : "ready");
   }
 
   private warn(key: string, msg: string): void {

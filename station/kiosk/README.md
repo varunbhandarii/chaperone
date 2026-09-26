@@ -2,9 +2,11 @@
 
 A one-page push-to-talk client for the shopper station. It opens a Grok Voice realtime session with an
 ephemeral token from the relay, streams the microphone only while the button is held, plays the reply,
-and runs two tools for the model: `search_catalog` (catalog service) and `checkout` (policy service).
-Every tool call waits for the policy service's rule screen first, and a refused request is answered with
-a fixed refusal instead of the model.
+and runs the shopping tools for the model: `search_catalog`, `add_to_cart`, `remove_from_cart`,
+`read_cart`, `budget_left` and `checkout`. The cart lives in the page, and `checkout` takes no arguments:
+it buys the cart that was read back, and only after the shopper spoke again (the "yes"). Every tool call
+waits for the policy service's rule screen first, and a refused request is answered with a fixed refusal
+instead of the model. The page doubles as the large-type companion screen (**Shopper view**).
 
 Session settings (model, voice, instructions, tools, audio format) live in
 `station/config/voice.json`; the page and the CLI probe both read that file.
@@ -13,13 +15,15 @@ Session settings (model, voice, instructions, tools, audio format) live in
 |---|---|
 | `src/agent.ts` | realtime protocol, push-to-talk, barge-in, per-turn rule screen, tools, refusals, ledger events, latency |
 | `src/audio.ts` | AudioWorklet capture (PCM16, 20 ms blocks) and gapless playback |
-| `src/pcm.ts`, `src/cart.ts`, `src/lang.ts`, `src/screen.ts` | pure helpers (PCM/base64, pre-roll, cart and checkout body, language guess, screen parsing) |
-| `src/services.ts` | HTTP calls to relay, catalog, policy; each degrades with a warning |
-| `src/ui.ts`, `src/main.ts`, `index.html` | large-type page, key mapping, device pickers |
+| `src/cart.ts` | the cart (integer cents, versioned), the read-back gate, read-back and outcome sentences in es/hi/en, checkout body |
+| `src/pcm.ts`, `src/lang.ts`, `src/screen.ts` | pure helpers (PCM/base64, pre-roll, language guess, screen parsing) |
+| `src/services.ts` | HTTP calls to relay, catalog (`/resolve`, `/search`), policy (`/screen`, `/checkout`, `/budget`); reachability probe; each degrades with a warning |
+| `src/ui.ts`, `src/main.ts`, `index.html` | large-type page and companion screen (state strip, cart, outcome, refusal banner), key mapping, device pickers |
 | `ws_probe.mjs` | CLI check of the realtime protocol and the tool round trip |
+| `voice_samples.mjs` | renders one read-back line in several voices (xAI TTS) to choose the station voice by ear |
 | `tests/` | relay tests, a local mock of the realtime API and services, probe integration test |
 | `test/` | Node unit tests for the pure helpers |
-| `../../relay/` | `POST /session/token`, `GET /health` (mints ephemeral secrets; the API key never reaches a browser) |
+| `../../relay/` | `POST /session/token`, `GET /health` (mints ephemeral secrets; the API key never reaches a browser); mounts `relay/ledger.py` when present. CORS allows only `STATION_ORIGINS` |
 
 ## Run
 
@@ -39,9 +43,16 @@ npm run dev                                           # http://localhost:5173
 Open **http://localhost:5173** on the station laptop. Browsers only allow the microphone on `localhost`
 or HTTPS, so do not open the page by LAN IP.
 
-Service addresses: `SERVICES_HOST` in the root `.env` (or `VITE_SERVICES_HOST`), or `?host=192.168.8.10`
-in the URL; relay :8000, policy :8001, catalog :8003. Individual overrides: `?relay=`, `?policy=`,
-`?catalog=` (full URLs). `?voice=naksh` picks the Indian-accented voice for Hindi sessions.
+Service addresses: the page calls `/svc/relay`, `/svc/policy` and `/svc/catalog` on its own origin, and the
+dev server proxies them to `SERVICES_HOST` from the root `.env` (relay :8000, policy :8001, catalog :8003;
+restart `npm run dev` after changing it). The services therefore need no CORS headers, and a service that is
+down answers the proxy's marked 502, which the page treats as "down" at once. `?host=192.168.8.10` or
+`?relay=`, `?policy=`, `?catalog=` (full URLs) call services directly instead, which needs CORS on them. The voice follows the shopper's language (`voice_by_lang` in `voice.json`: Spanish
+`carina`, English and Hindi `ara`); `?voice=<name>` forces one voice for the whole session. `?view=shopper` opens the
+companion screen without the operator panels (also the **Shopper view** button).
+
+For direct calls, the relay answers browsers only from `STATION_ORIGINS` (default
+`http://localhost:5173,http://127.0.0.1:5173`), so another page on the LAN cannot mint voice tokens.
 
 Press **Start** (token, microphone and socket start in parallel), then hold **Space** or the big button
 while speaking. Pressing while the agent talks stops it immediately. A tap shorter than 250 ms sends nothing.
@@ -57,6 +68,48 @@ leaving the window, or the tab losing focus all end the turn, so the microphone 
 
 Microphone and speaker pickers are in the same panel (the speaker picker needs a browser with
 `AudioContext.setSinkId`, e.g. Chrome 110+). The level meter shows the live input.
+
+## The shopping flow
+
+1. The shopper names a product. The model calls `search_catalog`; the page asks `GET {catalog}/resolve`
+   first (profile phrases such as "mi medicina de la presión" or "bp ki dawai" -> the saved pickup, shown as
+   option one with `usual: true`), then `GET {catalog}/search?q=&limit=3`.
+2. The model calls `add_to_cart {sku, qty}`. Only skus from this session's search results are accepted.
+   Every change bumps the cart version, redraws the cart and posts `cart_updated`.
+3. The model calls `read_cart`, which returns `{lines, total, say}`: `say` is the exact read-back sentence
+   in the shopper's language. That arms the gate for this cart version.
+4. The shopper says yes (a new voice or typed turn). `checkout {}` sends `read_back: true` to
+   `POST {policy}/checkout` only if the cart has not changed since `read_cart` and a turn came after it;
+   otherwise the model gets `{"error": "read_back_required", "say": ...}` and nothing leaves the page.
+5. The policy reply becomes `{status, say_key, say}`: `ordered` ("ordering_now"), `waiting_for_caregiver`
+   ("asking_priya"; the strip shows *Waiting for Priyank*) or `declined`. The model speaks `say`; only
+   refusals are spoken verbatim without the model.
+6. `budget_left` calls `GET {policy}/budget?mandate_id=` and returns `{monthly_cap, spent, left, say}`.
+
+## Companion screen
+
+**Shopper view** hides the latency meter, hardware panel and tool notes, leaving the state strip
+(*Listening*, *Thinking*, *Speaking*, *Waiting for Priyank*), the red refusal banner with the rule id, the
+order outcome, the cart with its total and both sides of the transcript. All shopper-facing text is at
+least 24 px on a dark background with at least 4.5:1 contrast; buttons are at least 48 px tall.
+
+## Session resumption
+
+`voice.json` enables `resumption`. The page keeps the conversation id from `conversation.created`; if the
+socket closes while the station is running, it mints a new token and reopens the socket with
+`&conversation_id=<id>` (up to 3 tries, 0.5/1/2 s apart), then adds a system message with the cart and
+read-back state. The cart and the gate live in the page, so nothing is lost. The server keeps the history
+for 30 minutes of inactivity.
+
+## Choosing the voice
+
+```bash
+node station/kiosk/voice_samples.mjs            # es-MX and en in ara, luna, carina; hi in naksh and ara; speed 0.9
+node station/kiosk/voice_samples.mjs --list     # voices this account can use
+```
+
+Clips go to `station/kiosk/voice-samples/` (gitignored). Put the choice in `session.voice` and
+`voice_by_lang` in `voice.json`; the refusal clips should be rendered in the same voice.
 
 ## The pass test
 
@@ -112,27 +165,36 @@ tool called and audio received. `--wav` saves the spoken reply. The token and ke
   sends a `force_message` item so the text is spoken verbatim without the model (falling back to a
   one-response instruction if the server rejects that). Rule ids are printed large on the page and in
   red in the console. If `/screen` is unreachable the page proceeds and warns once.
-- **Tools.** `search_catalog` calls `GET {catalog}/search?q=&limit=3`, falling back to three bread items
-  (marked `source: "fallback"`). `checkout` prices the cart from cached catalog items (integer cents) and
-  posts `{session_id, mandate_id, cart{merchant, items[{sku,name,category,qty,price}], total}, transcript,
-  lang, read_back}` to `{policy}/checkout`; the JSON answer goes back to the model. Tool outputs are sent
+- **Tools.** See *The shopping flow*. Search falls back to three real catalog breads (`BAK-001` usual,
+  `BAK-003`, `BAK-002`; marked `source: "fallback"`) when the catalog is down. The priced cart's
+  `category` carries the catalog's `mandate_category` (`grocery`, `pharmacy`, ...). Tool outputs are sent
   at once; the next `response.create` waits until the current response is done and playback has drained.
-- **Ledger.** `session_started`, `heard`, `items_found`, `checkout_requested`, `policy_decision` and
-  `refusal` are posted fire-and-forget to `{relay}/events` with `session_id`, `mandate_id`, `t` and
-  `source: "station"`. If the relay has no ledger yet the page warns once and carries on.
+- **Language.** After the first detected turn (and on a change) the page re-sends the full session with
+  `audio.input.transcription.language_hint` (`es-MX`, `hi`, `en`) and the voice for that language. It
+  always sends the full session because the echo of a partial update did not show the tools.
+- **Reachability.** On Start the page probes the relay, policy and catalog once; a service that is down is
+  skipped instantly (fallback items, no rule screen) and re-probed every 30 s, so a stopped service does
+  not cost a timeout on every turn. Checkout re-probes a down policy service before giving up.
+- **Ledger.** `session_started`, `heard`, `items_found`, `cart_updated`, `checkout_requested`,
+  `policy_decision` and `refusal` are posted fire-and-forget to `{relay}/events` with `type`,
+  `session_id`, `mandate_id`, `t` (integer ms) and `source: "station"`. If the relay has no ledger yet the
+  page warns once and carries on.
 
 Details checked against the xAI docs (Sept 2026): the `.updated` live user transcript is only sent when
 `audio.input.transcription.model` is `grok-transcribe` (the page retries without it if the server rejects
 the field); the `.completed` event schema has no language field, so the page logs one if present and
 otherwise guesses es/hi/en from the text; user text items use `input_text`; the client-secret request
-takes only `expires_after`.
+takes only `expires_after`. Checked against the live API: assistant history items accept both `text` and
+`output_text`; `resumption.enabled` and reconnecting with `conversation_id` resume the same conversation;
+a system message with a `text` part is accepted; the server does not echo the voice in `session.updated`.
 
 ## Settings in `station/config/voice.json`
 
 `capture.preferred_sample_rate` (null = device rate), `capture.preroll_ms`, `capture.chunk_ms`,
 `capture.min_press_ms`, `screen.timeout_ms`, `screen.screen_partials`, `refusal.fallback`
-(`force_message` or `instruct`), `refusal.clip_timeout_ms`, `barge_in.truncate`, the `session` object,
-and `measured.release_to_first_audio_ms`.
+(`force_message` or `instruct`), `refusal.clip_timeout_ms`, `barge_in.truncate`, `voice_by_lang`, the
+`session` object (instructions, voice, speed 0.9, keyterms, the six tools, resumption), and
+`measured.release_to_first_audio_ms`.
 
 ## Tests (no credentials needed)
 
@@ -142,9 +204,12 @@ cd station/kiosk && npm run build && npm test          # typecheck + bundle; uni
 ```
 
 The mock in `tests/mock_realtime.py` follows the documented event flow (validated `session.update`,
-commit, transcription events, a preamble plus `search_catalog` call, `checkout` on "sí", cancel,
-truncate, `force_message`) and stands in for the relay token, catalog, policy and ledger endpoints. To
-drive the page against it:
+commit, transcription events, then a scripted model: search -> `add_to_cart` -> `read_cart` -> read-back;
+"sí" -> `checkout {}` -> the outcome; cancel, truncate, `force_message`). It stands in for the relay token,
+catalog (`/search` `{q, items}`, `/resolve` `{q, matches}`), policy (`/screen`, `/checkout` in the agreed
+reply shape: allow under $40, approve above, deny for gift cards; `/budget`) and ledger endpoints.
+`POST /mock/reset {"eager_checkout": true}` makes the scripted model call checkout before the read-back
+(the gate must hold it); `POST /mock/drop` closes the socket to exercise resumption. To drive the page:
 
 ```bash
 .venv/Scripts/python -m uvicorn mock_realtime:app --app-dir station/kiosk/tests --port 8010

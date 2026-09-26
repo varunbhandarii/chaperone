@@ -82,12 +82,14 @@ def test_probe_round_trip(mock_url):
     assert session["turn_detection"] == {"type": None}
     assert session["reasoning"] == {"effort": "none"}
     assert session["instructions"] == voice["session"]["instructions"]
-    assert [t["name"] for t in session["tools"]] == ["search_catalog", "checkout"]
+    assert [t["name"] for t in session["tools"]] == ["search_catalog", "add_to_cart", "remove_from_cart", "read_cart", "budget_left", "checkout"]
+    checkout_tool = next(t for t in session["tools"] if t["name"] == "checkout")
+    assert checkout_tool["parameters"] == {"type": "object", "properties": {}}  # checkout takes no list from the model
 
     outputs = [e["event"]["item"] for e in client if e["type"] == "conversation.item.create" and e["event"]["item"]["type"] == "function_call_output"]
     assert len(outputs) == 1
     result = json.loads(outputs[0]["output"])
-    assert result["source"] == "fallback" and [r["sku"] for r in result["results"]] == ["bread_ww_20oz", "bread_white_20oz", "bread_sourdough"]
+    assert result["source"] == "fallback" and [r["sku"] for r in result["items"]] == ["BAK-001", "BAK-003", "BAK-002"]
     assert types[-1] == "response.create"
 
 

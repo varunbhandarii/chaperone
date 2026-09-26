@@ -7,11 +7,16 @@ Endpoints
     POST /session/token[?seconds=300] -> {"value", "expires_at"}   (503 when XAI_API_KEY is missing)
     GET  /health                      -> {"ok", "service", "xai_key_configured"}
 
-CORS allows every origin because the station page runs on another port and host on the LAN.
-The minted secret is returned to the caller only; it is never logged.
+CORS allows only the station page's origins (STATION_ORIGINS, comma-separated), so another page open on a
+LAN machine cannot mint voice tokens. The wall is same-origin and the caregiver app calls the relay from its
+server, so neither needs an entry. The minted secret is returned to the caller only; it is never logged.
+
+The ledger routes (/events, /events/stream, /sessions, JWKS, /audio, /wall, /reset) live in relay/ledger.py
+and are mounted here when that module is present.
 """
 from __future__ import annotations
 
+import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -34,12 +39,28 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Chaperone relay", version="0.1.0", lifespan=lifespan)
+STATION_ORIGINS = [
+    o.strip() for o in os.getenv("STATION_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=STATION_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
+
+# Ledger routes ship in their own module; the token endpoint keeps working if it is missing or broken.
+try:
+    from relay import ledger
+except ModuleNotFoundError as exc:
+    ledger = None
+    missing = "relay/ledger.py not present" if exc.name == "relay.ledger" else f"ledger import failed: {exc!r}"
+    print(f"[relay] {missing}; ledger routes not mounted", flush=True)
+except Exception as exc:  # noqa: BLE001
+    ledger = None
+    print(f"[relay] ledger routes failed to load, not mounted: {exc!r}", flush=True)
+if ledger is not None:
+    app.include_router(ledger.router)
 
 NO_STORE = {"Cache-Control": "no-store"}
 
