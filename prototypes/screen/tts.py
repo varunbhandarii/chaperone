@@ -1,7 +1,8 @@
 """Render refusal scripts to mp3 with xAI TTS.
 
-    python tts.py                 # ai/prompts/refusal.{en,es,hi}.txt -> ai/warnings/refusal.{lang}.mp3
     python tts.py --text "Hola" --lang es --out /tmp/x.mp3
+
+The demo clips are rendered by `python -m ai.render_clips` from ai/prompts/lines.<lang>.json.
 """
 
 from __future__ import annotations
@@ -47,14 +48,9 @@ if __name__ == "__main__":
     ap.add_argument("--lang", default="en")
     ap.add_argument("--out")
     args = ap.parse_args()
-    if args.text:
-        jobs = [(args.text, args.lang, Path(args.out or f"tts.{args.lang}.mp3"))]
-    else:
-        jobs = [
-            ((ROOT / "ai/prompts" / f"refusal.{lang}.txt").read_text().strip(), lang,
-             ROOT / "ai/warnings" / f"refusal.{lang}.mp3")
-            for lang in LANGS
-        ]
+    if not args.text:
+        raise SystemExit("pass --text; demo clips come from `python -m ai.render_clips`")
+    jobs = [(args.text, args.lang, Path(args.out or f"tts.{args.lang}.mp3"))]
     for text, lang, out in jobs:
         start = time.perf_counter()
         audio = tts(text, lang)

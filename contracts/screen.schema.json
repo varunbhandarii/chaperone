@@ -18,7 +18,7 @@
           "rule_id": { "type": "string" },
           "pattern": { "type": "string" },
           "lang": { "enum": ["en", "es", "hi", "hi_latn"] },
-          "term": { "type": "string", "description": "the normalized text that matched" }
+          "term": { "type": "string", "description": "the words as said that matched (original text, not the folded form)" }
         }
       }
     },

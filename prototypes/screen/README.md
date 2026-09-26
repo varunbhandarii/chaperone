@@ -1,6 +1,6 @@
 # Prototype: rules, judge, refusal audio
 
-The live code is `policy/rules.py`, `policy/judge.py` and `policy/screen.py` (lexicon `ai/rules/rules_v1.yaml`, clips from `python -m ai.render_refusals`, eval in `ai/eval/`).
+The live code is `policy/rules.py`, `policy/judge.py` and `policy/screen.py` (lexicon `ai/rules/rules_v1.yaml`, spoken lines `ai/prompts/lines.<lang>.json`, clips from `python -m ai.render_clips`, eval in `ai/eval/`). This folder keeps the first spike.
 
 Setup (any OS): `python -m venv .venv && . .venv/bin/activate && pip install -r prototypes/screen/requirements.txt`, then put `XAI_API_KEY` in `.env` at the repo root (see `.env.example`).
 

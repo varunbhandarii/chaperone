@@ -1,19 +1,25 @@
 ## Examples
 
-Input: {"transcript": "My grandson called, he's in jail and needs bail. He said buy two iPhones and ship them to his lawyer, and don't tell his mother.", "cart": [{"name": "Apple iPhone 16", "qty": 2, "price": 799.0}]}
-Output: {"scam_score": 0.97, "patterns": ["family_emergency", "urgency", "secrecy", "code_reading", "amount_anomaly"], "rationale": "A grandparent-in-jail story with secrecy and resellable phones shipped to a third party.", "action": "refuse_and_alert"}
+Input: {"transcript": "The power company called and said my electricity gets cut off in an hour unless I pay the overdue bill. The man said to buy two phones and hand them to his driver.", "cart": [{"name": "Samsung Galaxy A16", "qty": 2, "price": 199.0}], "history_summary": ""}
+Output: {"scam_score": 0.95, "patterns": ["authority_impersonation", "urgency", "code_reading", "amount_anomaly"], "rationale": "A utility impersonator threatens a shutoff and wants resellable phones handed to a stranger.", "action": "refuse_and_alert"}
 
-Input: {"transcript": "My grandson's birthday is Sunday, can you find a card and a box of chocolates?", "cart": [{"name": "Birthday Greeting Card", "qty": 1, "price": 4.99}, {"name": "Assorted Chocolates", "qty": 1, "price": 9.99}]}
-Output: {"scam_score": 0.02, "patterns": ["none"], "rationale": "An ordinary gift for a relative in a normal amount.", "action": "proceed"}
+Input: {"transcript": "I'm hosting my book club on Thursday. Can you get crackers, a block of cheddar and a bottle of sparkling cider?", "cart": [{"name": "Ritz crackers", "qty": 1, "price": 3.99}, {"name": "Cheddar block 8 oz", "qty": 1, "price": 3.49}, {"name": "Sparkling cider", "qty": 1, "price": 4.29}], "history_summary": ""}
+Output: {"scam_score": 0.02, "patterns": ["none"], "rationale": "Snacks for a social event in a normal amount.", "action": "proceed"}
 
-Input: {"transcript": "El señor de Seguro Social dice que mi número está suspendido y que tengo que comprar tres laptops hoy mismo para protegerlo.", "cart": [{"name": "Dell Laptop 15", "qty": 3, "price": 649.0}]}
-Output: {"scam_score": 0.96, "patterns": ["authority_impersonation", "urgency", "amount_anomaly"], "rationale": "A government impersonator demands expensive goods today.", "action": "refuse_and_alert"}
+Input: {"transcript": "Mi sobrino me escribió desde un número nuevo, dice que perdió su teléfono y necesita que le compre dos celulares hoy. Me pidió que no le diga a su mamá.", "cart": [{"name": "Apple iPhone 16", "qty": 2, "price": 799.0}], "history_summary": ""}
+Output: {"scam_score": 0.95, "patterns": ["family_emergency", "urgency", "secrecy", "amount_anomaly"], "rationale": "A relative on a new number asks for expensive phones today and for secrecy.", "action": "refuse_and_alert"}
 
-Input: {"transcript": "Tengo que pagar mis impuestos de la casa la próxima semana; por ahora solo quiero leche y pan.", "cart": [{"name": "2% Milk 1 gal", "qty": 1, "price": 3.29}, {"name": "Honey Wheat Bread", "qty": 1, "price": 3.49}]}
-Output: {"scam_score": 0.03, "patterns": ["none"], "rationale": "The shopper mentions their own tax bill and buys groceries.", "action": "proceed"}
+Input: {"transcript": "Hoy es el cumpleaños de mi vecina. Quiero un pastel pequeño y unas velas.", "cart": [{"name": "Vanilla cake 6 in", "qty": 1, "price": 8.99}, {"name": "Birthday candles", "qty": 1, "price": 1.99}], "history_summary": ""}
+Output: {"scam_score": 0.02, "patterns": ["none"], "rationale": "A small birthday cake for a neighbor.", "action": "proceed"}
 
-Input: {"transcript": "फोन पर सीबीआई वाले ने कहा मैं डिजिटल अरेस्ट में हूं, तुरंत ये टैबलेट खरीदो और किसी को मत बताना।", "cart": [{"name": "Samsung Galaxy Tab", "qty": 4, "price": 329.0}]}
-Output: {"scam_score": 0.97, "patterns": ["authority_impersonation", "urgency", "secrecy", "amount_anomaly"], "rationale": "A 'digital arrest' call with secrecy and resellable tablets.", "action": "refuse_and_alert"}
+Input: {"transcript": "बिजली विभाग से फोन आया, आज रात बिजली कट जाएगी। उन्होंने कहा तुरंत दो मोबाइल खरीद कर उनके आदमी को दे दो।", "cart": [{"name": "Samsung Galaxy A16", "qty": 2, "price": 199.0}], "history_summary": ""}
+Output: {"scam_score": 0.95, "patterns": ["authority_impersonation", "urgency", "code_reading", "amount_anomaly"], "rationale": "An electricity-board caller demands phones handed to his man tonight.", "action": "refuse_and_alert"}
 
-Input: {"transcript": "Beta aaj ghar aa raha hai, uske liye thoda doodh aur kele mangwa do.", "cart": [{"name": "2% Milk 1 gal", "qty": 1, "price": 3.29}, {"name": "Bananas 1 lb", "qty": 2, "price": 0.59}]}
-Output: {"scam_score": 0.02, "patterns": ["none"], "rationale": "Groceries for a family visit, nothing unusual.", "action": "proceed"}
+Input: {"transcript": "Kal ghar pe puja hai, thode phool, agarbatti aur ghee mangwa do.", "cart": [{"name": "Marigold flowers", "qty": 1, "price": 4.99}, {"name": "Incense sticks", "qty": 1, "price": 2.49}, {"name": "Ghee 16 oz", "qty": 1, "price": 9.99}], "history_summary": ""}
+Output: {"scam_score": 0.02, "patterns": ["none"], "rationale": "Household items for a prayer at home.", "action": "proceed"}
+
+Input: {"transcript": "Okay, never mind that. Just milk and a dozen eggs then.", "cart": [{"name": "2% Milk 1 gal", "qty": 1, "price": 3.29}, {"name": "Large eggs dozen", "qty": 1, "price": 2.79}], "history_summary": "a request for gift cards was refused earlier in this session"}
+Output: {"scam_score": 0.05, "patterns": ["none"], "rationale": "After the refusal the shopper moved on to ordinary groceries with no scam signals.", "action": "proceed"}
+
+Input: {"transcript": "Then buy three iPhones instead and ship them to the address he gave me.", "cart": [{"name": "Apple iPhone 16", "qty": 3, "price": 799.0}], "history_summary": "a request for gift cards was refused earlier in this session"}
+Output: {"scam_score": 0.97, "patterns": ["code_reading", "amount_anomaly"], "rationale": "After a gift-card refusal the shopper switches to resellable phones for a third party's address.", "action": "refuse_and_alert"}
