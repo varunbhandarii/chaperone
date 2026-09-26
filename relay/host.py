@@ -1,11 +1,13 @@
 """The Host's controls, LAN only: GET /host and its /host/api/* calls. Kept off the wall and out of the ledger
 stream, because both are visible on the table.
 
-GET  /host                         the page (keys: P confirm payment, Shift+R reset, A arm replay, C show code)
+GET  /host                         the page (keys: P confirm payment, U picked up, Shift+R reset, A arm replay,
+                                   C show code)
 GET  /host/api/status              latest order, latest approval, latest session
 POST /host/api/confirm-payment     sign a Pay by Link payment notification for the latest unpaid order and post it
                                    to the merchant's webhook (merchant.simulate_payment); without a webhook key,
                                    the merchant's /orders/{id}/paid callback
+POST /host/api/picked-up           the latest paid order waiting for pickup -> the merchant's /orders/{id}/picked-up
 POST /host/api/reset               the relay's /reset fan-out
 POST /host/api/arm-replay          posts replay_armed; the station plays its cached session on the next press
 GET  /host/api/approval-code       the current approval's six-digit fallback code, from policy's LAN-only
@@ -108,7 +110,8 @@ async def status(request: Request):
     session = _latest({"session_started", "heard", "cart_updated", "checkout_requested", "refusal"})
     summary = None
     if order:
-        summary = {k: order.get(k) for k in ("order_id", "amount", "status", "session_id", "decision_id", "paid_via")}
+        summary = {k: order.get(k) for k in ("order_id", "amount", "status", "session_id", "decision_id", "paid_via",
+                                             "store", "fulfilment", "pickup_code")}
         summary["backend"] = (order.get("payment_link") or {}).get("backend")
     return JSONResponse({
         "order": summary,
@@ -149,6 +152,28 @@ async def confirm_payment(request: Request):
     if not r.is_success:
         raise HTTPException(502, f"merchant answered {r.status_code}: {r.text[:200]}")
     return {"ok": True, "order_id": order["order_id"], "amount": order.get("amount"), "path": path}
+
+
+PICKUP_READY = ("paid", "preparing", "ready_for_pickup")
+
+
+@router.post("/api/picked-up")
+async def picked_up(request: Request):
+    """Ruth (or Priyank) collected the order at the counter: the newest paid order that isn't picked up yet."""
+    host_action(request)
+    async with httpx.AsyncClient(verify=tls.context(), timeout=5.0) as client:
+        try:
+            orders = await _orders(client)
+        except (httpx.HTTPError, ValueError) as exc:
+            raise HTTPException(502, f"merchant unreachable ({type(exc).__name__})") from exc
+        order = next((o for o in orders if o.get("pickup_code") and o.get("fulfilment") in PICKUP_READY), None)
+        if order is None:
+            raise HTTPException(409, "no paid order is waiting for pickup")
+        r = await client.post(f"{_merchant()}/orders/{order['order_id']}/picked-up", headers=host_header.HEADERS)
+    if not r.is_success:
+        raise HTTPException(502, f"merchant answered {r.status_code}: {r.text[:200]}")
+    return {"ok": True, "order_id": order["order_id"], "pickup_code": order.get("pickup_code"),
+            "store": order.get("store")}
 
 
 @router.post("/api/reset")

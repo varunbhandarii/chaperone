@@ -42,6 +42,7 @@
 
   <section class="grid">
     <button id="pay">Confirm payment<kbd>P</kbd></button>
+    <button id="pickup">Picked up<kbd>U</kbd></button>
     <button id="reset" class="danger">Reset demo<kbd>Shift+R</kbd></button>
     <button id="replay">Arm replay<kbd>A</kbd></button>
     <button id="showCode">Fallback code<kbd>C</kbd></button>
@@ -112,6 +113,10 @@ const actions = {
     const r = await call("POST", "/host/api/confirm-payment");
     return `${r.order_id} ${money(r.amount)} paid via ${r.path}. Say: "marked paid in the sandbox flow".`;
   }),
+  pickup: () => run($("pickup"), "Picked up", async () => {
+    const r = await call("POST", "/host/api/picked-up");
+    return `${r.order_id} picked up at ${r.store || "the store"} (code ${r.pickup_code})`;
+  }),
   reset: () => run($("reset"), "Reset", async () => {
     const r = await call("POST", "/host/api/reset");
     $("codeBox").hidden = true;
@@ -131,6 +136,7 @@ const actions = {
 };
 
 $("pay").onclick = actions.pay;
+$("pickup").onclick = actions.pickup;
 $("reset").onclick = actions.reset;
 $("replay").onclick = actions.replay;
 $("showCode").onclick = actions.code;
@@ -141,6 +147,7 @@ document.addEventListener("keydown", (e) => {
   if (key === "r" && e.shiftKey) actions.reset();
   else if (e.shiftKey) return;
   else if (key === "p") actions.pay();
+  else if (key === "u") actions.pickup();
   else if (key === "a") actions.replay();
   else if (key === "c") actions.code();
 });
@@ -157,6 +164,9 @@ async function refresh() {
     row(order, "Status", o.status === "cancelled" ? "cancelled" : paid ? `${o.status.replace(/_/g, " ")} · paid via ${o.paid_via}` : "awaiting payment",
         o.status === "cancelled" ? "bad" : paid ? "ok" : "warn");
     row(order, "Amount", money(o.amount));
+    if (o.store) row(order, "Store", o.store);
+    if (o.pickup_code) row(order, "Pickup", `${(o.fulfilment || "").replace(/_/g, " ")} · code ${o.pickup_code}`,
+                           o.fulfilment === "picked_up" ? "ok" : paid ? "warn" : "muted");
     row(order, "Order", o.order_id, "mono");
     row(order, "Link", o.backend === "visa" ? "Visa Pay by Link (sandbox)" : "mock page");
     row(order, "Session", o.session_id, "mono");

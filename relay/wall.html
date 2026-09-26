@@ -301,7 +301,9 @@ async function refreshPanel() {
     if (paid && order.pickup_code && order.status !== "refunded") {
       parts.push(el("div", {}, el("span", { class: "muted" }, "Pickup code "), el("span", { class: "pickup" }, order.pickup_code)));
     }
-    if (order.savings) parts.push(el("div", { class: "ok" }, `Saved ${money(order.savings)} · +${order.loyalty_points} Corner Market Rewards points`));
+    // Points are earned on payment (and shrink with a refund); before that only the savings show.
+    const points = paid && order.loyalty_points > 0 ? ` · +${order.loyalty_points} Corner Market Rewards points` : "";
+    if (order.savings) parts.push(el("div", { class: "ok" }, `Saved ${money(order.savings)}${points}`));
     for (const r of order.refunds || []) {
       parts.push(el("div", { class: "refund " + (r.status === "TRANSMITTED" ? "ok" : "warn") },
         `Refund ${money(r.amount)} · ${r.qty} × ${short(r.name, 24)} · ${r.status} · card ending ${r.card_last4 || ""} · sandbox processor stub`));

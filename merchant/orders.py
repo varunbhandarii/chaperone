@@ -408,6 +408,8 @@ async def refund_order(order_id: str, request: Request):
               "at": aftercare.iso(time.time())}
     order["refunds"].append(refund)
     left = aftercare.cents(order["amount"]) - aftercare.refunded_cents(order)
+    if order["loyalty_points"] is not None:  # points follow the money that stayed paid
+        order["loyalty_points"] = aftercare.loyalty_points(aftercare.dollars(left))
     aftercare.record(order, "refunded" if left == 0 else "partially_refunded", refund_id=refund["refund_id"],
                      amount=refund["amount"])
     await _refund_event(order, refund)

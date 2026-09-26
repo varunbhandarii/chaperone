@@ -77,6 +77,22 @@ def test_confirm_payment_without_a_webhook_key_uses_the_callback(client, merchan
     assert merchant.get(f"/orders/{order['order_id']}").json()["paid_via"] == "host_confirmed"
 
 
+def test_picked_up_closes_the_latest_paid_order(client, merchant, monkeypatch):
+    monkeypatch.delenv("CYBS_WEBHOOK_KEY_ID", raising=False)
+    monkeypatch.delenv("CYBS_WEBHOOK_KEY", raising=False)
+    order = place(merchant)
+    assert client.post("/host/api/picked-up").status_code == 409  # not paid yet
+    client.post("/host/api/confirm-payment")
+    r = client.post("/host/api/picked-up")
+    assert r.status_code == 200, r.text
+    assert r.json()["order_id"] == order["order_id"] and r.json()["pickup_code"] == order["pickup_code"]
+    assert merchant.get(f"/orders/{order['order_id']}").json()["fulfilment"] == "picked_up"
+    assert client.get("/host/api/status").json()["order"]["fulfilment"] == "picked_up"
+    assert client.post("/host/api/picked-up").status_code == 409  # nothing left to pick up
+    page = client.get("/host").text
+    assert 'id="pickup"' in page and 'key === "u"' in page
+
+
 def test_status_shows_the_order_and_approval(client, merchant):
     order = place(merchant)
     client.post("/events", json={"type": "approval_requested", "session_id": "s1", "mandate_id": "m",
@@ -125,7 +141,8 @@ def test_host_reset_runs_the_real_reset(client):
     assert body["merchant"] == "ok" and isinstance(body["ms"], int)
 
 
-@pytest.mark.parametrize("path", ["/host/api/confirm-payment", "/host/api/reset", "/host/api/arm-replay", "/reset"])
+@pytest.mark.parametrize("path", ["/host/api/confirm-payment", "/host/api/picked-up", "/host/api/reset",
+                                  "/host/api/arm-replay", "/reset"])
 def test_actions_need_the_host_header(client, path):
     """A page open in another LAN browser can POST a form, but cannot add a custom header."""
     bare = TestClient(ledger.app)
