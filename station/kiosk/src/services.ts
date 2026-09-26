@@ -339,6 +339,23 @@ export async function getApproval(approvalId: string): Promise<ApprovalStatus | 
   }
 }
 
+/**
+ * POST {policy}/approvals/{id}/cancel: the shopper moved on, so policy closes the approval and a late tap on the
+ * phone cannot place the order. LAN-only at policy (the dev proxy adds no forwarding headers). Fire and forget.
+ */
+export async function cancelApproval(approvalId: string): Promise<void> {
+  try {
+    const res = await call(`${URLS.policy}/approvals/${encodeURIComponent(approvalId)}/cancel`, {
+      method: "POST",
+      headers: { "X-Chaperone-Host": "1" },
+      signal: AbortSignal.timeout(2500),
+    });
+    console.info(`[approval] cancel ${approvalId}: HTTP ${res.status}`);
+  } catch (err) {
+    console.warn(`[approval] cancel ${approvalId} failed: ${describe(err)}`);
+  }
+}
+
 // ---------- receipt ----------
 
 /** GET {merchant}/orders/{id}/receipt; null when unavailable (the station then builds the receipt itself). */
@@ -455,7 +472,8 @@ export async function loadCachedSession(lang: Lang): Promise<unknown | null> {
 /** POST {relay}/reset: the relay resets policy, merchant and the live ledger, then posts a reset event. */
 export async function requestReset(): Promise<boolean> {
   try {
-    const res = await call(`${URLS.relay}/reset`, { method: "POST", signal: AbortSignal.timeout(15000) });
+    // The header marks a deliberate Host action; a cross-site form or no-CORS fetch cannot set it.
+    const res = await call(`${URLS.relay}/reset`, { method: "POST", headers: { "X-Chaperone-Host": "1" }, signal: AbortSignal.timeout(15000) });
     return res.ok;
   } catch {
     return false;

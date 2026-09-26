@@ -46,7 +46,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=STATION_ORIGINS,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "X-Chaperone-Host"],
 )
 
 # Ledger routes ship in their own module; the token endpoint keeps working if it is missing or broken.
