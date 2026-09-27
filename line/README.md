@@ -9,12 +9,10 @@ caller -> xAI number -> Builder agent (Grok voice, persona) --MCP--> https://<TU
        -> caregiver app rewrite /line/* -> line/server.py (127.0.0.1:8005) -> policy, catalog, merchant, relay
 ```
 
-**Number:** the xAI-provisioned number on the Voice Agent Builder agent "Chaperone" (shown in the xAI console). xAI releases it after 30 days without calls.
-
 ## Tools
 
 `scam_check`, `budget_left`, `search_catalog`, `add_to_cart`, `remove_from_cart`, `read_cart`, `checkout`, `bill_status`,
-`order_status`, `cancel_order`, `request_refund` and `purchase_history`. They take the same arguments as the station's tools, plus an optional `ruth_said`
+`order_status`, `cancel_order`, `request_refund`, `purchase_history` and `verify_pin`. They take the same arguments as the station's tools, plus an optional `ruth_said`
 (Ruth's latest words).
 
 A phone call has no station screen, so safety lives in the tools:
@@ -24,8 +22,17 @@ A phone call has no station screen, so safety lives in the tools:
   and the judge on Ruth's words from the call.
 - `request_refund` with `confirmed: true` works only right after its own `confirmed: false` preview.
 - One cart per phone call. The Builder opens a new MCP session for every tool call, so every result carries a
-  `call_id` that the agent passes back (the prompt tells it to). A new session within 5 minutes of the last tool
-  call, with no `call_id`, continues that call. Idle calls are dropped after 2 hours.
+  `call_id` that the agent passes back (the prompt tells it to). A new session within 120 s of the last tool
+  call, with no `call_id`, continues that call (cancel and refund never do; they need the `call_id`). Idle calls are dropped after 2 hours.
+- **PIN.** `checkout`, `cancel_order`, `request_refund` and adding a bill need `verify_pin` first (`LINE_PIN` in `.env`,
+  4 digits). A correct PIN lasts 10 minutes. A wrong one says how many tries are left. After 3 wrong tries, Ruth hears that
+  the PIN is paused for 2 minutes to keep her account safe, and that she can simply say it again after that. Each
+  further pause doubles (4, then 8 minutes), which keeps guessing slow. The PIN is never kept as
+  Ruth's words. Read-only tools (search, budget, bill, status, history, `scam_check`) never need it.
+- Checkout needs a new utterance from Ruth (her yes, as `ruth_said`) after `read_cart`.
+- The words that go to checkout start after the last scam check or order, so an earlier scam story never refuses a
+  later honest purchase.
+- `line_call` is posted when a call starts, and `ended` (with its length) after 2 minutes without a tool call.
 - Every route except `GET /health` needs the token, either as `Authorization: Bearer $LINE_MCP_TOKEN` or inside the
   path (`/k/<token>/mcp`). Without the token set, the line serves nothing.
 
@@ -60,6 +67,8 @@ Tests use a real MCP client against the station's mock services:
      Replace the "station plays a soft sound" sentence with: say one short "Let me check that for you" before
      `scam_check` only. Then add an `## On the phone` section: pass Ruth's latest words as `ruth_said` on every tool
      call, and there is no screen.
+   - Add to the prompt: "Before any purchase, bill payment, cancel or return, ask Ruth for her four-digit PIN and call
+     verify_pin with it. Never repeat the PIN back."
    - **Welcome message:** "Hi, this is Chaperone. How can I help you today? Hola, soy Chaperone, ¿en qué le puedo
      ayudar?"
    - **Speech:** the voice Ara.
@@ -77,7 +86,7 @@ Tests use a real MCP client against the station's mock services:
    Paste it as the URL, leave the authorization fields empty, and use the name `chaperone-tools`. Add the header
    `ngrok-skip-browser-warning: 1` if the form has a field for it. It should list 12 tools. Treat this URL like a
    password.
-3. Open the connector and make sure all 12 tools are enabled. The Builder turns off the ones that change things
+3. Open the connector and make sure all 13 tools are enabled. The Builder turns off the ones that change things
    (`add_to_cart`, `remove_from_cart`, `request_refund`, `cancel_order`) by default, and the agent then can't add to
    the cart. The server's own gates (read-back, refund preview, policy) keep them safe.
 4. Test in the browser preview first ("I just got a call from my grandson…", "how much can I still spend?"), then dial
@@ -88,3 +97,9 @@ Tests use a real MCP client against the station's mock services:
 
 If the MCP field is missing or rejected, add `api_request` tools that `POST https://<TUNNEL_HOST>/line/api/<tool>` with
 the tool's arguments as JSON and the same Authorization header.
+
+## A real call, written down
+
+| When | Tools that ran, in order | Notes |
+|---|---|---|
+| Sep 26, 21:22–21:26 (a real call to the number) | `budget_left` (21:22, "$157.90 left"), `search_catalog` (21:23), `add_to_cart` (21:23), `read_cart` (21:23, names the store), `checkout` (21:23–21:25, `pin_required` every time), `scam_check` ×4 (21:25–21:26, radar verdict `scam`, grandparent) | The agent did not have `verify_pin` enabled and passed the PIN as `ruth_said`, so checkout looped. Fixed: a PIN said while one is expected counts as an attempt and is never kept. The PIN was changed afterwards. Enable all 13 tools in the connector. |

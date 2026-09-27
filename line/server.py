@@ -106,6 +106,30 @@ FALLBACK_LINES: dict[str, dict[str, str]] = {
         "hi": "आपका {biller} का बिल भरा हुआ है। अभी कुछ बकाया नहीं है।",
     },
     "cart_empty": {"en": "Your cart is empty.", "es": "Su carrito está vacío.", "hi": "आपकी कार्ट खाली है।"},
+    "line_pin_ask": {
+        "en": "Before I place anything, please tell me your four-digit Chaperone PIN.",
+        "es": "Antes de hacer cualquier pedido, por favor dígame su PIN de Chaperone de cuatro dígitos.",
+        "hi": "कुछ भी ऑर्डर करने से पहले, कृपया अपना चार अंकों का Chaperone PIN बताइए।",
+    },
+    "line_pin_wrong": {
+        "en": "That PIN doesn't match. Please say it again, one number at a time. You have {left} more tries.",
+        "es": "Ese PIN no coincide. Por favor dígalo otra vez, un número a la vez. Le quedan {left} intentos.",
+        "hi": "यह PIN मेल नहीं खाता। कृपया फिर से बोलिए, एक-एक अंक करके। आपके पास {left} कोशिशें और हैं।",
+    },
+    "line_pin_wrong_last": {
+        "en": "That PIN doesn't match. Please say it again slowly, one number at a time. This is your last try for now.",
+        "es": "Ese PIN no coincide. Por favor dígalo otra vez despacio, un número a la vez. Es su último intento por ahora.",
+        "hi": "यह PIN मेल नहीं खाता। कृपया धीरे-धीरे, एक-एक अंक करके फिर से बोलिए। अभी यह आपकी आखिरी कोशिश है।",
+    },
+    "line_pin_ok": {"en": "Thank you, that's right.", "es": "Gracias, es correcto.", "hi": "धन्यवाद, यह सही है।"},
+    "line_pin_locked": {
+        "en": "That was three tries, so to keep your account safe I've paused the PIN for {minutes} minutes. "
+              "After that, just tell me your PIN again. If you've forgotten it, Priyank has it.",
+        "es": "Fueron tres intentos, así que para proteger su cuenta pausé el PIN por {minutes} minutos. "
+              "Después, solo dígame su PIN otra vez. Si lo olvidó, Priyank lo tiene.",
+        "hi": "तीन कोशिशें हो गईं, इसलिए आपके खाते की सुरक्षा के लिए मैंने PIN को {minutes} मिनट के लिए रोक दिया है। "
+              "उसके बाद बस अपना PIN फिर से बताइए। अगर आप भूल गई हैं, तो प्रियंक के पास है।",
+    },
     "order_cancelled": {"en": "I cancelled your order. Nothing was charged.", "es": "Cancelé su pedido. No se le cobró nada.", "hi": "आपका ऑर्डर रद्द कर दिया है। कोई पैसा नहीं कटा।"},
     "cancel_too_late": {
         "en": "That order is already paid, so it can't be cancelled. I can return items for you instead.",
@@ -215,15 +239,33 @@ class Call:
     last_refund_tool: str | None = None
     seen: float = field(default_factory=time.time)
     last_args: dict = field(default_factory=dict)
+    started: float = field(default_factory=time.time)
+    ended: bool = False
+    # Ruth's words that ride along to checkout start here: a scam story or an earlier order never refuses a later one
+    heard_start: int = 0
+    # a new utterance after read_cart is the yes; checkout needs one
+    heard_at_read: int = -1
+    verified_until: float = 0.0
+    pin_attempts: int = 0
+    # after PIN_TRIES wrong tries: no PIN is taken until this time (2, then 4, then 8 minutes, and so on)
+    pin_locked_until: float = 0.0
+    pin_lockouts: int = 0
+    # a PIN-gated tool asked for the PIN: her next short run of digits is a PIN attempt, never her words
+    awaiting_pin: bool = False
 
 
 CALLS: dict[str, Call] = {}  # key (call_id, MCP session id, X-Call-Id) -> the phone call it belongs to
 REUSE_S = 120  # a new MCP session this soon after the last tool call, with no call_id, continues that call
 # (kept short: two callers back to back must not share a cart or an order to cancel)
+ENDED_AFTER_S = 120  # no tool call for this long: the call is over (the Builder does not say when a call ends)
+PIN_VALID_S = 600
+PIN_TRIES = 3
+PIN_LOCK_S = 120
 
 
 def call_for(key: str | None) -> Call:
     now = time.time()
+    end_quiet_calls(now)
     for stale in [k for k, c in CALLS.items() if now - c.seen > CALL_IDLE_S]:
         CALLS.pop(stale, None)
     key = key or "line-default"
@@ -231,13 +273,62 @@ def call_for(key: str | None) -> Call:
     if call is None:
         call = CALLS[key] = Call(session_id="s_line_" + secrets.token_hex(5))
         _post_event(call, "session_started", channel="line")
+        _post_event(call, "line_call", call_id=call.call_id, phase="started")
     call.seen = now
     return call
 
 
+def end_quiet_calls(now: float) -> None:
+    """A call with no tool call for ENDED_AFTER_S is over: post line_call ended once, with its length."""
+    for call in {id(c): c for c in CALLS.values()}.values():
+        if not call.ended and now - call.seen > ENDED_AFTER_S:
+            call.ended = True
+            _post_event(call, "line_call", call_id=call.call_id, phase="ended", seconds=round(call.seen - call.started))
+
+
+def pin_ok(call: Call) -> bool:
+    return time.time() < call.verified_until
+
+
+DIGIT_WORDS = {"zero": "0", "oh": "0", "one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7",
+               "eight": "8", "nine": "9", "cero": "0", "uno": "1", "dos": "2", "tres": "3", "cuatro": "4", "cinco": "5", "seis": "6",
+               "siete": "7", "ocho": "8", "nueve": "9"}
+
+
+def pin_digits(text: str) -> str:
+    """The digits Ruth said, as digits ("4 3 2 1", "4321", "four three two one", "cuatro tres dos uno")."""
+    words = re.findall(r"[a-záéíóú]+|\d", text.lower())
+    return "".join(DIGIT_WORDS.get(w, w if w.isdigit() else "") for w in words)
+
+
+def looks_like_pin(call: Call, text: str) -> bool:
+    """A short answer that is only a PIN's worth of digits, while a PIN is expected (or not yet given)."""
+    expected = (env("LINE_PIN") or "").strip()
+    if not expected or pin_ok(call) or len(text.split()) > 8:
+        return False
+    return (call.awaiting_pin or expected in re.sub(r"\D", "", text)) and len(pin_digits(text)) == len(expected)
+
+
+def mask_pin(text: str) -> str:
+    """Never let the PIN reach the ledger, the wall or policy, however it was said."""
+    expected = (env("LINE_PIN") or "").strip()
+    if not expected:
+        return text
+    spaced = r"\s*".join(expected)
+    return re.sub(rf"(?<!\d){spaced}(?!\d)", "[PIN]", text)
+
+
+def pin_needed(call: Call) -> dict:
+    call.awaiting_pin = True
+    return {"error": "pin_required", "say": say("line_pin_ask", call.lang),
+            "instruction": "Ask Ruth for her four-digit PIN, call verify_pin with it, then try again. Never repeat the PIN back."}
+
+
 def heard(call: Call, ruth_said: str | None) -> None:
-    text = (ruth_said or "").strip()
-    if not text or (call.heard and call.heard[-1] == text):
+    text = mask_pin((ruth_said or "").strip())
+    # the Builder passes the same words on every tool call of one turn: keep them once, but a "sí" after the
+    # read-back is her new yes even when she said "sí" earlier in the call
+    if not text or (call.heard and call.heard[-1] == text and len(call.heard) > call.heard_at_read):
         return
     call.heard.append(text[:1000])
     call.lang = guess_lang(text) or call.lang
@@ -375,6 +466,8 @@ async def _gather(*aws):
 
 def t_add(call: Call, sku: str, qty: int) -> dict:
     sku = (sku or "").strip()
+    if sku.startswith("BILL-") and not pin_ok(call):
+        return pin_needed(call)
     if sku not in call.items:
         # the agent may pass a name or a sku from another call: show what this call has seen, so it can pick one
         match = [k for k, i in call.items.items() if sku and sku.lower() in f"{k} {i.get('name', '')}".lower()]
@@ -413,6 +506,7 @@ def t_read_cart(call: Call) -> dict:
         return {**view, "say": say("cart_empty", call.lang),
                 "instruction": "The cart is empty. Do not call read_cart again: call add_to_cart with a sku from search_catalog (same call_id), then read_cart."}
     call.read_version = call.version
+    call.heard_at_read = len(call.heard)
     return {"lines": view["lines"], "total": view["total"], "say": read_back(call, view)}
 
 
@@ -422,6 +516,11 @@ async def t_checkout(call: Call) -> dict:
     if not view["lines"] or call.last_cart_tool != "read" or call.read_version != call.version:
         return {"error": "read_back_required", "say": say("read_back_required", call.lang),
                 "instruction": "Call read_cart, say its say text, wait for Ruth's yes, then call checkout."}
+    if len(call.heard) <= call.heard_at_read:
+        # her yes is a new utterance after the read-back, passed as ruth_said
+        return {"error": "confirmation_required", "instruction": "Wait for Ruth's yes after the read-back and pass it as ruth_said on checkout."}
+    if not pin_ok(call):
+        return pin_needed(call)
     call.last_cart_tool = "checkout"
     merchants = {call.items[sku].get("merchant") for sku in call.cart} - {None}
     body = {
@@ -430,9 +529,10 @@ async def t_checkout(call: Call) -> dict:
                  "items": [{"sku": l["sku"], "name": l["name"], "qty": l["qty"], "price": l["price"],
                             "category": call.items[l["sku"]].get("category", "")} for l in view["lines"]],
                  "total": view["total"]},
-        **({"transcript": " ".join(call.heard)[-2000:]} if call.heard else {}),
+        **({"transcript": " ".join(call.heard[call.heard_start:])[-2000:]} if call.heard[call.heard_start:] else {}),
     }
     status, reply = await post_json(f"{POLICY}/checkout", body, timeout=30.0)
+    call.heard_start = len(call.heard)  # this order's words never ride along into the next one
     if status != 200 or not isinstance(reply, dict):
         detail = (reply or {}).get("detail") if isinstance(reply, dict) else None
         return {"status": "error", "error": detail or f"policy answered {status or 'nothing'}", "say": say("checkout_unavailable", call.lang)}
@@ -468,6 +568,7 @@ async def t_scam_check(call: Call, story: str, caller_org: str | None, caller_ph
     status, reply = await post_json(f"{POLICY}/scam-check", body, timeout=14.0)
     if status != 200 or not isinstance(reply, dict) or reply.get("verdict") not in ("scam", "unsure", "ok") or not reply.get("say"):
         return {"error": "not ready", "say": say("scam_check_unavailable", call.lang)}
+    call.heard_start = len(call.heard)  # the story never rides along into a later, honest purchase
     return {
         "verdict": reply["verdict"], "pattern": reply.get("pattern"), "say": reply["say"], "actions": reply.get("actions") or [],
         "sources": [s.get("title") for s in reply.get("sources") or [] if isinstance(s, dict) and s.get("title")],
@@ -501,6 +602,39 @@ async def t_bill_status(call: Call, biller: str | None) -> dict:
     return out
 
 
+def t_verify_pin(call: Call, pin: str) -> dict:
+    expected = (env("LINE_PIN") or "").strip()
+    if not expected:
+        return {"error": "no PIN is set up for this line", "say": say("store_unavailable", call.lang)}
+    now = time.time()
+    if now < call.pin_locked_until:
+        return locked(call, now)
+    given = re.sub(r"\D", "", str(pin or ""))
+    if hmac.compare_digest(given.encode(), expected.encode()):
+        call.verified_until = now + PIN_VALID_S
+        call.pin_attempts = 0
+        call.awaiting_pin = False
+        return {"verified": True, "say": say("line_pin_ok", call.lang)}
+    call.pin_attempts += 1
+    left = PIN_TRIES - call.pin_attempts
+    if left <= 0:
+        # a pause that doubles each time keeps guessing slow; after it she can simply say her PIN again
+        call.pin_lockouts += 1
+        call.pin_locked_until = now + PIN_LOCK_S * 2 ** (call.pin_lockouts - 1)
+        call.pin_attempts = 0
+        return locked(call, now)
+    return {"verified": False, "tries_left": left,
+            "say": say("line_pin_wrong_last" if left == 1 else "line_pin_wrong", call.lang, left=str(left))}
+
+
+def locked(call: Call, now: float) -> dict:
+    wait = max(1, round(call.pin_locked_until - now))
+    minutes = max(1, -(-wait // 60))  # rounded up
+    return {"verified": False, "locked": True, "retry_after_s": wait,
+            "say": say("line_pin_locked", call.lang, minutes=str(minutes)),
+            "instruction": f"Tell Ruth the PIN is paused for {minutes} minutes and she can say it again after that. Do not ask for it before then."}
+
+
 async def t_order_status(call: Call, order_id: str | None) -> dict:
     oid = order_id or (call.orders[-1] if call.orders else None)
     if not oid:
@@ -525,6 +659,8 @@ async def t_refund(call: Call, order_id: str | None, sku: str | None, qty: int |
     oid = order_id or (call.orders[-1] if call.orders else None)
     if not oid:
         return {"error": "no_orders", "say": say("no_orders", call.lang)}
+    if not pin_ok(call):
+        return pin_needed(call)
     target = {"order_id": oid, "sku": sku or "", "qty": int(qty or 0)}
     if confirmed and (call.last_refund_tool != "preview" or call.refund_preview != target):
         # The phone has no turn signal: a refund goes through only right after its own preview.
@@ -554,6 +690,8 @@ async def t_cancel(call: Call, order_id: str | None) -> dict:
     oid = order_id or (call.orders[-1] if call.orders else None)
     if not oid:
         return {"error": "no_orders", "say": say("no_orders", call.lang)}
+    if not pin_ok(call):
+        return pin_needed(call)
     status, reply = await post_json(f"{POLICY}/orders/{oid}/cancel", {"session_id": call.session_id, "mandate_id": MANDATE_ID, "lang": call.lang}, timeout=15.0)
     reply = reply if isinstance(reply, dict) else {}
     if 200 <= status < 300 and (reply.get("status") == "cancelled" or reply.get("cancelled") is True):
@@ -609,18 +747,20 @@ WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent
 DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False)
 
 
-def _call(ctx: Context, ruth_said: str = "", call_id: str = "") -> Call:
+def _call(ctx: Context, ruth_said: str = "", call_id: str = "", borrow_recent: bool = True) -> Call:
     """The phone call a tool call belongs to: by the call_id the agent passed back, else by this MCP session, else the
-    call that ran a tool in the last few minutes (the Builder opens a new session for every tool call), else a new one."""
+    call that ran a tool in the last few minutes (the Builder opens a new session for every tool call), else a new one.
+    Cancel and refund never borrow a recent call: they need the call_id (or an order_id), so a second caller cannot
+    act on the first caller's order."""
     headers = ctx.headers or {}
     session = headers.get("mcp-session-id") or headers.get("Mcp-Session-Id")
     now = time.time()
     call = CALLS.get(call_id.strip()) if call_id and call_id.strip() else None
     if call is None and session:
         call = CALLS.get(session)
-    if call is None:
+    if call is None and borrow_recent:
         recent = max(CALLS.values(), key=lambda c: c.seen, default=None)
-        if recent is not None and now - recent.seen < REUSE_S:
+        if recent is not None and now - recent.seen < REUSE_S and not recent.ended:
             call = recent
     if call is None:
         call = call_for(None if not session else session)
@@ -628,8 +768,14 @@ def _call(ctx: Context, ruth_said: str = "", call_id: str = "") -> Call:
     if session:
         CALLS[session] = call
     call.seen = now
-    heard(call, ruth_said)
-    call.last_args = {k: v for k, v in (ctx.request_context.request.params.arguments or {}).items() if k not in ("ruth_said", "call_id")} if _has_args(ctx) else {}
+    said = (ruth_said or "").strip()
+    if said and looks_like_pin(call, said):
+        # the agent passed her PIN as her words (instead of calling verify_pin): take it as a PIN attempt, keep nothing
+        result = t_verify_pin(call, pin_digits(said))
+        print(f"{time.strftime('%H:%M:%S')} line pin via ruth_said {call.call_id}: {'verified' if result.get('verified') else 'wrong'}", flush=True)
+        said = ""
+    heard(call, said)
+    call.last_args = {k: v for k, v in (ctx.request_context.request.params.arguments or {}).items() if k not in ("ruth_said", "call_id", "pin")} if _has_args(ctx) else {}
     return call
 
 
@@ -659,6 +805,13 @@ async def scam_check(story: str, ctx: Context, caller_org: str = "", caller_phon
     """Check whether a call, text, email, pop-up or visitor asking Ruth for money is a scam. Call it first whenever anyone asks her for money, gift cards, a wire, crypto, a refund, card numbers, codes or remote access. story: what happened, in her own words. Returns verdict, say (say it exactly) and actions."""
     call = _call(ctx, ruth_said or story, call_id)
     return _done(call, await t_scam_check(call, story, caller_org, caller_phone), "scam_check")
+
+
+@mcp.tool(annotations=WRITE)
+async def verify_pin(pin: str, ctx: Context, ruth_said: str = "", call_id: str = "") -> dict:
+    """Check Ruth's four-digit Chaperone PIN. Ask for it before any purchase, bill payment, cancel or return. Never repeat the PIN back. Returns verified and say."""
+    call = _call(ctx, "", call_id)  # the PIN is never kept as her words
+    return _done(call, t_verify_pin(call, pin), "verify_pin")
 
 
 @mcp.tool(annotations=READ)
@@ -720,14 +873,14 @@ async def order_status(ctx: Context, order_id: str = "", ruth_said: str = "", ca
 @mcp.tool(annotations=WRITE)
 async def request_refund(reason: str, confirmed: bool, ctx: Context, order_id: str = "", sku: str = "", qty: int = 0, ruth_said: str = "", call_id: str = "") -> dict:
     """Return items from a paid order; money only goes back to the card that paid. Call with confirmed false, say the say text, wait for her yes, then call again with confirmed true and the same order_id, sku and qty."""
-    call = _call(ctx, ruth_said, call_id)
+    call = _call(ctx, ruth_said, call_id, borrow_recent=False)
     return _done(call, await t_refund(call, order_id or None, sku or None, qty or None, reason, confirmed), "request_refund")
 
 
 @mcp.tool(annotations=DESTRUCTIVE)
 async def cancel_order(ctx: Context, order_id: str = "", ruth_said: str = "", call_id: str = "") -> dict:
     """Cancel an order that has not been paid yet. A paid order cannot be cancelled; offer a return instead. Returns say."""
-    call = _call(ctx, ruth_said, call_id)
+    call = _call(ctx, ruth_said, call_id, borrow_recent=False)
     return _done(call, await t_cancel(call, order_id or None), "cancel_order")
 
 
@@ -751,6 +904,7 @@ API = {
     "bill_status": lambda c, a: t_bill_status(c, a.get("biller")),
     "order_status": lambda c, a: t_order_status(c, a.get("order_id")),
     "cancel_order": lambda c, a: t_cancel(c, a.get("order_id")),
+    "verify_pin": lambda c, a: t_verify_pin(c, a.get("pin", "")),
     "purchase_history": lambda c, a: t_history(c, a.get("days")),
     "request_refund": lambda c, a: t_refund(c, a.get("order_id"), a.get("sku"), a.get("qty"), a.get("reason", ""), a.get("confirmed") is True),
 }
@@ -767,7 +921,12 @@ async def api(request: Request) -> JSONResponse:
         args = {}
     args = args if isinstance(args, dict) else {}
     call = call_for(request.headers.get("x-call-id") or args.get("call_id"))
-    heard(call, args.get("ruth_said") or (args.get("story") if request.path_params["tool"] == "scam_check" else None))
+    said = str(args.get("ruth_said") or "").strip()
+    if said and looks_like_pin(call, said):
+        t_verify_pin(call, pin_digits(said))
+        said = ""
+    if request.path_params["tool"] != "verify_pin":  # a PIN is never kept as Ruth's words
+        heard(call, said or (args.get("story") if request.path_params["tool"] == "scam_check" else None))
     result = handler(call, args)
     if hasattr(result, "__await__"):
         result = await result
