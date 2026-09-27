@@ -1,4 +1,5 @@
-// Station page wiring: Start/Stop, push-to-talk (key, USB HID button, touch), typed input, devices.
+// Station page wiring: Start/Stop (the big button starts the station in the shopper view), push-to-talk (key, USB HID
+// button, touch), typed input and the tapped choices, devices.
 
 import { health } from "./services.ts";
 import { StationAgent, type AgentState } from "./agent.ts";
@@ -63,9 +64,12 @@ let agent: StationAgent | null = null;
 let pttKey = load(KEY_STORAGE, DEFAULT_KEY);
 let mapping = false;
 
-const ui = createUI((state: AgentState) => {
-  startBtn.textContent = state === "off" ? "Start" : "Stop";
-});
+const ui = createUI(
+  (state: AgentState) => {
+    startBtn.textContent = state === "off" ? "Start" : "Stop";
+  },
+  (text) => sendTyped(text),
+);
 
 function showKey(): void {
   pttKeyEl.textContent = pttKey;
@@ -146,6 +150,8 @@ window.addEventListener("keydown", (e) => {
 });
 
 // ---------- start / stop ----------
+// The operator's Start/Stop button; in the shopper view the big button reads "Tap to start" and starts the same way
+// (a click, so the microphone and the audio get the user gesture on a mouse and on a touch screen alike).
 
 startBtn.addEventListener("click", async () => {
   if (agent?.isStarted) {
@@ -153,6 +159,11 @@ startBtn.addEventListener("click", async () => {
     agent = null;
     return;
   }
+  await startStation();
+});
+
+async function startStation(): Promise<void> {
+  if (agent?.isStarted) return;
   agent = new StationAgent(ui);
   $("session").textContent = agent.sessionId;
   ui.status("Starting: token, microphone and voice connection in parallel...");
@@ -162,7 +173,7 @@ startBtn.addEventListener("click", async () => {
   await starting;
   await refreshDevices();
   void applySpeaker(current);
-});
+}
 
 // ---------- push-to-talk ----------
 
@@ -225,8 +236,13 @@ ptt.addEventListener("pointerup", release);
 ptt.addEventListener("pointercancel", release);
 ptt.addEventListener("lostpointercapture", release);
 ptt.addEventListener("contextmenu", (e) => e.preventDefault());
-// Keyboard activation of the focused button is handled by the key listener, not by click.
-ptt.addEventListener("click", (e) => e.preventDefault());
+// Holding talks (the pointer and key listeners); a click only starts a station that is off. Keyboard activation of
+// the focused button while started is handled by the key listener.
+ptt.addEventListener("click", (e) => {
+  e.preventDefault();
+  // a tap during a replay does not open a live voice session
+  if (!agent?.isStarted && !agent?.isReplaying) void startStation();
+});
 
 mapBtn.addEventListener("click", () => {
   mapping = !mapping;
@@ -240,19 +256,34 @@ resetBtn.addEventListener("click", () => {
   resetBtn.blur();
 });
 
-// ---------- typed input ----------
+// ---------- typed input, and the choices Ruth taps (yes / no, I agree / not now) ----------
+
+/** Sends words as if typed: the same path, so every guard applies. False when the station is not started. */
+function sendTyped(text: string): boolean {
+  text = text.trim();
+  if (!text) return false;
+  if (!agent?.isStarted) {
+    ui.status("Press Start first.", "warn");
+    return false;
+  }
+  ui.clearRules();
+  void agent.sendText(text);
+  return true;
+}
 
 typedForm.addEventListener("submit", (e) => {
   e.preventDefault();
-  const text = typedInput.value.trim();
-  if (!text) return;
-  if (!agent?.isStarted) {
-    ui.status("Press Start first.", "warn");
-    return;
-  }
-  typedInput.value = "";
-  ui.clearRules();
-  void agent.sendText(text);
+  if (sendTyped(typedInput.value)) typedInput.value = "";
+});
+
+// In the shopper view the typed row opens on request (and by itself when the microphone cannot be used).
+const typeToggle = $<HTMLButtonElement>("type-toggle");
+typeToggle.addEventListener("click", () => {
+  const open = !document.body.classList.contains("typing");
+  document.body.classList.toggle("typing", open);
+  typeToggle.setAttribute("aria-expanded", String(open));
+  if (open) typedInput.focus();
+  else typeToggle.blur(); // keep Space for push-to-talk
 });
 
 // ---------- devices ----------

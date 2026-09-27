@@ -77,6 +77,10 @@ export interface ProtectedView {
   /** operator view only (reason keys, rule ids) */
   detail?: string;
   lang?: Lang;
+  /** a declined swipe: shown as digits and words beside the line she heard */
+  amount?: number;
+  store?: string;
+  card_last4?: string;
 }
 
 export interface AgentUI {
@@ -110,6 +114,12 @@ export interface AgentUI {
   cleared(sessionId: string): void;
   level(rms: number): void;
   micDevice(label: string): void;
+  /** the cart was read back and her yes or no is next (true); her next turn, a cart change or checkout clears it */
+  readBack?(waiting: boolean): void;
+  /** what is left to spend this month, when the budget was read */
+  budget?(left: number): void;
+  /** Priyank's new rules, read to Ruth and waiting for her yes (her next turn answers) */
+  cosign?(mandate: Record<string, unknown>): void;
 }
 
 type ServerEvent = { type: string; [k: string]: any };
@@ -353,6 +363,8 @@ export class StationAgent {
   private placed = new Map<string, PlacedOrder>();
   private receiptsDone = new Set<string>();
   private lastReceipt: Receipt | null = null;
+  /** Every receipt shown in this session, oldest first: Print again prints them all. */
+  private sessionReceipts: Receipt[] = [];
   private approvalWait: { id: string; totalCents: number; lines: CartLineView[]; decisionId?: string } | null = null;
   private stream: RelayStream | null = null;
   private lastLocalReset = -Infinity;
@@ -1414,6 +1426,7 @@ export class StationAgent {
     const { lines, total } = this.cart.summary();
     const say = readBackSay(lines, this.cart.totalCents, this.lang);
     if (lines.length) this.gate.markRead(this.cart.version, this.userTurns);
+    this.ui.readBack?.(lines.length > 0);
     console.info(`[${ts()}] read-back armed for cart v${this.cart.version} at user turn ${this.userTurns}`);
     return { lines, total, say };
   }
@@ -1421,6 +1434,7 @@ export class StationAgent {
   private async toolBudget(): Promise<Record<string, unknown>> {
     const budget = await getBudget(VOICE.mandate_id, (m) => this.warn("budget", m));
     if ("error" in budget) return { error: budget.error };
+    this.ui.budget?.(budget.left);
     return { ...budget, say: sayFor("budget_left", this.lang, { left: money(Math.round(budget.left * 100), this.lang) }) };
   }
 
@@ -1928,7 +1942,16 @@ export class StationAgent {
     const store = displayStore(String(ev.store ?? ""), this.lang);
     const say = sayFor(key, this.lang, { amount: Number.isFinite(amount) ? money(toCents(amount), this.lang) : "", store });
     console.info(`[${ts()}] card declined at ${store}: ${ev.reason_key}`);
-    this.ui.protect({ tone: "protected", say, detail: `${ev.reason_key ?? ""} · ${ev.reason ?? ""} · card …${ev.card_last4 ?? ""}`, lang: this.lang });
+    const last4 = String(ev.card_last4 ?? "");
+    this.ui.protect({
+      tone: "protected",
+      say,
+      detail: `${ev.reason_key ?? ""} · ${ev.reason ?? ""} · card …${ev.card_last4 ?? ""}`,
+      lang: this.lang,
+      ...(Number.isFinite(amount) && amount > 0 ? { amount } : {}),
+      ...(ev.store ? { store } : {}),
+      ...(/^\d{4}$/.test(last4) ? { card_last4: last4 } : {}),
+    });
     // The recorded clip leaves out the amount and store (the card shows them); without the clip, the whole line is spoken
     const clipKey = key === "card_declined_blocked" || key === "card_declined_cooldown" ? key : null;
     void this.speakClipOr(clipKey, clipKey ? sayFor(`${clipKey}_clip`, this.lang) : say, say);
@@ -1966,6 +1989,7 @@ export class StationAgent {
     // her yes goes with the hash from the same reply as the words she heard (an older policy sends none)
     if ((await this.speakFixed(say)) && ask === this.cosignAsk) {
       this.cosignPending = { until: Date.now() + 5 * 60_000, ...(read.mandate_hash ? { hash: read.mandate_hash } : {}) };
+      this.ui.cosign?.(read.mandate);
     }
   }
 
@@ -2050,6 +2074,7 @@ export class StationAgent {
     }
     if (!receipt.session_url && url) receipt = { ...receipt, session_url: url };
     this.lastReceipt = receipt;
+    this.sessionReceipts = [...this.sessionReceipts.filter((r) => r.order_id !== receipt!.order_id), receipt];
     console.info(`[${ts()}] paid ${orderId}: printing the receipt`);
     this.ui.receipt(receipt, { key: "preparing" });
     const printed = await printReceipt(receipt);
@@ -2072,14 +2097,19 @@ export class StationAgent {
     void this.speakFixed(parts.join(" "));
   }
 
-  /** The on-screen Reprint button. */
+  /** The on-screen Print again button: every receipt of this session, one after another (one per store). */
   async reprint(): Promise<void> {
-    if (!this.lastReceipt) return;
-    this.ui.receipt(this.lastReceipt, { key: "preparing" });
-    const printed = await printReceipt(this.lastReceipt);
-    const onPaper = printed.ok && printed.via === "printer";
-    this.ui.receipt(this.lastReceipt, printNote(printed, "printed_again"), printed.ok ? { png: printed.pngUrl, pdf: printed.pdfUrl } : undefined);
-    if (onPaper) this.ledger.post("receipt_printed", payload.receiptPrinted(this.lastReceipt.order_id, "printer"));
+    const receipts = this.sessionReceipts.length ? this.sessionReceipts : this.lastReceipt ? [this.lastReceipt] : [];
+    const session = this.sessionId;
+    for (const receipt of receipts) {
+      if (this.sessionId !== session) return; // reset while printing: the new session has no receipts
+      this.ui.receipt(receipt, { key: "preparing" });
+      const printed = await printReceipt(receipt);
+      if (this.sessionId !== session) return;
+      const onPaper = printed.ok && printed.via === "printer";
+      this.ui.receipt(receipt, printNote(printed, "printed_again"), printed.ok ? { png: printed.pngUrl, pdf: printed.pdfUrl } : undefined);
+      if (onPaper) this.ledger.post("receipt_printed", payload.receiptPrinted(receipt.order_id, "printer"));
+    }
   }
 
   /**
@@ -2105,6 +2135,8 @@ export class StationAgent {
     this.requestStart = 0;
     this.placed.clear();
     this.lastReceipt = null;
+    this.sessionReceipts = [];
+    this.lastLang = undefined; // the next shopper starts in English until they speak
     this.sessionOrders = [];
     this.refundGate.reset();
     this.refundPreview = null;

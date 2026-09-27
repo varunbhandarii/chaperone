@@ -225,6 +225,8 @@ export const RECEIPT_LABELS: Record<
     points: (n: number) => string;
     code: string;
     paidTo: (store: string, account: string) => string;
+    /** the green block on a bill's receipt, in place of the pickup code */
+    billPaid: (account: string) => string;
     pdf: string;
     note: Record<ReceiptNoteKey, string>;
   }
@@ -242,6 +244,7 @@ export const RECEIPT_LABELS: Record<
     points: (n) => `+${n} rewards points`,
     code: "Pickup code",
     paidTo: (store, account) => `Paid to ${store}${account ? ` · account ${account}` : ""}`,
+    billPaid: (account) => `Bill paid${account ? ` · account ${account}` : ""}`,
     pdf: "Open PDF",
     note: { preparing: "Preparing your receipt…", printed: "Your receipt is printed", printed_again: "Printed again", on_screen: "Your receipt is on the screen" },
   },
@@ -258,6 +261,7 @@ export const RECEIPT_LABELS: Record<
     points: (n) => `+${n} puntos de recompensa`,
     code: "Código de recogida",
     paidTo: (store, account) => `Pagado a ${store}${account ? ` · cuenta ${account}` : ""}`,
+    billPaid: (account) => `Factura pagada${account ? ` · cuenta ${account}` : ""}`,
     pdf: "Abrir PDF",
     note: { preparing: "Preparando su recibo…", printed: "Su recibo está impreso", printed_again: "Impreso otra vez", on_screen: "Su recibo está en la pantalla" },
   },
@@ -274,6 +278,7 @@ export const RECEIPT_LABELS: Record<
     points: (n) => `+${n} रिवॉर्ड पॉइंट`,
     code: "पिकअप कोड",
     paidTo: (store, account) => `${store} को भुगतान${account ? ` · खाता ${account}` : ""}`,
+    billPaid: (account) => `बिल भर दिया गया${account ? ` · खाता ${account}` : ""}`,
     pdf: "PDF खोलें",
     note: { preparing: "आपकी रसीद तैयार हो रही है…", printed: "आपकी रसीद छप गई है", printed_again: "रसीद फिर से छप गई", on_screen: "आपकी रसीद स्क्रीन पर है" },
   },

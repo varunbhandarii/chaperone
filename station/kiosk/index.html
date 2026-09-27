@@ -4,63 +4,175 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Chaperone</title>
+    <link rel="icon" type="image/svg+xml" href="/svc/relay/design/favicon.svg" />
     <link rel="stylesheet" href="/svc/relay/design/tokens.css" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body class="shopper">
     <header class="top">
-      <h1><img src="/svc/relay/design/logo.svg" alt="" onerror="this.remove()" /> Chaperone</h1>
-      <span id="state" class="pill state-off dev">Off</span>
+      <img class="logo" src="/svc/relay/design/logo.svg" alt="Chaperone" width="207" height="40" />
+      <span id="state" class="pill state-off dev">off</span>
       <button id="view-toggle" class="view-toggle dev" type="button" aria-pressed="false">Shopper view</button>
-      <button id="start" class="start" type="button">Start</button>
+      <button id="start" class="start dev" type="button">Start</button>
+      <span class="top-fill"></span>
+      <button id="type-toggle" class="type-toggle" type="button" aria-controls="typed" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M4 6h16a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 18H4a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 4 6z" /><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10" /></svg>
+        <span data-words="type_instead">Type instead of speaking</span>
+      </button>
+      <!-- Ruth's language follows what she says; this shows which one the station is in. -->
+      <div id="langs" class="langs" role="group" aria-label="Language">
+        <span data-lang="en" lang="en" aria-current="true">English</span>
+        <span data-lang="es" lang="es">Español</span>
+        <span data-lang="hi" lang="hi">हिन्दी</span>
+      </div>
     </header>
 
+    <!-- Operator view: the status line, the state strip, latency and the rule banner. The strip stays in the shopper
+         view for screen readers only (the big button already says the state). -->
     <p id="status" class="status dev" role="status" aria-live="polite">
-      Press Start, then hold the big button (or the Space key) while you speak.
+      Press Start (or tap the big button), then hold the big button (or the Space key) while you speak.
     </p>
-
-    <div id="strip" class="strip state-off" role="status" aria-live="polite">Press Start</div>
-    <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
-
+    <div id="strip" class="strip state-off" role="status" aria-live="polite">Tap to start</div>
     <section class="metric dev" aria-label="Release to first audio">
       <div class="metric-label">Release to first audio</div>
       <div id="latency" class="metric-value">&ndash;</div>
       <div id="latency-stats" class="metric-stats">min &ndash; &middot; median &ndash; &middot; n 0</div>
       <div id="first-sound" class="metric-stats">first sound &ndash;</div>
     </section>
-
     <div id="rules" class="rules dev" role="alert" hidden></div>
 
-    <button id="ptt" class="ptt state-off" type="button" disabled>
-      <span id="ptt-label">Press Start first</span>
-      <span id="ptt-hint" class="ptt-hint"><span data-words="hold_to_talk">hold to talk</span><span class="dev"> &middot; key: <span id="ptt-hint-key">Space</span></span></span>
-    </button>
+    <!-- Calm banners: the card's extra care, a pause. -->
+    <div id="banner" class="banners" role="status" aria-live="polite" hidden></div>
 
-    <div id="outcome" class="outcome" role="status" aria-live="polite" hidden></div>
+    <main id="kiosk" class="kiosk">
+      <!-- The stage: the latest exchange, large; older lines scroll above it. -->
+      <section id="stage" class="stage card" aria-labelledby="stage-title">
+        <h2 id="stage-title" class="sr-only" data-words="conversation">Conversation</h2>
+        <div id="greeting" class="greeting">
+          <div class="who-label agent">Chaperone</div>
+          <p class="greeting-text"><span id="greeting-hello">Good evening, Ruth.</span><br /><span id="greeting-ask">What can I do for you?</span></p>
+          <div class="greeting-fill"></div>
+          <div class="examples">
+            <div class="examples-label" data-words="you_can_say">You can say</div>
+            <ul id="examples" class="examples-list"></ul>
+          </div>
+        </div>
+        <ol id="log" class="log" aria-live="polite"></ol>
+        <div class="stage-foot">
+          <p id="calm" class="calm" role="status" aria-live="polite" hidden></p>
+          <div id="asking" class="asking" hidden>
+            <div class="ring" aria-hidden="true">
+              <svg viewBox="0 0 96 96" width="96" height="96">
+                <circle cx="48" cy="48" r="41" class="ring-track" />
+                <circle id="asking-ring" cx="48" cy="48" r="41" class="ring-left" transform="rotate(-90 48 48)" />
+              </svg>
+              <span id="asking-secs" class="ring-secs">90s</span>
+            </div>
+            <div class="asking-text">
+              <div class="asking-title" data-words="waiting_priya">Waiting for Priyank</div>
+              <div class="asking-sent">
+                <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                <span id="asking-sent"></span>
+              </div>
+            </div>
+          </div>
+          <div id="outcome" class="outcome" role="status" aria-live="polite" hidden></div>
+          <div id="readback" class="choices" hidden>
+            <button id="readback-yes" class="btn btn-primary" type="button">Yes, place it</button>
+            <button id="readback-no" class="btn btn-outline" type="button">No</button>
+          </div>
+        </div>
+      </section>
 
-    <section id="cart-panel" class="panel cart" aria-label="Your order">
-      <h2 data-words="your_order">Your order</h2>
-      <ul id="cart" class="items"><li class="empty">Nothing yet</li></ul>
-      <div class="cart-total"><span data-words="total">Total</span> <span id="cart-total" class="price">$0.00</span></div>
-    </section>
+      <!-- The order (grouped by store), or what was just found. -->
+      <aside id="cart-panel" class="order card" aria-label="Your order">
+        <div id="items-panel" class="found" hidden>
+          <div class="card-head">
+            <h2 data-words="found">I found</h2>
+            <span id="items-store" class="card-head-note"></span>
+            <span id="items-source" class="tag dev"></span>
+          </div>
+          <ul id="items" class="found-items"></ul>
+          <div id="found-foot" class="found-foot" hidden><span id="found-summary"></span><span id="found-total" class="num"></span></div>
+        </div>
+        <div id="order-view" class="order-view">
+          <h2 data-words="your_order">Your order</h2>
+          <ul id="cart" class="items" hidden></ul>
+          <div id="order-empty" class="order-empty">
+            <svg viewBox="0 0 24 24" width="64" height="64" aria-hidden="true"><path d="M5 8h14l-1 12H6L5 8z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></svg>
+            <span id="order-empty-text">Nothing yet</span>
+          </div>
+          <span id="order-badge" class="badge badge-wait" data-words="needs_priya" hidden>Needs Priyank's okay</span>
+          <div id="cart-total-row" class="cart-total" hidden><span data-words="total">Total</span> <span id="cart-total" class="price">$0.00</span></div>
+          <div id="budget" class="budget" hidden><span data-words="left_month">Left to spend this month</span><span id="budget-left" class="num"></span></div>
+        </div>
+      </aside>
+    </main>
 
-    <section class="panel">
-      <h2 data-words="conversation">Conversation</h2>
-      <ol id="log" class="log" aria-live="polite"></ol>
-    </section>
-
-    <section id="items-panel" class="panel" hidden>
-      <h2><span data-words="found">Found</span> <span id="items-source" class="tag dev"></span></h2>
-      <ul id="items" class="items"></ul>
-    </section>
-
-    <form id="typed" class="typed panel" autocomplete="off">
-      <label for="typed-input" data-words="type_instead">Type instead of speaking</label>
-      <div class="typed-row">
-        <input id="typed-input" type="text" placeholder="Type here" data-words="type_here" />
-        <button type="submit" data-words="send">Send</button>
+    <!-- Priyank's new rules: read to Ruth, and her yes or not now. -->
+    <section id="cosign" class="cosign card" aria-labelledby="cosign-title" hidden>
+      <div class="cosign-main">
+        <div class="overline" data-words="new_rules">New rules from Priyank</div>
+        <h2 id="cosign-title" class="cosign-title">Priyank set your rules. Do you agree?</h2>
+        <ul id="cosign-lines" class="cosign-lines"></ul>
       </div>
+      <div class="cosign-side">
+        <div class="signed">
+          <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path d="M18 9.5a6 6 0 1 1-12 0 6 6 0 1 1 12 0" /><path d="M9 15l-1 7 4-2 4 2-1-7" /><path d="M9.5 9.5l1.8 1.8 3.2-3.2" /></svg>
+          <div><div class="signed-by" data-words="signed_by">Signed by Priyank</div><div id="cosign-when" class="signed-when"></div></div>
+        </div>
+        <div class="cosign-fill"></div>
+        <button id="cosign-yes" class="btn btn-primary" type="button">Yes, I agree</button>
+        <button id="cosign-no" class="btn btn-outline" type="button">Not now</button>
+        <p class="cosign-note" data-words="nothing_changes">Nothing changes until you say yes.</p>
+      </div>
+    </section>
+
+    <!-- Orders placed: one receipt per store's order, side by side, the session's QR code, print again and close. -->
+    <section id="receipt-overlay" class="placed card" role="dialog" aria-labelledby="placed-title" hidden>
+      <div class="placed-head">
+        <span class="done-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="36" height="36"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></span>
+        <div>
+          <h2 id="placed-title" class="placed-title">Done.</h2>
+          <p class="placed-note">
+            <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M7 9V3h10v6" /><path d="M5 9h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2z" /><path d="M7 14h10v7H7z" /></svg>
+            <span id="placed-note" role="status" aria-live="polite"></span>
+          </p>
+        </div>
+      </div>
+      <div class="placed-body">
+        <div id="receipts" class="receipts"></div>
+        <div class="placed-side">
+          <div id="placed-qr" class="placed-qr" hidden></div>
+          <div id="placed-scan" class="placed-scan" data-words="scan" hidden>Scan for your session</div>
+          <div class="placed-fill"></div>
+          <button type="button" id="receipt-reprint" class="btn btn-outline" data-words="reprint">Print again</button>
+          <button type="button" id="receipt-close" class="btn btn-primary" data-words="close">Close</button>
+        </div>
+      </div>
+    </section>
+
+    <form id="typed" class="typed" autocomplete="off">
+      <label for="typed-input" class="sr-only" data-words="type_instead">Type instead of speaking</label>
+      <input id="typed-input" type="text" placeholder="Type here" data-words="type_here" />
+      <button type="submit" class="btn btn-primary" data-words="send">Send</button>
     </form>
+
+    <!-- The big button: one state at a time, in words and colour together. -->
+    <button id="ptt" class="ptt state-off" type="button">
+      <span class="ptt-icon" aria-hidden="true">
+        <svg class="i i-start" viewBox="0 0 24 24"><path d="M12 3v8" /><path d="M6.6 6.6a8 8 0 1 0 10.8 0" /></svg>
+        <svg class="i i-wait" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7" /></svg>
+        <svg class="i i-mic" viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+        <svg class="i i-speak" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" /><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" /></svg>
+        <span class="i bars"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="i dots"><i></i><i></i><i></i></span>
+      </span>
+      <span class="ptt-text">
+        <span id="ptt-label" class="ptt-label">Tap to start</span>
+        <span id="ptt-hint" class="ptt-hint"><span id="ptt-hint-text">then hold it to talk</span><span class="dev"> &middot; key: <span id="ptt-hint-key">Space</span></span></span>
+      </span>
+    </button>
 
     <details class="panel hardware dev" open>
       <summary>Hardware</summary>
@@ -86,19 +198,35 @@
       </div>
     </details>
 
-    <!-- The Protected moment: a stopped scam, a scam refusal or a declined card swipe. -->
-    <div id="protected" class="protected-overlay" role="alertdialog" aria-live="assertive" aria-labelledby="protected-title" hidden>
+    <!-- The Protected moment: a stopped scam, a scam refusal or a declined card swipe. Blue; yellow to be careful. -->
+    <div id="protected" class="protected-overlay" role="alertdialog" aria-modal="true" aria-live="assertive" aria-labelledby="protected-title" aria-describedby="protected-say" hidden>
       <div id="protected-card" class="protected-card">
-        <svg class="protected-shield" viewBox="0 0 64 64" aria-hidden="true">
-          <path d="M32 4 8 13v17c0 15 10.2 26.7 24 30 13.8-3.3 24-15 24-30V13L32 4z" fill="currentColor" opacity="0.15" />
-          <path d="M32 4 8 13v17c0 15 10.2 26.7 24 30 13.8-3.3 24-15 24-30V13L32 4z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
-          <path d="m21 32 8 8 15-16" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <div id="protected-title" class="protected-title">Protected</div>
-        <p id="protected-say" class="protected-say"></p>
-        <p id="protected-action" class="protected-action"></p>
-        <p class="protected-told"><span aria-hidden="true">&#10003;</span> <span id="protected-told">Priyank has been told</span></p>
-        <p id="protected-detail" class="protected-detail dev"></p>
+        <div class="protected-head">
+          <svg class="protected-shield" viewBox="0 0 64 64" aria-hidden="true">
+            <path class="shield-body" d="M32 3 7 12.5V30c0 15 10.5 25 25 31 14.5-6 25-16 25-31V12.5L32 3z" />
+            <path class="shield-check" d="M20.5 31.5l8 8 15-15" />
+          </svg>
+          <h1 id="protected-title" class="protected-title">Protected</h1>
+        </div>
+        <div class="protected-body">
+          <p id="protected-say" class="protected-say"></p>
+          <div id="protected-chips" class="protected-chips" hidden></div>
+          <div id="protected-action-card" class="protected-action-card" hidden>
+            <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="42" height="42"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" /></svg></span>
+            <p id="protected-action" class="protected-action"></p>
+          </div>
+          <p id="protected-detail" class="protected-detail dev"></p>
+        </div>
+        <div class="protected-foot">
+          <div class="protected-told">
+            <span class="told-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></span>
+            <div><div id="protected-told" class="told-line">Priyank has been told</div><div id="protected-nothing-wrong" class="told-sub">You did nothing wrong.</div></div>
+          </div>
+          <div class="protected-ok">
+            <button id="protected-ok" type="button">OK</button>
+            <span id="protected-anywhere">or tap anywhere</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -116,36 +244,24 @@
       </div>
     </div>
 
-    <!-- One receipt per store's order, stacked. -->
-    <div id="receipt-overlay" class="overlay" role="dialog" aria-label="Receipts" hidden>
-      <div class="receipts">
-        <div id="receipts" class="receipts"></div>
-        <div class="receipt-actions">
-          <button type="button" id="receipt-reprint" data-words="reprint">Reprint</button>
-          <button type="button" id="receipt-close" data-words="close">Close</button>
-        </div>
-      </div>
-    </div>
-
     <template id="receipt-template">
-      <div class="receipt-wrap">
+      <article class="receipt-wrap">
         <div class="receipt">
           <div class="receipt-store"></div>
-          <div class="receipt-title">Receipt</div>
+          <div class="receipt-title dev">Receipt</div>
           <ul class="receipt-items"></ul>
           <div class="receipt-total"><span class="receipt-total-label">Total</span><span class="receipt-total-value"></span></div>
           <div class="receipt-pickup"></div>
-          <div class="receipt-code" hidden></div>
+          <div class="receipt-code" hidden><span class="receipt-code-label"></span><span class="receipt-code-value"></span></div>
+          <div class="receipt-bill" hidden><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg><span><span class="receipt-bill-text"></span><span class="receipt-bill-account"></span></span></div>
           <div class="receipt-rewards" hidden></div>
-          <div class="receipt-qr"></div>
-          <div class="receipt-scan receipt-small"></div>
           <div class="receipt-ids receipt-small dev"></div>
           <div class="receipt-sandbox receipt-small dev"></div>
-          <div class="receipt-note"></div>
-          <div class="receipt-actions"><a class="receipt-pdf button" href="#" target="_blank" rel="noopener" hidden>Open PDF</a></div>
+          <div class="receipt-note receipt-small dev"></div>
+          <div class="receipt-actions dev"><a class="receipt-pdf button" href="#" target="_blank" rel="noopener" hidden>Open PDF</a></div>
         </div>
-        <div class="slip" hidden><img class="slip-img" alt="The receipt as printed on 58 mm paper" /></div>
-      </div>
+        <div class="slip dev" hidden><img class="slip-img" alt="The receipt as printed on 58 mm paper" /></div>
+      </article>
     </template>
 
     <script type="module" src="/src/main.ts"></script>
