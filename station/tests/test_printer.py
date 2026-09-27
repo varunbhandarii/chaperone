@@ -72,6 +72,16 @@ def test_receipt_without_optional_fields_renders(fonts):
     assert img.height < full.height  # no QR code
 
 
+def test_the_logo_heads_the_receipt_and_a_missing_logo_is_skipped(fonts, monkeypatch, tmp_path):
+    with_logo = P.render_receipt(SAMPLE, fonts)
+    assert P.receipt_logo() is not None and P.receipt_logo().width <= P.WIDTH - 2 * P.MARGIN
+    monkeypatch.setattr(P, "LOGO_PATH", tmp_path / "missing.png")
+    monkeypatch.setattr(P, "_logo_cache", {})
+    without = P.render_receipt(SAMPLE, fonts)
+    assert without.width == with_logo.width == 384
+    assert without.height < with_logo.height
+
+
 def test_localized_lines():
     assert P.pickup_line(None, "en") == "Pickup after 3 pm"
     assert P.pickup_line("after 3pm", "es") == "Recogida después de las 3 p. m."

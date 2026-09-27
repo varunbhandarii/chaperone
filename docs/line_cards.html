@@ -3,30 +3,33 @@
 <head>
 <meta charset="utf-8">
 <title>Chaperone line cards</title>
+<link rel="stylesheet" href="../design/tokens.css">
 <style>
   /* Print on Letter, portrait: two pages, one card each (two copies for the table). */
   @page { size: letter portrait; margin: 0.4in; }
-  :root { --ink: #111; --muted: #555; --rule: #bbb; }
-  body { margin: 0; background: #fff; color: var(--ink); font: 15px/1.35 "Noto Sans", "Noto Sans Devanagari", Arial, sans-serif; }
-  .card { border: 1.5px solid var(--ink); border-radius: 10px; padding: 14px 16px; margin: 0 0 18px; break-inside: avoid; }
+  :root { --ink: var(--ch-text, #111); --muted: var(--ch-text-2, #4a4a4a); --rule: var(--ch-line, #e6e6e6); }
+  body { margin: 0; background: #fff; color: var(--ink); font: 15px/1.4 var(--ch-font, "Noto Sans", "Noto Sans Devanagari", Arial, sans-serif); }
+  .card { border: 1.5px solid var(--ch-blue, #1434cb); border-radius: 12px; padding: 16px 18px; margin: 0 0 18px; break-inside: avoid; }
   .card + .card { margin-top: 18px; break-before: page; }
-  h1 { font-size: 17px; margin: 0 0 2px; }
-  .hint { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 6px; }
+  .head img { height: 26px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0; color: var(--ch-blue, #1434cb); }
+  .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 0 8px 6px; }
+  th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 0 8px 6px; }
   th:first-child, td:first-child { width: 7%; }
-  td { vertical-align: top; padding: 5px 8px; border-top: 1px solid var(--rule); font-size: 14px; }
-  td.n { font-weight: 700; font-size: 20px; }
+  td { vertical-align: top; padding: 7px 8px; border-top: 1px solid var(--rule); font-size: 14px; }
+  td.n { font-weight: 700; font-size: 18px; color: var(--ch-blue, #1434cb); }
   .say { font-weight: 600; }
-  .sub { display: block; margin-top: 2px; color: var(--muted); font-size: 11.5px; font-weight: 400; font-style: italic; }
-  .deva { font-family: "Noto Sans Devanagari", "Mangal", sans-serif; font-size: 16px; }
-  .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .sub { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 400; font-style: italic; }
+  .deva { font-family: "Noto Sans Devanagari", "Nirmala UI", "Mangal", sans-serif; font-size: 16px; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 10px; }
 </style>
 </head>
 <body>
 <template id="card">
   <section class="card">
-    <h1>Chaperone: say these lines</h1>
+    <div class="head"><h1>Say these lines to Chaperone</h1><img src="../design/logo.svg" alt="Chaperone"></div>
     <p class="hint">Hold the button while you speak. Pick one language and use it for every line. Say line 1 (or 1b), then 2, then 3. Lines 4 and 5 are optional.</p>
     <table>
       <thead><tr><th></th><th>English</th><th>हिन्दी · Hindi</th><th>Español · Spanish</th></tr></thead>
@@ -57,13 +60,13 @@
         </tr>
         <tr>
           <td class="n">3</td>
-          <td><span class="say">Yes.</span> <span class="sub">after the agent reads your order back</span></td>
+          <td><span class="say">Yes.</span> <span class="sub">after Chaperone reads your order back</span></td>
           <td><span class="say deva">हां।</span><span class="sub">Haan.</span></td>
           <td><span class="say">Sí.</span><span class="sub">SEE.</span></td>
         </tr>
         <tr>
           <td class="n">4</td>
-          <td><span class="say">And five packs of Ensure shakes.</span> <span class="sub">optional: $49.95 goes to the caregiver for approval</span></td>
+          <td><span class="say">And five packs of Ensure shakes.</span> <span class="sub">optional: $49.95 goes to Priyank's phone for approval</span></td>
           <td><span class="say deva">और एंश्योर शेक के पांच पैकेट।</span>
               <span class="sub">Aur Ensure shake ke paanch packet.</span></td>
           <td><span class="say">Y cinco paquetes de batidos Ensure.</span>

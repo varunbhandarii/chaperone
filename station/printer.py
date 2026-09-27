@@ -74,6 +74,7 @@ BODY_PX = 60  # items, total and pickup: about 24 pt
 LABEL_PX = 36  # the line above the QR code
 SMALL_PX = 28  # order id, decision id, time, sandbox note
 QR_MAX_BOX = 8  # dots per QR module, reduced for long URLs so the code always fits
+LOGO_PATH = ROOT / "design" / "receipt-logo.png"  # the one-colour Chaperone logo, already 1-bit and receipt-sized
 
 
 def log(msg: str) -> None:
@@ -402,6 +403,24 @@ def qr_image(data: str, max_px: int) -> Image.Image:
     return img.resize((n * box, n * box), Image.Resampling.NEAREST)
 
 
+_logo_cache: dict[str, Image.Image | None] = {}
+
+
+def receipt_logo() -> Image.Image | None:
+    """The logo for the top of the receipt, or None when the file is missing (the receipt prints without it)."""
+    if "logo" not in _logo_cache:
+        try:
+            with Image.open(LOGO_PATH) as img:
+                logo = img.convert("L")
+            if logo.width > WIDTH - 2 * MARGIN:
+                logo = logo.resize((WIDTH - 2 * MARGIN, round(logo.height * (WIDTH - 2 * MARGIN) / logo.width)))
+            _logo_cache["logo"] = logo
+        except OSError as exc:
+            log(f"receipt logo skipped: {exc!r}")
+            _logo_cache["logo"] = None
+    return _logo_cache["logo"]
+
+
 def render_receipt(receipt: Receipt | dict, fonts: Fonts) -> Image.Image:
     """The whole receipt as a 1-bit image, 384 dots wide."""
     r = receipt if isinstance(receipt, Receipt) else Receipt.model_validate(receipt)
@@ -411,6 +430,12 @@ def render_receipt(receipt: Receipt | dict, fonts: Fonts) -> Image.Image:
     label, small = fonts.get(LABEL_PX), fonts.get(SMALL_PX)
 
     s = Sheet()
+    logo = receipt_logo()
+    if logo is not None:
+        s.image(logo)
+        s.gap(12)
+        s.rule()
+        s.gap(14)
     store = merchant_name(r.merchant)
     if store:
         s.text(store, title, "center")
