@@ -51,7 +51,10 @@
         "card_decision",
         "card_hold_released",
         "bill_checked",
-        "line_call"
+        "line_call",
+        "vtc_decision",
+        "risk_scored",
+        "cosigned"
       ]
     },
     "session_id": {
@@ -688,6 +691,103 @@
             "type": "number"
           }
         }
+      },
+      "vtc_decision": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "store": {
+            "type": "string"
+          },
+          "mcc": {
+            "type": "string"
+          },
+          "amount": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "should_decline": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "rule": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ms": {
+            "type": "number"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "risk_scored": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "merchant": {
+            "type": "string"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "score": {
+            "type": [
+              "string",
+              "number",
+              "null"
+            ]
+          },
+          "ms": {
+            "type": "number"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "cosigned": {
+        "type": "object",
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "said": {
+            "type": "string"
+          },
+          "lang": {
+            "type": "string"
+          },
+          "mandate_hash": {
+            "type": "string"
+          }
+        }
       }
     }
   },
@@ -1065,6 +1165,51 @@
       },
       "then": {
         "$ref": "#/$defs/payloads/line_call"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "vtc_decision"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/vtc_decision"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "risk_scored"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/risk_scored"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "cosigned"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/payloads/cosigned"
       }
     }
   ]
