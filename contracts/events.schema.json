@@ -623,6 +623,13 @@
           },
           "provider": {
             "type": "string"
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Lithic's transaction token; vtc_decision names the same token"
           }
         }
       },

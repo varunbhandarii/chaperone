@@ -302,7 +302,7 @@ def handle_authorization(payload: dict, mandate: dict | None = None) -> dict:
         if token:
             _seen[token] = public
         post_event(
-            "card_decision", "none", mandate_id,
+            "card_decision", "none", mandate_id, token=token or None,
             card_last4=answer["card_last4"], store=answer["store"], mcc=answer["mcc"],
             amount=answer["amount"], result=record["result"], reason_key=answer["reason_key"],
             reason=answer["reason"], hold_id=answer["hold_id"],

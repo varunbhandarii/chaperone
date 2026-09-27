@@ -389,8 +389,10 @@ async def reset(request: Request):
 
 
 from relay.host import router as host_router  # noqa: E402 - host.py uses this module's LEDGER and reset
+from relay.host import terminal_router  # noqa: E402
 
 router.include_router(host_router)
+router.include_router(terminal_router)
 
 app = FastAPI(title="Chaperone ledger (standalone)")
 app.include_router(router)
