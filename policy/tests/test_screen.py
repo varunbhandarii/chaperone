@@ -343,7 +343,11 @@ LINE_KEYS = {"ordering_now", "asking_priya", "caregiver_approved", "caregiver_de
              "receipt_done", "checkout_unavailable", "over_monthly_cap", "read_back_required",
              "blocked_category", "scam_pattern", "code_reading", "receipt_on_screen",
              "order_ready", "order_cancelled", "cancel_too_late", "refund_preview", "refund_done",
-             "refund_not_allowed_rx", "refund_scam", "agent_paused", "you_saved", "loyalty_points", "repeat_nothing"}
+             "refund_not_allowed_rx", "refund_scam", "agent_paused", "you_saved", "loyalty_points", "repeat_nothing",
+             "card_declined_blocked", "card_declined_cooldown", "card_declined_over_cap", "card_declined_unusual",
+             "card_declined_atm", "card_allowed_once", "cooldown_on", "bill_due", "bill_past_due", "bill_paid",
+             "refund_not_allowed_bill", "line_pin_ask", "line_pin_wrong", "pickup_line", "scam_check_scam",
+             "scam_check_unsure", "scam_check_ok", "scam_check_unavailable"}
 
 
 def test_line_files_share_keys_and_placeholders():
@@ -356,8 +360,9 @@ def test_line_files_share_keys_and_placeholders():
         assert holes["en"] == holes["es"] == holes["hi"], key
 
 
-@pytest.mark.parametrize("name", [f"{k}.{l}.mp3" for k in ("line.asking_priya", "line.receipt_done", "line.refund_done",
-                                                           "refusal.refund_scam") for l in ("en", "es", "hi")])
+@pytest.mark.parametrize("name", [f"{k}.{l}.mp3" for k in (
+    "line.asking_priya", "line.receipt_done", "line.refund_done", "refusal.refund_scam", "line.scam_check_scam",
+    "line.card_declined_blocked", "line.card_declined_cooldown", "line.card_allowed_once") for l in ("en", "es", "hi")])
 def test_line_clips_exist(name):
     assert (ROOT / "ai/warnings" / name).exists()
 
@@ -594,3 +599,19 @@ def test_outage_talk_is_not_the_shutoff_scam(text):
 ])
 def test_v2_hard_negatives_are_not_refused(text):
     assert action(text) != "refuse"
+
+
+def test_no_store_name_is_hard_coded_in_the_lines():
+    for lang in ("en", "es", "hi"):
+        text = (ROOT / f"ai/prompts/lines.{lang}.json").read_text(encoding="utf-8")
+        assert "Corner Market" not in text and "कॉर्नर मार्केट" not in text
+
+
+def test_placeholders_match_what_the_station_passes():
+    import re
+    lines = json.loads((ROOT / "ai/prompts/lines.en.json").read_text(encoding="utf-8"))
+    holes = lambda key: set(re.findall(r"\{(\w+)\}", lines[key]))  # noqa: E731
+    assert holes("refund_preview") == holes("refund_done") == {"amount", "last4"}
+    assert holes("order_ready") == {"store", "code"} and holes("pickup_line") == {"code"}
+    assert holes("receipt_done") == holes("receipt_on_screen") == {"total", "store", "pickup"}
+    assert holes("card_declined_cooldown") == {"amount", "store"}
