@@ -329,7 +329,19 @@ WALL_SOURCES = {
     "panel": lambda: f"{_service('MERCHANT_URL', 'http://127.0.0.1:8002')}/panel",
     "mandate": lambda: f"{_service('POLICY_URL', 'http://127.0.0.1:8001')}/mandate",
     "budget": lambda: f"{_service('POLICY_URL', 'http://127.0.0.1:8001')}/budget?mandate_id={MANDATE_ID}",
+    "visa_mandate": lambda: f"{_service('POLICY_URL', 'http://127.0.0.1:8001')}/mandate/visa",
+    "card": lambda: f"{_service('POLICY_URL', 'http://127.0.0.1:8001')}/card/state",
 }
+
+
+@router.get("/wall/data/stores")
+def wall_stores():
+    """Store names for the wall and session page, from contracts/merchants.json (never hard-coded)."""
+    from common import merchants
+
+    return JSONResponse({"merchants": merchants.all_merchants(),
+                         "card_terminal_stores": merchants.registry().get("card_terminal_stores") or []},
+                        headers={"Cache-Control": "no-store"})
 
 
 @router.get("/wall/data/protected")

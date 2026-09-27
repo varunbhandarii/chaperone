@@ -4,336 +4,391 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/design/tokens.css">
-<title>Chaperone Wall</title>
+<title>Trust Ledger</title>
 <style>
   :root {
-    --bg: #0b0f17; --panel: #121a27; --line: #223047; --text: #e8edf5; --muted: #8fa0b8;
-    --green: #3fb950; --red: #ff6b61; --amber: #e3b341; --blue: #6cb6ff; --violet: #c297ff; --flash: #1f3a5c;
+    --bg: var(--ch-bg, #f6f1e7); --panel: var(--ch-surface, #fffdf8); --text: var(--ch-text, #1b2a4a);
+    --muted: color-mix(in srgb, var(--text) 58%, transparent); --line: color-mix(in srgb, var(--text) 14%, transparent);
+    --ok-c: var(--ok, #1f7a4d); --prot: var(--protected, #1f7a4d); --caut: var(--caution, #a15c07);
+    --decl: var(--declined, #6b4c3b); --visa: #1a1f71;
+    --flash: color-mix(in srgb, var(--prot) 16%, transparent);
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --serif: var(--ch-font, Georgia, serif);
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 22px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  body { display: grid; grid-template-rows: auto 1fr; padding: 20px 28px; gap: 18px; }
-  header { display: flex; align-items: baseline; gap: 24px; flex-wrap: wrap; }
-  h1 { font-size: 40px; margin: 0; letter-spacing: 0.5px; }
-  .sub { color: var(--muted); font-size: 20px; }
-  .month { margin-left: auto; text-align: right; }
-  .month .big { font-size: 48px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .month .cap { color: var(--muted); font-size: 20px; }
-  .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: var(--red); margin-right: 8px; vertical-align: middle; }
-  .dot.on { background: var(--green); }
-  main { display: grid; grid-template-columns: minmax(420px, 38%) 1fr; gap: 18px; min-height: 0; }
-  .col { display: grid; grid-template-rows: auto 1fr; gap: 18px; min-height: 0; }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-height: 0; overflow: hidden; }
-  h2 { margin: 0 0 12px; font-size: 26px; display: flex; align-items: center; gap: 12px; }
-  .badge { font-size: 16px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
-  .ok { color: var(--green); } .bad { color: var(--red); } .warn { color: var(--amber); } .muted { color: var(--muted); }
-  .badge.ok { background: #12321b; } .badge.bad { background: #3d1614; } .badge.warn { background: #3a2e0c; }
-  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; }
-  dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { font: 18px var(--mono); padding: 2px 9px; border-radius: 8px; background: #1b2638; }
-  .chip.block { background: #3d1614; color: var(--red); }
-  .mono { font-family: var(--mono); font-size: 19px; }
-  .checks { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 4px; }
-  .checks li { display: grid; grid-template-columns: 30px 170px 1fr; gap: 8px; align-items: baseline; }
-  .checks .detail { color: var(--muted); font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .status { font-size: 30px; font-weight: 700; margin: 6px 0 10px; }
-  #ledger { list-style: none; margin: 0; padding: 0; overflow: hidden; height: calc(100% - 48px); }
-  #ledger li { display: grid; grid-template-columns: 112px 118px 250px 1fr; gap: 12px; padding: 7px 8px; border-bottom: 1px solid var(--line); align-items: baseline; transition: background 2s ease-out; }
-  #ledger li.new { background: var(--flash); }
-  #ledger .time { font: 18px var(--mono); color: var(--muted); }
-  #ledger .src { font-size: 17px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-  #ledger .type { font: 20px var(--mono); }
-  #ledger .sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .src.station { color: var(--blue); } .src.policy { color: var(--violet); } .src.merchant { color: var(--amber); }
-  .src.caregiver { color: var(--green); } .src.relay { color: var(--muted); }
-  .empty { color: var(--muted); padding: 12px 8px; }
-  .tag { font: 600 14px system-ui; padding: 1px 7px; border-radius: 6px; margin-right: 8px; vertical-align: 2px; }
-  .tag.replay { background: #3a2e0c; color: var(--amber); }
-  .tag.lang { background: #1b2638; color: var(--muted); }
-  .timeline { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; list-style: none; padding: 0; }
-  .timeline li { font-size: 16px; padding: 3px 10px; border-radius: 999px; background: #1b2638; color: var(--muted); }
-  .timeline li.done { background: #12321b; color: var(--green); }
-  .timeline li.now { outline: 2px solid var(--green); }
-  .timeline li.off { background: #3d1614; color: var(--red); }
-  .refund { font-size: 18px; margin-top: 4px; }
-  .pickup { font: 700 30px var(--mono); letter-spacing: 4px; }
-  .countdown { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--amber); }
-  #replayBanner { display: none; font: 700 22px system-ui; color: #111; background: var(--amber); padding: 4px 14px; border-radius: 10px; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text); font: 20px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: grid; grid-template-rows: auto 1fr; gap: 16px; padding: 18px 24px; min-height: 100vh;
+  }
+  header { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { width: 44px; height: 44px; }
+  h1 { font: 700 36px/1.1 var(--serif); margin: 0; }
+  h1 small { font: 400 22px system-ui; color: var(--muted); margin-left: 8px; }
+  .conn { font-size: 16px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--decl); }
+  .dot.on { background: var(--ok-c); }
+  #replayBanner { display: none; font: 700 18px system-ui; color: #111; background: var(--caut); padding: 3px 12px; border-radius: 8px; }
   #replayBanner.on { display: inline-block; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } #ledger li { grid-template-columns: 90px 1fr; } #ledger .src, #ledger .time { display: none; } }
+  .protected { margin-left: auto; text-align: right; }
+  .protected .big { font: 800 60px/1 system-ui; color: var(--prot); font-variant-numeric: tabular-nums; }
+  .protected .cap { color: var(--muted); font-size: 18px; }
+  main { display: grid; grid-template-columns: minmax(360px, 27%) 1fr; gap: 16px; min-height: 0; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  h2 { font: 700 22px var(--serif); margin: 0 0 8px; display: flex; align-items: center; gap: 10px; }
+  h2 .hint { font: 400 15px system-ui; color: var(--muted); }
+  .badge { font: 600 14px system-ui; padding: 2px 9px; border-radius: 999px; background: var(--line); }
+  .badge.ok { background: color-mix(in srgb, var(--ok-c) 18%, transparent); color: var(--ok-c); }
+  .badge.warn { background: color-mix(in srgb, var(--caut) 18%, transparent); color: var(--caut); }
+  .badge.decl { background: color-mix(in srgb, var(--decl) 18%, transparent); color: var(--decl); }
+  .badge.visa { background: var(--visa); color: #fff; }
+  .muted { color: var(--muted); }
+  .left { display: grid; grid-template-rows: auto auto 1fr; gap: 16px; min-height: 0; }
+  .stores { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .stores li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 6px 8px; border-radius: 10px; background: color-mix(in srgb, var(--text) 4%, transparent); }
+  .stores .cat { font-size: 14px; color: var(--muted); grid-column: 1 / -1; }
+  .stores .amt { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .signers { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .never { margin-top: 8px; font-size: 16px; }
+  .never .chip { display: inline-block; font-size: 14px; padding: 1px 8px; border-radius: 999px; margin: 2px 4px 0 0; background: color-mix(in srgb, var(--decl) 16%, transparent); color: var(--decl); }
+  .paused { display: none; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--caut) 18%, transparent); color: var(--caut); font-weight: 700; }
+  .paused.on { display: block; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 17px; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .orders { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; overflow: auto; }
+  .orders li { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+  .orders .top { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; }
+  .orders .meta { font-size: 15px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 2px; }
+  .lanes { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 16px; min-height: 0; }
+  .lane h2 .icon { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 18px; background: color-mix(in srgb, var(--text) 8%, transparent); }
+  .lane .now { font-size: 16px; color: var(--muted); margin: -2px 0 6px; min-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rows { list-style: none; margin: 0; padding: 0; overflow: hidden; flex: 1; }
+  .rows li { border-bottom: 1px solid var(--line); padding: 6px 2px; transition: background 2s ease-out; }
+  .rows li.new { background: var(--flash); }
+  .rows details summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 70px 1fr; gap: 10px; align-items: baseline; }
+  .rows details summary::-webkit-details-marker { display: none; }
+  .rows .time { font: 15px var(--mono); color: var(--muted); }
+  .rows .what { font-weight: 600; }
+  .rows .what.ok { color: var(--ok-c); } .rows .what.prot { color: var(--prot); } .rows .what.caut { color: var(--caut); } .rows .what.decl { color: var(--decl); }
+  .rows .detail { display: block; font-weight: 400; font-size: 16px; color: var(--muted); }
+  .rows .raw { font: 14px var(--mono); color: var(--muted); margin: 4px 0 2px 80px; white-space: pre-wrap; word-break: break-all; }
+  .rows .empty { color: var(--muted); border: 0; }
+  .src a { color: inherit; }
+  .tag { font: 600 12px system-ui; padding: 1px 6px; border-radius: 6px; margin-left: 6px; vertical-align: 2px; background: color-mix(in srgb, var(--caut) 22%, transparent); color: var(--caut); }
+  .tag.visa { background: var(--visa); color: #fff; }
+  .tag.lang { background: var(--line); color: var(--muted); }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } .lanes { grid-template-columns: 1fr; grid-template-rows: none; } .protected { margin-left: 0; text-align: left; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>Chaperone</h1>
-  <span class="sub">Corner Market · Visa sandbox · no real money · <span class="dot" id="conn"></span><span id="connText">connecting</span></span>
+  <div class="brand"><img src="/design/shield.svg" alt=""><h1>Chaperone<small>Trust Ledger · Visa sandbox</small></h1></div>
+  <span class="conn"><span class="dot" id="conn"></span><span id="connText">connecting</span> · sandbox, no real money</span>
   <span id="replayBanner">REPLAY</span>
-  <div class="month"><div class="big" id="spent">$142.10</div><div class="cap" id="cap">spent this month of $300.00</div></div>
+  <div class="protected">
+    <div class="big" id="protected">$0</div>
+    <div class="cap" id="protectedCap">protected since the demo started</div>
+  </div>
 </header>
+
 <main>
-  <div class="col">
+  <div class="left">
     <section id="mandate">
-      <h2>Caregiver mandate <span class="badge warn" id="signed">loading</span></h2>
-      <dl id="mandateBody"></dl>
+      <h2>Ruth's rules <span class="badge" id="signed">loading</span></h2>
+      <div class="muted" style="font-size:15px;margin-bottom:6px">In Visa Intelligent Commerce's <code>mandates[]</code> shape</div>
+      <ul class="stores" id="visaStores"></ul>
+      <div class="signers" id="signers"></div>
+      <div class="never" id="never"></div>
+      <div class="paused" id="paused">Paused by Priyank: the agent can't buy anything.</div>
     </section>
-    <section id="merchant">
-      <h2>Merchant check <span class="badge" id="backend"></span></h2>
-      <div id="merchantBody" class="muted">No order yet.</div>
+    <section>
+      <h2>This month</h2>
+      <dl class="kv" id="month"><dt>Spent</dt><dd class="muted">—</dd></dl>
+    </section>
+    <section style="min-height:0">
+      <h2>Orders by store <span class="hint">signed · verified · Visa risk</span></h2>
+      <ul class="orders" id="orders"><li class="muted" style="border:0">No orders yet.</li></ul>
     </section>
   </div>
-  <section>
-    <h2>Live ledger <span class="muted" id="count" style="font-size:18px;font-weight:400"></span></h2>
-    <ul id="ledger"><li class="empty">Waiting for the first event.</li></ul>
-  </section>
+
+  <div class="lanes">
+    <section class="lane" id="lane-ask"><h2><span class="icon">☎</span>Ask <span class="hint">the conversation and scam checks</span></h2>
+      <div class="now" id="nowAsk"></div><ul class="rows"></ul></section>
+    <section class="lane" id="lane-card"><h2><span class="icon">▭</span>Card <span class="hint">every swipe, checked in under a second</span> <span class="badge warn" id="cooldown" hidden></span></h2>
+      <ul class="rows"></ul></section>
+    <section class="lane" id="lane-agent"><h2><span class="icon">⇄</span>Agent <span class="hint">errands and bills, signed</span></h2>
+      <ul class="rows"></ul></section>
+    <section class="lane" id="lane-family"><h2><span class="icon">⌂</span>Family <span class="hint">Priyank and Ruth, together</span></h2>
+      <ul class="rows"></ul></section>
+  </div>
 </main>
+
 <script>
 "use strict";
-const MAX_ROWS = 40;
+const MAX_ROWS = 14;
 const $ = (id) => document.getElementById(id);
-const money = (v) => (v === undefined || v === null || v === "") ? "" : "$" + Number(v).toFixed(2);
-const short = (s, n = 10) => (s && String(s).length > n) ? String(s).slice(0, n) + "…" : (s ?? "");
-let total = 0;
-let lastMonthly = null;
+const money = (v) => (v === undefined || v === null || v === "") ? "" : "$" + Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const wholeMoney = (v) => "$" + Math.round(Number(v || 0)).toLocaleString("en-US");
+const epochMs = (v) => v === undefined || v === null || v === "" ? null : typeof v === "number" ? (v < 1e12 ? v * 1000 : v) : Date.parse(v);
+const clock = (ms) => ms ? new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+let NAMES = {};  // merchant id -> store name, from contracts/merchants.json
+const store = (id, fallback) => NAMES[id] || fallback || (id ? String(id).replace(/_/g, " ") : "");
 
 function el(tag, attrs = {}, ...kids) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
-    if (k === "class") node.className = v; else node.setAttribute(k, v);
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") node.className = v; else if (k === "hidden") node.hidden = true; else node.setAttribute(k, v);
   }
-  for (const kid of kids) node.append(kid instanceof Node ? kid : document.createTextNode(String(kid ?? "")));
+  for (const kid of kids) if (kid !== null && kid !== undefined) node.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
   return node;
 }
 
-function failedRules(e) {
-  if (Array.isArray(e.rules_failed)) return e.rules_failed;
-  return (e.rules || []).filter((r) => r && r.passed === false).map((r) => r.id);
-}
+const CARD_REASON = {
+  card_blocked_category: "a store type Ruth's card never pays", card_cooldown: "the cool-down after a scam call",
+  card_unusual_amount: "far more than Ruth usually spends there", card_over_cap: "over the limit for that store",
+  card_atm_cap: "over the daily cash limit",
+};
+const RULE = {
+  R1: "a blocked category", R2: "a store outside the rules", R3: "a category outside the rules", R4: "over the per-purchase limit",
+  R5: "over the monthly limit", R6: "above the ask-Priyank amount", R7: "the scam check", S_screen: "scam words in the request",
+};
+const ruleText = (id) => { const key = Object.keys(RULE).find((k) => String(id || "").startsWith(k)); return key ? RULE[key] : String(id || "").replace(/_/g, " "); };
+const VERDICT = { scam: "Scam", likely_scam: "Likely scam", suspicious: "Suspicious", unclear: "Unclear", likely_safe: "Looks safe", safe: "Looks safe" };
 
-const lineText = (l) => `${l.qty && l.qty !== 1 ? l.qty + " × " : ""}${l.name || l.sku || ""}${l.price !== undefined ? " " + money(l.price) : ""}`;
-const epochMs = (v) => v === undefined || v === null || v === "" ? null : typeof v === "number" ? (v < 1e12 ? v * 1000 : v) : Date.parse(v);
-const clock = (ms) => ms ? new Date(ms).toLocaleTimeString([], { hour12: false }) : "";
-
-// Event payloads (contracts/events.schema.json $defs.payloads); older field names are read as a fallback.
-function summary(e) {
+// Every event type in contracts/events.schema.json -> {lane, what, detail, tone}. null = not shown as a row.
+function describe(e) {
+  const pct = (v) => v === undefined || v === null ? "" : ` · score ${v}`;
   switch (e.type) {
-    case "heard": return `${e.role === "agent" || e.role === "assistant" ? "Agent" : "Shopper"}: “${e.text || e.transcript || ""}”`;
-    case "items_found": return `${e.query ? "“" + e.query + "” → " : ""}${(e.items || []).map(lineText).join(", ") || "nothing found"}`;
-    case "cart_updated": return `${(e.lines || e.items || []).map(lineText).join(", ") || "empty"} · total ${money(e.total)}`;
-    case "checkout_requested": return `checkout ${money(e.total)}`;
-    case "policy_decision": {
-      const failed = failedRules(e);
-      return `${(e.decision || "").toUpperCase()} ${e.decision_id || ""}${e.total !== undefined ? " · " + money(e.total) : ""}${failed.length ? " · failed " + failed.join(", ") : " · all rules pass"}`;
+    // Ask
+    case "scam_checked": return { lane: "ask", tone: e.verdict === "scam" || e.verdict === "likely_scam" ? "prot" : e.verdict === "likely_safe" ? "ok" : "caut",
+      what: `${VERDICT[e.verdict] || e.verdict || "Checked"}: ${String(e.pattern || "a story").replace(/_/g, " ")}`,
+      detail: `${e.channel === "line" ? "on the phone line" : "at home"}${e.amount ? " · " + money(e.amount) + " asked for" : ""}${(e.sources || []).length ? " · " + e.sources.length + " sources" : ""}${e.ms ? " · " + (e.ms / 1000).toFixed(1) + " s" : ""}`,
+      sources: e.sources };
+    case "caution": return { lane: "ask", tone: "caut", what: e.action === "judge" ? "Taking a closer look" : "Slowing down", detail: `heard “${[].concat(e.words || []).slice(0, 3).join("”, “")}”` };
+    case "judge_scored": return { lane: "ask", tone: e.action === "allow" ? "ok" : "caut", what: `Grok judged the request${pct(e.scam_score)}`, detail: (e.patterns || []).join(", ").replace(/_/g, " ") || "no scam pattern" };
+    case "refusal": return { lane: "ask", tone: "prot", what: "Refused out loud", detail: `because of ${[].concat(e.rule_ids && e.rule_ids.length ? e.rule_ids : [e.rule_id]).map(ruleText).join(" and ")}` };
+    case "line_call": return { lane: "ask", tone: "", what: e.phase === "ended" ? "Phone call ended" : "Ruth called the Chaperone Line", detail: `from •••${e.from_last4 || ""}${e.seconds ? " · " + Math.round(e.seconds) + " s" : ""}` };
+    case "risk_changed": return { lane: "card", tone: e.cooldown_until ? "caut" : "ok", what: e.cooldown_until ? "Card cool-down on" : "Card cool-down cleared", detail: e.cooldown_until ? `until ${clock(epochMs(e.cooldown_until))} · ${e.reason || ""}` : e.reason || "" };
+    // Card
+    case "card_decision": {
+      const ok = e.result === "approved";
+      return { lane: "card", tone: ok ? "ok" : "prot", what: `${ok ? "Approved" : "Declined"} ${money(e.amount)} at ${e.store || "a store"}`,
+        detail: ok ? `card •••${e.card_last4 || ""}` : `${CARD_REASON[e.reason_key] || e.reason || ""}${e.hold_id && e.reason_key !== "card_blocked_category" ? " · Priyank can allow once" : e.reason_key === "card_blocked_category" ? " · stays blocked" : ""}`,
+        token: e.token };
     }
-    case "refusal": return `${(e.rule_ids && e.rule_ids.length ? e.rule_ids : [e.rule_id || e.rule || ""]).join(" + ")}${e.spoken_key || e.say_key ? " · says " + (e.spoken_key || e.say_key) : ""}`;
-    case "judge_scored": return `score ${e.scam_score ?? ""} · ${(e.patterns || []).join(", ") || "no pattern"} · ${e.action || ""}`;
-    case "request_signed": return `keyid ${e.keyid || ""} · nonce ${short(e.nonce, 14)} · expires ${clock(epochMs(e.expires))}`;
-    case "signature_verified": return `${(e.checks || []).filter((c) => c.passed).length}/${(e.checks || []).length} checks · keyid ${e.keyid || "-"} · nonce ${short(e.nonce, 14)}`;
-    case "signature_rejected": { const bad = (e.checks || []).find((c) => c.passed === false); return bad ? `${bad.id}: ${bad.detail}` : ""; }
-    case "payment_link_created": return `${money(e.amount)} · ${e.backend === "visa" ? "Visa sandbox" : "mock"} · ${e.order_id || ""}`;
-    case "order_created": return `${e.order_id || ""} ${money(e.amount)}`;
-    case "card_authorized": return `AUTHORIZED · request ${e.request_id || ""}`;
-    case "card_auth_failed": return `${e.status || ""} · ${e.reason || ""}`;
-    case "paid": return `${money(e.total ?? e.amount)} · ${e.order_id || ""} · via ${e.via || ""}`;
-    case "approval_requested": return `${money(e.amount)} · ${e.rule || ""} · asking Priyank`;
-    case "approval_result": return `${e.approved ? "APPROVED" : "NOT APPROVED"} · ${e.method || ""} · ${e.approval_id || ""}`;
-    case "caregiver_alerted": return e.reason || e.rule_id || "Priyank alerted";
-    case "mandate_signed": return `${e.mandate_id || ""} by passkey`;
-    case "receipt_printed": return `${e.order_id || ""} · ${e.via === "screen" ? "on screen" : "printed"}`;
-    case "order_status": return `${e.order_id || ""} · ${(e.status || "").replace(/_/g, " ")}${e.pickup_code ? " · pickup code " + e.pickup_code : ""}`;
-    case "order_cancelled": return `${money(e.amount)} · ${e.order_id || ""} · link ${e.link_status || ""}${e.request_id ? " · request " + short(e.request_id, 13) : ""}`;
-    case "refund_requested": return `${e.qty || 1} × ${e.sku || ""} · ${money(e.amount)} · ${e.reason || ""}`;
-    case "refund_result": return `${money(e.amount)} ${e.status || ""} · card ending ${e.card_last4 || ""} · ${e.label || "sandbox processor stub"}`;
-    case "mandate_paused": return "the agent is paused by Priyank";
-    case "mandate_resumed": return `resumed${e.method ? " by " + e.method : ""}`;
-    case "explanation_requested": return `Priyank asked why · ${e.decision_id || ""}`;
-    case "reset": return "demo reset";
-    default: return "";
+    case "vtc_decision": return null;  // shown as a badge on its card row
+    case "card_hold_released": return { lane: "family", tone: "ok", what: `Priyank allowed ${e.store || "a store"} once`, detail: `up to ${money(e.max_amount)} · until ${clock(epochMs(e.allowed_until))}` };
+    // Agent
+    case "items_found": return { lane: "agent", tone: "", what: `Found ${(e.items || []).length} for “${e.query || ""}”`, detail: (e.items || []).slice(0, 2).map((i) => `${i.name || i.sku}${i.store ? " at " + i.store : ""}`).join(" · ") };
+    case "cart_updated": return { lane: "agent", tone: "", what: `Cart ${money(e.total)}`, detail: (e.lines || e.items || []).map((l) => `${l.qty && l.qty !== 1 ? l.qty + " × " : ""}${l.name || l.sku}`).join(", ") };
+    case "checkout_requested": return { lane: "agent", tone: "", what: `Checkout ${money(e.total)} read back`, detail: "" };
+    case "policy_decision": {
+      const failed = e.rules_failed || [];
+      const tone = e.decision === "allow" ? "ok" : e.decision === "approve" ? "caut" : "prot";
+      const what = e.decision === "allow" ? `Within the rules: ${money(e.total)}` : e.decision === "approve" ? `Asking Priyank about ${money(e.total)}` : `Blocked ${money(e.total)}`;
+      return { lane: "agent", tone, what, detail: failed.length ? `because of ${failed.map(ruleText).join(" and ")}` : "all seven rules pass" };
+    }
+    case "request_signed": return { lane: "agent", tone: "", what: "Signed the order", detail: `Ed25519 · ${e.keyid || "chaperone-agent-1"} · 8-minute window` };
+    case "signature_verified": { const n = (e.checks || []).filter((c) => c.passed).length;
+      return { lane: "agent", tone: "ok", what: `${e.store || store(e.merchant, "The store")} verified the signature`, detail: `${n}/${(e.checks || []).length} checks · key, digest, window, nonce, decision` }; }
+    case "signature_rejected": { const bad = (e.checks || []).find((c) => c.passed === false);
+      return { lane: "agent", tone: "prot", what: `${store(e.merchant, "A store")} rejected a request`, detail: bad ? `${bad.id}: ${bad.detail}` : "" }; }
+    case "payment_link_created": return { lane: "agent", tone: "", what: `${e.store || store(e.merchant, "Store")}: Visa payment link ${money(e.amount)}`, detail: e.backend === "visa" ? "Cybersource sandbox Pay by Link" : "mock page (fallback)" };
+    case "risk_scored": return { lane: "agent", tone: e.status === "ACCEPTED" ? "ok" : e.error ? "" : "caut",
+      what: e.error ? `Visa risk check unavailable` : `Visa risk score ${e.score ?? "–"} · ${String(e.status || "").toLowerCase()}`, detail: `${e.store || store(e.merchant)} · Decision Manager${e.ms ? " · " + e.ms + " ms" : ""}` };
+    case "paid": return { lane: "agent", tone: "ok", what: `Paid ${money(e.total ?? e.amount)}${e.store ? " at " + e.store : ""}`, detail: String(e.via || "").startsWith("cybersource") ? "Cybersource payment notification" : "marked paid in the sandbox flow" };
+    case "order_status": return { lane: "agent", tone: e.status === "ready_for_pickup" ? "ok" : "", what: `Order ${String(e.status || "").replace(/_/g, " ")}`, detail: e.pickup_code ? `pickup code ${e.pickup_code}` : "" };
+    case "order_cancelled": return { lane: "agent", tone: "caut", what: `Cancelled ${money(e.amount)}`, detail: `Visa link ${e.link_status || "INACTIVE"}` };
+    case "refund_requested": return { lane: "agent", tone: "caut", what: `Return asked: ${e.qty || 1} × ${e.sku || ""}`, detail: `${money(e.amount)} · only to the card that paid` };
+    case "refund_result": return { lane: "agent", tone: e.status === "TRANSMITTED" ? "ok" : "caut", what: `Refund ${money(e.amount)} ${String(e.status || "").toLowerCase()}`, detail: `to card •••${e.card_last4 || ""} · sandbox processor stub` };
+    case "receipt_printed": return { lane: "agent", tone: "", what: e.via === "screen" ? "Receipt on screen" : "Receipt printed", detail: e.store || "" };
+    case "bill_checked": return { lane: "agent", tone: e.past_due ? "caut" : "ok", what: `${e.biller || "Bill"}: ${money(e.balance_due)} due ${e.due_date || ""}`, detail: e.past_due ? "past due" : "not past due · no disconnect notice" };
+    case "card_authorized": return { lane: "agent", tone: "ok", what: "Card authorized", detail: e.request_id || "" };
+    case "card_auth_failed": return { lane: "agent", tone: "caut", what: "Card authorization failed", detail: `${e.status || ""} ${e.reason || ""}` };
+    // Family
+    case "approval_requested": return { lane: "family", tone: "caut", what: `Priyank asked to approve ${money(e.amount)}`, detail: e.reason || ruleText(e.rule) };
+    case "approval_result": return { lane: "family", tone: e.approved ? "ok" : "prot", what: e.approved ? "Priyank approved" : e.method === "timeout" ? "No answer from Priyank: nothing bought" : "Priyank said no", detail: e.method ? `by ${e.method}` : "" };
+    case "caregiver_alerted": return { lane: "family", tone: "", what: "Priyank was told", detail: e.kind === "screen_refusal" ? "a refused request, with a Why?" : e.kind === "refund" ? "a return" : "with a Why?" };
+    case "mandate_signed": return { lane: "family", tone: "ok", what: "Priyank signed the rules", detail: "with his passkey" };
+    case "cosigned": return { lane: "family", tone: "ok", what: "Ruth agreed by voice", detail: e.said ? `“${e.said}”` : "" };
+    case "mandate_paused": return { lane: "family", tone: "caut", what: "Priyank paused the agent", detail: "nothing can be bought" };
+    case "mandate_resumed": return { lane: "family", tone: "ok", what: "Priyank resumed the agent", detail: e.method ? `by ${e.method}` : "" };
+    case "explanation_requested": return { lane: "family", tone: "", what: "Priyank asked why", detail: "answered in plain words" };
+    // conversation lines go to the Ask lane's ticker, not rows
+    case "heard": case "session_started": case "replay_armed": case "reset": case "order_created": return null;
+    default: return { lane: "agent", tone: "", what: String(e.type || "event").replace(/_/g, " "), detail: "" };
   }
 }
 
-const heardRows = new Map();   // item_id -> row: one line per spoken turn
-const approvals = new Map();   // approval_id -> {row, expires, done}
-
-function sumNode(e) {
-  const node = el("span", { class: "sum" });
-  if (e.replay) node.append(el("span", { class: "tag replay" }, "REPLAY"));
-  if (e.lang && (e.type === "heard" || e.type === "refusal")) node.append(el("span", { class: "tag lang" }, e.lang));
-  node.append(document.createTextNode(summary(e)));
-  if (e.type === "approval_requested") node.append(" ", el("span", { class: "countdown" }, ""));
-  return node;
-}
+const RAW_KEYS = ["decision_id", "order_id", "approval_id", "check_id", "token", "hold_id", "session_id", "mandate_id",
+  "rule_id", "rule_ids", "rules_failed", "reason_key", "keyid", "nonce", "link_id", "request_id", "risk_id", "seq"];
+const cardRows = new Map();   // token -> row, for the Visa VTC badge
+const vtcByToken = new Map();
 
 function addRow(e) {
-  const list = $("ledger");
-  if (list.firstElementChild && list.firstElementChild.classList.contains("empty")) list.innerHTML = "";
-  if (e.type === "heard" && e.item_id && heardRows.has(e.item_id)) {  // a longer transcript of the same turn
-    const row = heardRows.get(e.item_id);
-    if (row.isConnected) {
-      row.replaceChild(sumNode(e), row.querySelector(".sum"));
-      row.classList.add("new"); setTimeout(() => row.classList.remove("new"), 50);
-      return;
-    }
+  const d = describe(e);
+  if (!d) return;
+  const list = document.querySelector(`#lane-${d.lane} .rows`);
+  if (list.querySelector(".empty")) list.innerHTML = "";
+  const raw = RAW_KEYS.filter((k) => e[k] !== undefined && e[k] !== null && e[k] !== "")
+    .map((k) => `${k}: ${Array.isArray(e[k]) ? e[k].join(", ") : e[k]}`).join("\n") + `\ntype: ${e.type} · source: ${e.source}`;
+  const what = el("span", { class: "what " + (d.tone || "") }, d.what);
+  if (e.replay) what.append(el("span", { class: "tag" }, "REPLAY"));
+  if (e.lang && e.type === "refusal") what.append(el("span", { class: "tag lang" }, e.lang));
+  const body = el("span", {}, what, d.detail ? el("span", { class: "detail" }, d.detail) : null);
+  if (d.sources && d.sources.length) {
+    body.append(el("span", { class: "detail src" }, ...d.sources.slice(0, 3).map((s, i) => {
+      const title = typeof s === "string" ? s : s.title || s.url || "source";
+      const url = typeof s === "object" && s.url ? s.url : null;
+      return el("span", {}, i ? " · " : "Sources: ", url ? el("a", { href: url, target: "_blank", rel: "noopener" }, title) : title);
+    })));
   }
-  const when = new Date(e.rt || e.t || Date.now()).toLocaleTimeString([], { hour12: false });
-  const bad = /(rejected|failed|refusal)/.test(e.type) || (e.type === "policy_decision" && e.decision === "deny")
-    || (e.type === "approval_result" && !e.approved);
-  const good = e.type === "paid" || (e.type === "approval_result" && e.approved);
-  const row = el("li", { class: "new" },
-    el("span", { class: "time" }, when),
-    el("span", { class: "src " + (e.source || "") }, e.source || ""),
-    el("span", { class: "type " + (bad ? "bad" : good ? "ok" : e.type === "approval_requested" ? "warn" : "") }, e.type),
-    sumNode(e));
+  const row = el("li", { class: "new" }, el("details", {},
+    el("summary", {}, el("span", { class: "time" }, clock(e.rt || e.t || Date.now())), body),
+    el("div", { class: "raw" }, raw)));
   list.prepend(row);
-  setTimeout(() => row.classList.remove("new"), 50);
+  setTimeout(() => row.classList.remove("new"), 60);
   while (list.children.length > MAX_ROWS) list.lastElementChild.remove();
-  $("count").textContent = `${++total} events`;
-  if (e.type === "heard" && e.item_id) heardRows.set(e.item_id, row);
-  if (e.type === "approval_requested" && e.approval_id) {
-    approvals.set(e.approval_id, { row, expires: epochMs(e.expires_at) || (Date.now() + 90000), done: null });
+  if (e.type === "card_decision" && e.token) {
+    cardRows.set(e.token, what);
+    if (vtcByToken.has(e.token)) vtcBadge(e.token);
   }
-  if (e.type === "approval_result" && approvals.has(e.approval_id)) {
-    approvals.get(e.approval_id).done = e.approved ? "approved" : e.method === "timeout" ? "timed out" : "not approved";
-  }
-  if (e.type === "policy_decision" && e.monthly_total_after !== undefined) lastMonthly = e.monthly_total_after;
-  if (e.replay) { $("replayBanner").classList.add("on"); clearTimeout(addRow.replayTimer); addRow.replayTimer = setTimeout(() => $("replayBanner").classList.remove("on"), 30000); }
-  if (["paid", "payment_link_created", "signature_verified", "signature_rejected", "card_authorized", "card_auth_failed",
-       "order_status", "order_cancelled", "refund_result"].includes(e.type)) refreshPanel();
-  if (["order_cancelled", "refund_result"].includes(e.type)) refreshBudget();
-  if (["paid", "policy_decision", "approval_result"].includes(e.type)) refreshBudget();
-  if (e.type === "mandate_signed") refreshMandate();
 }
 
-function tickApprovals() {
-  for (const a of approvals.values()) {
-    const node = a.row.querySelector(".countdown");
-    if (!node) continue;
-    const left = Math.max(0, Math.ceil((a.expires - Date.now()) / 1000));
-    node.textContent = a.done ? `· ${a.done}` : left > 0 ? `· ${left}s left` : "· holding (no answer)";
-    node.className = "countdown " + (a.done === "approved" ? "ok" : a.done ? "bad" : "");
+function vtcBadge(token) {
+  const what = cardRows.get(token), v = vtcByToken.get(token);
+  if (!what || !v || what.querySelector(".tag.visa")) return;
+  if (v.should_decline === true) what.append(el("span", { class: "tag visa" }, "Visa VTC: decline"));
+  else if (v.should_decline === false) what.append(el("span", { class: "tag visa" }, "Visa VTC: approve"));
+}
+
+function onEvent(e) {
+  if (e.type === "replay_armed") return;
+  if (e.type === "reset") {
+    for (const list of document.querySelectorAll(".rows")) list.replaceChildren(el("li", { class: "empty" }, "Nothing yet."));
+    cardRows.clear(); vtcByToken.clear(); $("nowAsk").textContent = ""; $("replayBanner").classList.remove("on");
+    refreshAll();
+    return;
   }
+  if (e.type === "heard" && e.text) {
+    const who = e.role === "agent" || e.role === "assistant" ? "Chaperone" : "Ruth";
+    $("nowAsk").textContent = `${who}: “${e.text}”`;
+  }
+  if (e.type === "vtc_decision" && e.token) { vtcByToken.set(e.token, e); vtcBadge(e.token); }
+  if (e.replay) { $("replayBanner").classList.add("on"); clearTimeout(onEvent.t); onEvent.t = setTimeout(() => $("replayBanner").classList.remove("on"), 30000); }
+  addRow(e);
+  if (["card_decision", "policy_decision", "scam_checked", "refusal", "caregiver_alerted"].includes(e.type)) refreshProtected();
+  if (["payment_link_created", "risk_scored", "paid", "order_status", "order_cancelled", "refund_result", "signature_verified"].includes(e.type)) refreshOrders();
+  if (["paid", "policy_decision", "order_cancelled", "refund_result"].includes(e.type)) refreshBudget();
+  if (["mandate_signed", "cosigned", "mandate_paused", "mandate_resumed"].includes(e.type)) refreshMandate();
+  if (["risk_changed", "card_hold_released"].includes(e.type)) refreshCard();
 }
 
 function connect() {
   const source = new EventSource("/events/stream");
   source.onopen = () => { $("conn").classList.add("on"); $("connText").textContent = "live"; };
   source.onerror = () => { $("conn").classList.remove("on"); $("connText").textContent = "reconnecting"; };
-  source.onmessage = (msg) => {
-    let e;
-    try { e = JSON.parse(msg.data); } catch { return; }
-    if (e.type === "replay_armed") return;  // a Host control, not part of the story on the wall
-    if (e.type === "reset") {
-      $("ledger").innerHTML = ""; total = 0; lastMonthly = null; heardRows.clear(); approvals.clear();
-      $("merchantBody").replaceChildren(document.createTextNode("No order yet."));
-      $("replayBanner").classList.remove("on");
-      refreshBudget();
-    }
-    addRow(e);
-  };
+  source.onmessage = (msg) => { let e; try { e = JSON.parse(msg.data); } catch { return; } onEvent(e); };
 }
 
 async function getJSON(path) {
-  try {
-    const r = await fetch(path, { cache: "no-store" });
-    return r.ok ? await r.json() : null;
-  } catch { return null; }
+  try { const r = await fetch(path, { cache: "no-store" }); return r.ok ? await r.json() : null; } catch { return null; }
 }
 
-async function refreshBudget() {
-  const b = await getJSON("/wall/data/budget");
-  const spent = b && b.spent !== undefined ? b.spent : (lastMonthly ?? 142.10);
-  $("spent").textContent = money(spent);
-  $("cap").textContent = `spent this month of ${money(b && b.monthly_cap !== undefined ? b.monthly_cap : 300)}`;
+async function refreshStores() {
+  const s = await getJSON("/wall/data/stores");
+  for (const m of (s && s.merchants) || []) NAMES[m.id] = m.name;
+}
+
+async function refreshProtected() {
+  const p = await getJSON("/wall/data/protected");
+  if (!p) return;
+  $("protected").textContent = `${wholeMoney(p.dollars)} protected`;
+  const parts = [`${p.scams_stopped} scam${p.scams_stopped === 1 ? "" : "s"} stopped`, `${p.card_declines} card decline${p.card_declines === 1 ? "" : "s"}`];
+  $("protectedCap").textContent = parts.join(" · ") + " · since the demo started";
 }
 
 async function refreshMandate() {
-  const data = await getJSON("/wall/data/mandate");
-  const m = data && (data.mandate || (data.mandate_id ? data : null));
-  const signed = !!(m && (m.passkey || data.signed));
-  $("signed").textContent = !m ? "policy offline" : signed ? "signed by Priyank's passkey"
-    : data.fallback ? "policy offline · default rules" : "unsigned";
+  const [data, visa] = await Promise.all([getJSON("/wall/data/mandate"), getJSON("/wall/data/visa_mandate")]);
+  const m = data && (data.mandate || null);
+  const signed = !!(data && data.signed && !data.fallback);
+  $("signed").textContent = !m ? "policy offline" : signed ? "signed" : data.fallback ? "policy offline · defaults" : "unsigned";
   $("signed").className = "badge " + (signed ? "ok" : "warn");
-  if (!m) return;
-  const chips = (list, cls = "") => el("div", { class: "chips" }, ...(list || []).map((x) => el("span", { class: "chip " + cls }, x)));
-  $("mandateBody").replaceChildren(
-    el("dt", {}, "Per purchase"), el("dd", {}, `up to ${money(m.per_purchase_cap)}`),
-    el("dt", {}, "Ask Priyank"), el("dd", {}, `over ${money(m.approval_threshold)}`),
-    el("dt", {}, "Monthly cap"), el("dd", {}, money(m.monthly_cap)),
-    el("dt", {}, "Stores"), el("dd", {}, chips(m.allowed_merchants)),
-    el("dt", {}, "Allowed"), el("dd", {}, chips(m.allowed_categories)),
-    el("dt", {}, "Blocked"), el("dd", {}, chips(m.blocked_categories, "block")),
-    el("dt", {}, "Mandate"), el("dd", { class: "mono" }, m.mandate_id || ""));
+  const entries = (visa && visa.mandates) || [];
+  $("visaStores").replaceChildren(...(entries.length ? entries.map((x) => el("li", {},
+    el("span", {}, x.preferredMerchantName), el("span", { class: "amt" }, `up to ${money(x.declineThreshold && x.declineThreshold.amount)}`),
+    el("span", { class: "cat" }, `${x.merchantCategory || ""} · MCC ${x.merchantCategoryCode || ""}`)))
+    : (m ? (m.allowed_merchants || []).map((id) => el("li", {}, el("span", {}, store(id)), el("span", { class: "amt" }, `up to ${money(m.per_purchase_cap)}`))) : [])));
+  const cosign = data && (data.cosign || (m && m.cosign));
+  $("signers").replaceChildren(
+    el("span", { class: "badge " + (signed ? "ok" : "warn") }, signed ? "signed by Priyank · passkey" : "not signed yet"),
+    el("span", { class: "badge " + (cosign ? "ok" : "") }, cosign ? `agreed by Ruth · ${cosign.method || "voice"}` : "Ruth hasn't agreed yet"));
+  if (m) {
+    $("never").replaceChildren(el("span", { class: "muted" }, "Never: "), ...(m.blocked_categories || []).map((c) => el("span", { class: "chip" }, c.replace(/_/g, " "))));
+  }
+  $("paused").classList.toggle("on", !!(data && data.paused && (data.paused.paused ?? data.paused)));
 }
 
-function checkRow(c) {
-  const mark = c.passed === true ? "✓" : c.passed === false ? "✗" : "–";
-  const cls = c.passed === true ? "ok" : c.passed === false ? "bad" : "muted";
-  return el("li", {}, el("span", { class: cls }, mark), el("span", { class: "mono" }, c.id), el("span", { class: "detail" }, c.detail || ""));
+let budget = null, byStore = {};  // policy's month total; paid orders per store since the demo started
+async function refreshBudget() {
+  const b = await getJSON("/wall/data/budget");
+  budget = b && !b.unavailable ? b : null;
+  drawMonth();
+}
+function drawMonth() {
+  const rows = [el("dt", {}, "Spent"), budget
+    ? el("dd", {}, `${money(budget.spent)}${budget.monthly_cap !== undefined ? " of " + money(budget.monthly_cap) : ""}`)
+    : el("dd", { class: "muted" }, "—")];
+  for (const [name, cents] of Object.entries(byStore)) rows.push(el("dt", {}, name), el("dd", {}, money(cents / 100)));
+  $("month").replaceChildren(...rows);
 }
 
-const STEPS = [["awaiting_payment", "ordered"], ["paid", "paid"], ["preparing", "preparing"], ["ready_for_pickup", "ready"], ["picked_up", "picked up"]];
-
-function timelineNode(order) {
-  const reached = new Set((order.timeline || []).map((t) => t.status));
-  const now = order.status === "cancelled" ? "cancelled" : order.fulfilment || "awaiting_payment";
-  const items = STEPS.map(([id, text]) => el("li", { class: (reached.has(id) ? "done" : "") + (id === now ? " now" : "") }, text));
-  if (order.status === "cancelled") items.splice(1, items.length - 1, el("li", { class: "off now" }, "cancelled"));
-  if (order.status === "partially_refunded" || order.status === "refunded") items.push(el("li", { class: "off" }, order.status.replace(/_/g, " ")));
-  return el("ul", { class: "timeline" }, ...items);
+async function refreshCard() {
+  const c = await getJSON("/wall/data/card");
+  const until = c && epochMs(c.cooldown_until);
+  const badge = $("cooldown");
+  if (until && until > Date.now()) { badge.hidden = false; badge.textContent = `cool-down until ${clock(until)}`; }
+  else badge.hidden = true;
 }
 
-async function refreshPanel() {
+async function refreshOrders() {
   const p = await getJSON("/wall/data/panel");
-  if (!p || p.unavailable) { $("backend").textContent = "merchant offline"; $("backend").className = "badge bad"; return; }
-  $("backend").textContent = p.backend === "visa" ? "Visa sandbox" : "mock";
-  $("backend").className = "badge " + (p.backend === "visa" ? "ok" : "warn");
-  const events = p.events || [];
-  const lastCheck = [...events].reverse().find((e) => e.type === "signature_verified" || e.type === "signature_rejected");
-  const order = (p.orders || [])[0];
-  if (!order && !lastCheck) return;
-  const parts = [];
-  if (order) {
-    const paid = !!order.paid_at;
-    const label = order.status === "cancelled" ? "CANCELLED" : order.status === "refunded" ? "REFUNDED"
-      : paid ? "PAID" : "awaiting payment";
-    parts.push(el("div", { class: "status " + (order.status === "cancelled" ? "bad" : paid ? "ok" : "warn") }, `${money(order.amount)} · ${label}`));
-    parts.push(timelineNode(order));
-    if (paid && order.pickup_code && order.status !== "refunded") {
-      parts.push(el("div", {}, el("span", { class: "muted" }, "Pickup code "), el("span", { class: "pickup" }, order.pickup_code)));
-    }
-    // Points are earned on payment (and shrink with a refund); before that only the savings show.
-    const points = paid && order.loyalty_points > 0 ? ` · +${order.loyalty_points} Corner Market Rewards points` : "";
-    if (order.savings) parts.push(el("div", { class: "ok" }, `Saved ${money(order.savings)}${points}`));
-    for (const r of order.refunds || []) {
-      parts.push(el("div", { class: "refund " + (r.status === "TRANSMITTED" ? "ok" : "warn") },
-        `Refund ${money(r.amount)} · ${r.qty} × ${short(r.name, 24)} · ${r.status} · card ending ${r.card_last4 || ""} · sandbox processor stub`));
-    }
-    if (order.cancel) parts.push(el("div", { class: "bad" }, `Link ${order.cancel.link_status}${order.cancel.request_id ? " · Cybersource request " + order.cancel.request_id : ""}`));
-    parts.push(el("dl", {},
-      el("dt", {}, "Order"), el("dd", { class: "mono" }, order.order_id),
-      el("dt", {}, "Decision"), el("dd", { class: "mono" }, order.decision_id || ""),
-      el("dt", {}, "Link"), el("dd", {}, `${order.payment_link && order.payment_link.backend === "visa" ? "Visa Pay by Link" : "mock page"} · ${short(order.payment_link && order.payment_link.id, 18)}`)));
-    if (order.card_auth) parts.push(el("div", { class: order.card_auth.ok ? "ok" : "bad" }, `Card auth: ${order.card_auth.status || ""} ${order.card_auth.reason || ""}`));
+  const orders = (p && p.orders) || [];
+  byStore = {};
+  for (const o of orders) if (o.paid_at) {
+    const name = o.store || store(o.merchant);
+    byStore[name] = (byStore[name] || 0) + Math.round(Number(o.amount) * 100);
   }
-  if (lastCheck) {
-    const exp = lastCheck.expires ? new Date(lastCheck.expires * 1000).toLocaleTimeString([], { hour12: false }) : "";
-    parts.push(el("dl", { style: "margin-top:10px" },
-      el("dt", {}, "Key id"), el("dd", { class: "mono" }, lastCheck.keyid || "-"),
-      el("dt", {}, "Nonce"), el("dd", { class: "mono" }, short(lastCheck.nonce, 22)),
-      el("dt", {}, "Expires"), el("dd", { class: "mono" }, exp)));
-    parts.push(el("ul", { class: "checks" }, ...(lastCheck.checks || []).map(checkRow)));
-  }
-  if (p.visa_last_error) parts.push(el("div", { class: "warn", style: "margin-top:8px;font-size:18px" }, `Visa: ${p.visa_last_error}`));
-  $("merchantBody").replaceChildren(...parts);
+  drawMonth();
+  if (!orders.length) { $("orders").replaceChildren(el("li", { class: "muted", style: "border:0" }, p ? "No orders yet." : "Merchant offline.")); return; }
+  $("orders").replaceChildren(...orders.slice(0, 6).map((o) => {
+    const checks = (o.verification || []).filter((c) => c.passed !== undefined);
+    const passed = checks.filter((c) => c.passed === true).length;
+    const status = o.status === "cancelled" ? "cancelled" : o.paid_at ? String(o.fulfilment || o.status).replace(/_/g, " ") : "awaiting payment";
+    const risk = o.risk && o.risk.status && o.risk.status !== "pending" ? `Visa risk ${o.risk.score ?? "–"} · ${o.risk.status.toLowerCase()}`
+      : o.risk && o.risk.status === "pending" ? "Visa risk: checking…" : null;
+    return el("li", {},
+      el("div", { class: "top" }, el("span", {}, o.store || store(o.merchant)), el("span", {}, money(o.amount))),
+      el("div", { class: "meta" },
+        el("span", { class: o.paid_at ? "" : "muted" }, status),
+        el("span", {}, checks.some((c) => c.passed === null) ? "signature check skipped" : `signature ${passed}/${checks.length} ✓`),
+        risk ? el("span", {}, risk) : null,
+        el("span", {}, o.payment_link && o.payment_link.backend === "visa" ? "Visa Pay by Link" : "mock link"),
+        o.loyalty_points > 0 && o.paid_at ? el("span", {}, `+${o.loyalty_points} points`) : null));
+  }));
 }
 
-connect();
-refreshMandate(); refreshBudget(); refreshPanel();
-setInterval(refreshPanel, 1000);
-setInterval(refreshBudget, 3000);
-setInterval(refreshMandate, 5000);
-setInterval(tickApprovals, 250);
+function refreshAll() { refreshProtected(); refreshMandate(); refreshBudget(); refreshCard(); refreshOrders(); }
+
+refreshStores().then(() => { connect(); refreshAll(); });
+setInterval(refreshOrders, 2000);
+setInterval(refreshProtected, 5000);
+setInterval(refreshBudget, 5000);
+setInterval(refreshMandate, 8000);
+setInterval(refreshCard, 5000);
+for (const list of document.querySelectorAll(".rows")) list.append(el("li", { class: "empty" }, "Nothing yet."));
 </script>
 </body>
 </html>
