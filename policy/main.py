@@ -111,19 +111,16 @@ def get_mandate():
     if stored:
         public = fill_v2({key: value for key, value in stored.items() if key not in ("passkey", "paused")})
         credential_id = (stored.get("passkey") or {}).get("credential_id")
-        body = {"signed": True, "credential_id": credential_id, "mandate": public, "paused": paused}
+        current = _rules_hash(stored)
+        body = {"signed": True, "credential_id": credential_id, "mandate": public, "paused": paused, "mandate_hash": current}
         cosign_path = _cosign_path()
         if cosign_path.exists():
-            import base64
             import json
-
-            from policy.mandate import mandate_hash
 
             try:
                 saved = json.loads(cosign_path.read_text(encoding="utf-8") or "{}")
             except (OSError, ValueError):  # a damaged file is no co-sign, never a broken rules page
                 saved = {}
-            current = base64.urlsafe_b64encode(mandate_hash(stored)).decode().rstrip("=")
             if saved.get("mandate_hash") == current:
                 body["cosign"] = saved
         return body
@@ -583,6 +580,15 @@ def explain(decision_id: str, request: Request):
         raise HTTPException(404, str(exc)) from exc
 
 
+def _rules_hash(stored: dict) -> str:
+    """The signed rules' hash as the ledger shows it: base64url SHA-256, no padding."""
+    import base64
+
+    from policy.mandate import mandate_hash
+
+    return base64.urlsafe_b64encode(mandate_hash(stored)).decode().rstrip("=")
+
+
 def _cosign_path():
     from pathlib import Path
 
@@ -595,17 +601,17 @@ def _cosign_path():
 
 @app.post("/mandate/cosign")
 def mandate_cosign(payload: dict, request: Request):
-    import base64
     import json
     from datetime import datetime, timezone
-
-    from policy.mandate import mandate_hash
 
     _lan_only(request)
     stored = load_mandate()
     if not stored:
         raise HTTPException(404, "no signed mandate")
-    digest = base64.urlsafe_b64encode(mandate_hash(stored)).decode().rstrip("=")
+    digest = _rules_hash(stored)
+    # Ruth agrees to the rules she heard: if Priyank signed new ones since, this yes is not for them
+    if payload.get("mandate_hash") != digest:
+        raise HTTPException(409, "rules changed since they were read to Ruth")
     record = {
         "by": "ruth",
         "method": "voice",
@@ -679,6 +685,18 @@ def card_allow(hold_id: str, request: Request):
         raise HTTPException(404, "unknown hold") from exc
     except PermissionError as exc:
         raise HTTPException(409, str(exc)) from exc
+
+
+@app.post("/card/holds/{hold_id}/keep")
+def card_keep(hold_id: str, request: Request):
+    from policy.card import keep_hold
+
+    if not marker_matches(hold_id, request.headers.get("x-chaperone-marker", ""), "card"):
+        raise HTTPException(401, "sign in required")
+    try:
+        return keep_hold(hold_id)
+    except KeyError as exc:
+        raise HTTPException(404, "unknown hold") from exc
 
 
 @app.get("/card/state")

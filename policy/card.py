@@ -245,13 +245,10 @@ def registry_store_name(merchant: dict) -> str:
     found = terminal_store(str(merchant.get("acceptor_id") or ""))
     if found and found.get("name"):
         return found["name"]
-    from common.merchants import all_merchants
-
-    mcc = str(merchant.get("mcc") or "")
-    for entry in all_merchants():
-        if str(entry.get("mcc")) == mcc:
-            return entry["name"]
-    return merchant.get("descriptor") or merchant.get("acceptor_id") or ""
+    # An unknown store is named by what its terminal sends ("FIVE POINTS DRUG" -> "Five Points Drug"), never by
+    # a registry store that shares its MCC: a grocery swipe elsewhere is not Corner Market.
+    descriptor = " ".join(str(merchant.get("descriptor") or "").split())
+    return descriptor.title() if descriptor else str(merchant.get("acceptor_id") or "")
 
 
 def terminal_store(acceptor_id: str) -> dict | None:
@@ -269,6 +266,7 @@ def terminal_store(acceptor_id: str) -> dict | None:
 
 def handle_authorization(payload: dict, mandate: dict | None = None) -> dict:
     """Decide once per Lithic token, store the hold on a decline, and remember approved swipes."""
+    started = time.perf_counter()
     token = str(payload.get("token") or "")
     with _lock:
         if token and token in _seen:
@@ -290,6 +288,7 @@ def handle_authorization(payload: dict, mandate: dict | None = None) -> dict:
             "card_last4": answer["card_last4"],
             "hold_id": answer["hold_id"],
             "at": datetime.now(timezone.utc).isoformat(),
+            "decided_ms": elapsed_ms(started),  # Chaperone's own decision, without Lithic's network time
         }
         state["decisions"].append(record)
         state["decisions"] = state["decisions"][-50:]
@@ -360,10 +359,22 @@ def allow_hold(hold_id: str, now: datetime | None = None, mandate_id: str | None
             "allowed_until": until.isoformat()}
 
 
+def keep_hold(hold_id: str) -> dict:
+    """Priyank keeps the charge blocked: the hold leaves his list, and no pass is made."""
+    with _lock:
+        state = load_state()
+        hold = state["holds"].get(hold_id)
+        if not hold or hold.get("released") or hold.get("kept"):
+            raise KeyError(hold_id)
+        hold["kept"] = True
+        save_state(state)
+    return {"hold_id": hold_id, "kept": True}
+
+
 def public_state(mandate_id: str) -> dict:
     state = load_state()
     risk = read_risk(mandate_id)
-    open_holds = [hold for hold in state["holds"].values() if not hold.get("released")]
+    open_holds = [hold for hold in state["holds"].values() if not hold.get("released") and not hold.get("kept")]
     return {
         "decisions": list(reversed(state["decisions"][-20:])),
         "holds": open_holds,
@@ -444,7 +455,8 @@ def simulate_swipe(acceptor_id: str, amount_cents: int) -> dict:
         "status": status or "PENDING",
         "reason_key": (decided or {}).get("reason_key"),
         "reason": (decided or {}).get("reason"),
-        "ms": elapsed_ms(started),
+        "decided_ms": (decided or {}).get("decided_ms"),
+        "ms": elapsed_ms(started),  # the whole simulated swipe through Lithic
         "store": store["name"],
         "card_last4": card.get("last_four") or "",
     }

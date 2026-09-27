@@ -127,7 +127,12 @@ def test_asa_is_idempotent_and_a_proxy_cannot_list_card_state(tmp_path, monkeypa
     # gift cards are a signed "never": no one-time pass opens them
     refused = api.post(f"/card/holds/{hold_id}/allow", headers={"X-Chaperone-Marker": action_marker(hold_id, "card")})
     assert refused.status_code == 409, refused.text
-    big = json.dumps(swipe("5411", 400, token="tok_big")).encode()
+    # Priyank keeps it blocked: the hold leaves his list
+    assert api.post(f"/card/holds/{hold_id}/keep").status_code == 401
+    kept = api.post(f"/card/holds/{hold_id}/keep", headers={"X-Chaperone-Marker": action_marker(hold_id, "card")})
+    assert kept.json() == {"hold_id": hold_id, "kept": True}
+    assert hold_id not in [h["hold_id"] for h in api.get("/card/state").json()["holds"]]
+    big =json.dumps(swipe("5411", 400, token="tok_big")).encode()
     stamp = str(int(datetime.now(timezone.utc).timestamp()))
     signed = f"msg_4.{stamp}.".encode() + big
     good = base64.b64encode(hmac.new(base64.b64decode(SECRET.removeprefix("whsec_")), signed, hashlib.sha256).digest()).decode()
@@ -171,3 +176,11 @@ def test_atm_cash_is_capped_per_day():
 def test_one_small_swipe_does_not_make_the_next_one_unusual():
     history = [{"mcc": "5411", "amount": 5.0, "at": NOW.isoformat()}]
     assert decide(swipe("5411", 20), DEFAULT_MANDATE, {}, history, [], now=NOW)["result"] == "APPROVED"
+
+
+def test_an_unknown_store_is_named_by_its_terminal_not_by_its_mcc():
+    from policy.card import registry_store_name
+
+    assert registry_store_name({"acceptor_id": "FIVEPTSDRUG01", "mcc": "5912"}) == "Five Points Drug"
+    # a grocery swipe somewhere else is not Corner Market
+    assert registry_store_name({"acceptor_id": "KROGER0042", "mcc": "5411", "descriptor": "KROGER  #42"}) == "Kroger #42"

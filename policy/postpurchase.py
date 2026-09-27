@@ -280,9 +280,11 @@ def history(mandate_id: str, days: int = 30) -> dict:
         created = document.get("created_at")
         if created and datetime.fromisoformat(created) < cutoff:
             continue
+        cards = {}
         for entry in orders_of(document):  # one row per store's order
             if entry.get("order_id") in live:
                 _overlay(entry, live[entry["order_id"]])
+            cards[entry.get("order_id")] = entry.get("card_last4")
             orders.append({
                 "order_id": entry.get("order_id"),
                 "status": entry.get("status"),
@@ -291,10 +293,13 @@ def history(mandate_id: str, days: int = 30) -> dict:
                 "decision_id": document.get("decision_id"),
                 "at": created,
                 "items": [f"{item.get('qty')} x {item.get('name')}" for item in order_items(document, entry)],
+                "card_last4": entry.get("card_last4"),
             })
         for item in document.get("refunds") or []:
-            refunds.append({"order_id": item.get("order_id") or order_entry(document).get("order_id"), "amount": dollars(item.get("amount_cents") or 0),
-                            "sku": item.get("sku"), "status": item.get("status") or "PENDING", "at": item.get("at")})
+            refund_order = item.get("order_id") or order_entry(document).get("order_id")
+            refunds.append({"order_id": refund_order, "amount": dollars(item.get("amount_cents") or 0),
+                            "sku": item.get("sku"), "status": item.get("status") or "PENDING", "at": item.get("at"),
+                            "card_last4": cards.get(refund_order)})
         if document.get("decision") == "deny":
             refusals.append({"decision_id": document.get("decision_id"), "say_key": document.get("say_key"), "total": (document.get("cart") or {}).get("total"), "at": created})
     orders.sort(key=lambda o: o.get("at") or "", reverse=True)

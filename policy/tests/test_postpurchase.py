@@ -205,3 +205,15 @@ def test_split_orders_cancel_refund_and_history_work_per_store(tmp_path, monkeyp
     wrong_store = api.post("/refunds", json={"order_id": "ord_bread", "mandate_id": "m_ruth_2026_09", "sku": "RX-001",
                                              "qty": 1, "confirmed": False, "transcript": "return it"}).json()
     assert wrong_store["decision"] == "deny"
+
+
+def test_history_names_the_card_each_order_and_refund_used(tmp_path, monkeypatch):
+    api = client(tmp_path, monkeypatch)
+    document = _plant_split(status="paid")
+    for entry in document["orders"]:
+        entry["card_last4"] = "1111"
+    document["refunds"] = [{"order_id": "ord_bread", "sku": "BAK-001", "qty": 1, "amount_cents": 349, "status": "PENDING"}]
+    save_decision(document)
+    body = api.get("/history", params={"mandate_id": "m_ruth_2026_09"}).json()
+    assert {o["order_id"]: o["card_last4"] for o in body["orders"]} == {"ord_rx": "1111", "ord_bread": "1111"}
+    assert body["refunds"][0]["card_last4"] == "1111"
