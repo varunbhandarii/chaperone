@@ -30,6 +30,7 @@ from html import escape
 from pathlib import Path
 from urllib.parse import parse_qs
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -38,7 +39,7 @@ from pydantic import BaseModel, Field, ValidationError
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from catalog.search import Catalog  # noqa: E402
-from common import host_header, merchants  # noqa: E402
+from common import host_header, merchants, tls  # noqa: E402
 from merchant import aftercare, biller, card_auth, events, webhooks  # noqa: E402
 from merchant.verify import verify_request  # noqa: E402
 from merchant.visa import LineItem, StorefrontLinks, money  # noqa: E402
@@ -77,6 +78,7 @@ class CartLine(BaseModel):
     sku: str
     qty: int = Field(ge=1, le=MAX_QTY)
     confidence: float | None = None
+    account_ref: str | None = Field(None, max_length=40)  # a bill line's account, when policy names it
 
 
 class Cart(BaseModel):
@@ -116,6 +118,24 @@ class OrderRequest(BaseModel):
 def health():
     return {"ok": True, "backend": payment_links.backend,
             "storefronts": {s["merchant"]: s["backend"] for s in storefront_links.describe()}}
+
+
+async def _mandate_account_ref(biller_id: str, mandate_id: str | None) -> str | None:
+    """Ruth's account at this biller, from the mandate policy checks (GET /mandate billers[]). None -> default."""
+    base = os.environ.get("POLICY_URL", "http://127.0.0.1:8001").rstrip("/")
+    try:
+        async with httpx.AsyncClient(verify=tls.context(), timeout=0.5) as client:
+            r = await client.get(f"{base}/mandate")
+        body = r.json() if r.status_code == 200 else {}
+    except (httpx.HTTPError, ValueError):
+        return None
+    mandate = body.get("mandate") if isinstance(body.get("mandate"), dict) else body
+    if mandate_id and mandate.get("mandate_id") not in (None, mandate_id):
+        return None
+    for row in mandate.get("billers") or []:
+        if isinstance(row, dict) and row.get("merchant_id") == biller_id and row.get("account_ref"):
+            return str(row["account_ref"])
+    return None
 
 
 def sku_merchant(sku: str) -> str | None:
@@ -185,7 +205,8 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict, entry: 
     for line in order_req.cart.items:
         if biller.is_bill(line.sku):
             try:
-                bill_line = biller.price_line(line.sku, merchant, line.qty)
+                ref = line.account_ref or await _mandate_account_ref(merchant, order_req.mandate_id)
+                bill_line = biller.price_line(line.sku, merchant, line.qty, ref)
             except biller.BillError as e:
                 raise HTTPException(e.http_status, e.error) from e
             total_cents += aftercare.cents(bill_line["unit_price"])
@@ -284,8 +305,10 @@ def receipt(order_id: str, lang: str | None = None):
     order = get_order(order_id)
     paid_at = order["paid_at"]
     return {
-        "merchant": order.get("store") or "Corner Market",
+        "merchant": order.get("store") or merchants.name(merchants.DEFAULT),
+        "store": order.get("store") or merchants.name(merchants.DEFAULT),
         "merchant_id": order.get("merchant") or merchants.DEFAULT,
+        "kind": (merchants.get(order.get("merchant")) or {}).get("kind", "store"),
         "items": [{"name": l["name"], "qty": l["qty"], "price": money(float(l["unit_price"]) * l["qty"]),
                    "unit_price": l["unit_price"], "sku": l["sku"]} for l in order["lines"]],
         "total": order["amount"],
@@ -518,12 +541,16 @@ async def checkout_submit(order_id: str, request: Request):
 
 
 @app.get("/billers/{biller_id}/accounts/{account_ref}")
-async def bill_account(biller_id: str, account_ref: str, lang: str = "en", session_id: str | None = None):
-    """The real balance. Read-only; bill_status and the scam check both call it."""
+async def bill_account(biller_id: str, account_ref: str, lang: str = "en", session_id: str | None = None,
+                       purpose: str = "status"):
+    """The real balance. Read-only. bill_status and the scam check ask about the bill (posts bill_checked);
+    policy's price lookup sends purpose=price and posts nothing."""
     try:
         facts = biller.account(biller_id, account_ref, lang)
     except biller.BillError as e:
         raise HTTPException(e.http_status, e.error) from e
+    if purpose == "price":
+        return facts
     await events.emit("bill_checked", biller=facts["biller"], account_ref=facts["account_ref"],
                       balance_due=facts["balance_due"], due_date=facts["due_date"], past_due=facts["past_due"],
                       session_id=session_id)
@@ -562,6 +589,8 @@ async def cybersource_webhook(request: Request):
     if len(order_ids) > 1:
         return {"ok": True, "matched": False, "ignored": "names more than one order"}
     order_id = order_ids.pop()
+    if note.merchant and ORDERS[order_id].get("merchant") != note.merchant:  # one store's key pays only its orders
+        return {"ok": True, "matched": False, "ignored": f"signed by {note.merchant}'s key"}
     paid, what = webhooks.is_payment(note.signed)
     if not paid:
         return {"ok": True, "matched": True, "ignored": what}

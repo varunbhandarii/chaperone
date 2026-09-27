@@ -329,6 +329,14 @@ WALL_SOURCES = {
 }
 
 
+@router.get("/wall/data/protected")
+def wall_protected():
+    """Protected dollars since the last reset, from the live ledger."""
+    from relay import protected
+
+    return JSONResponse(protected.compute(LEDGER.read_live()), headers={"Cache-Control": "no-store"})
+
+
 @router.get("/wall/data/{source}")
 async def wall_data(source: str):
     """Same-origin proxy so the wall page needs no CORS on the merchant or policy."""

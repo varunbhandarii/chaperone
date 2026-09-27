@@ -2923,7 +2923,7 @@
       "tags": [
         "gift_card"
       ],
-      "merchant": "corner_market",
+      "merchant": "quickgift_cards",
       "source": "synthetic",
       "product_key": "GFT-003",
       "mandate_category": "gift_card"
@@ -2939,7 +2939,7 @@
       "tags": [
         "gift_card"
       ],
-      "merchant": "corner_market",
+      "merchant": "quickgift_cards",
       "source": "synthetic",
       "product_key": "GFT-001",
       "mandate_category": "gift_card"
@@ -2955,7 +2955,7 @@
       "tags": [
         "gift_card"
       ],
-      "merchant": "corner_market",
+      "merchant": "quickgift_cards",
       "source": "synthetic",
       "product_key": "GFT-002",
       "mandate_category": "gift_card"
@@ -5420,7 +5420,7 @@
       "tags": [
         "prepaid"
       ],
-      "merchant": "corner_market",
+      "merchant": "quickgift_cards",
       "source": "synthetic",
       "product_key": "PPD-001",
       "mandate_category": "prepaid_card"

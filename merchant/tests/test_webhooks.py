@@ -181,3 +181,22 @@ def test_unconfigured_key_is_503(client, monkeypatch):
 def test_health_answers_get_and_post(client):
     assert client.get("/webhooks/cybersource/health").status_code == 200
     assert client.post("/webhooks/cybersource/health").status_code == 200
+
+
+def test_each_stores_own_key_pays_only_that_stores_orders(client, monkeypatch):
+    park_id, park_key = "park-key-1", base64.b64encode(secrets.token_bytes(32)).decode()
+    monkeypatch.setenv("CYBS_PARKSIDE_WEBHOOK_KEY_ID", park_id)
+    monkeypatch.setenv("CYBS_PARKSIDE_WEBHOOK_KEY", park_key)
+    corner = new_order(client)
+    parkside = client.post("/orders", json={**DEMO, "decision_id": "d_" + secrets.token_hex(6),
+                                            "cart": {"merchant": "parkside_pharmacy",
+                                                     "items": [{"sku": "RX-001", "qty": 1}]}}).json()
+    body = json.dumps(envelope(corner))
+    r = notify(client, body, webhooks.headers_for(body, park_id, park_key))
+    assert r.status_code == 200 and r.json()["matched"] is False  # Parkside's key can't pay Corner Market
+    assert client.get(f"/orders/{corner['order_id']}").json()["status"] == "awaiting_payment"
+    body = json.dumps(envelope(parkside))
+    r = notify(client, body, webhooks.headers_for(body, park_id, park_key))
+    assert r.json()["status"] == "paid"
+    body = json.dumps(envelope(corner))  # the shared key still pays any store
+    assert notify(client, body, webhooks.headers_for(body, KEY_ID, KEY)).json()["status"] == "paid"

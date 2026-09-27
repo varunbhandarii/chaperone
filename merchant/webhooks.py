@@ -8,8 +8,11 @@ JSON.stringify(body["payload"]) instead, which is json.dumps(separators=(",", ":
 that variant is accepted too. Whatever the variant, only the part the signature covers is trusted
 (Verified.signed): with the payload variant the envelope, eventType included, is attacker-controlled.
 
-Key: CYBS_WEBHOOK_KEY_ID / CYBS_WEBHOOK_KEY (base64), from Cybersource's key service when the webhook is
-registered, or any local key for merchant.simulate_payment.
+Keys: CYBS_WEBHOOK_KEY_ID / CYBS_WEBHOOK_KEY (base64), from Cybersource's key service when the webhook is
+registered, or any local key for merchant.simulate_payment; it can pay any store's order. Each store's own
+account may add <prefix>WEBHOOK_KEY_ID / <prefix>WEBHOOK_KEY (its cybs_env prefix in contracts/merchants.json,
+e.g. CYBS_PARKSIDE_WEBHOOK_KEY); the keyId picks the key, and a store's key only pays that store's orders
+(Verified.merchant).
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ class Verified:
     variant: str  # "raw_body" or "payload"
     duplicate: bool
     signed: dict  # the part the signature covers: the whole body, or {"payload": body["payload"]}
+    merchant: str | None = None  # the store whose own key signed it; None for the shared key
 
 
 def parse_signature_header(value: str) -> tuple[int, str, str]:
@@ -72,13 +76,34 @@ def configured_key() -> tuple[str, str]:
     return key_id, key
 
 
+def configured_keys() -> dict[str, tuple[str, str | None]]:
+    """keyId -> (key, the store it belongs to or None for the shared key)."""
+    from common import merchants
+
+    keys: dict[str, tuple[str, str | None]] = {}
+    shared_id, shared = os.environ.get("CYBS_WEBHOOK_KEY_ID", ""), os.environ.get("CYBS_WEBHOOK_KEY", "")
+    if shared_id and shared:
+        keys[shared_id] = (shared, None)
+    for entry in merchants.storefronts():
+        prefix = entry.get("cybs_env")
+        key_id, key = os.environ.get(f"{prefix}WEBHOOK_KEY_ID", ""), os.environ.get(f"{prefix}WEBHOOK_KEY", "")
+        if prefix and key_id and key:
+            keys[key_id] = (key, entry["id"])
+    if not keys:
+        raise WebhookError("webhook key not configured (CYBS_WEBHOOK_KEY_ID, CYBS_WEBHOOK_KEY)")
+    return keys
+
+
 def verify(raw_body: bytes, header: str | None, now_ms: int | None = None) -> Verified:
     if not header:
         raise WebhookError("missing v-c-signature")
-    key_id, key = configured_key()
+    keys = configured_keys()
     t, got_key_id, sig = parse_signature_header(header)
-    if not hmac.compare_digest(got_key_id.encode(), key_id.encode()):  # str compare raises on non-ASCII
+    # compare_digest on bytes: a str compare raises on non-ASCII
+    match = next((kid for kid in keys if hmac.compare_digest(got_key_id.encode(), kid.encode())), None)
+    if match is None:
         raise WebhookError("unknown keyId")
+    key, store = keys[match]
     now_ms = now_ms if now_ms is not None else int(time.time() * 1000)
     if abs(now_ms - t) > TOLERANCE_MS:
         raise WebhookError("stale timestamp")
@@ -102,7 +127,8 @@ def verify(raw_body: bytes, header: str | None, now_ms: int | None = None) -> Ve
                     del _seen_signatures[old_sig]
             duplicate = sig in _seen_signatures
             _seen_signatures[sig] = t
-            return Verified(body=body, t=t, key_id=got_key_id, variant=variant, duplicate=duplicate, signed=signed)
+            return Verified(body=body, t=t, key_id=got_key_id, variant=variant, duplicate=duplicate, signed=signed,
+                            merchant=store)
     raise WebhookError("signature mismatch")
 
 

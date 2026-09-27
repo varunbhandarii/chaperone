@@ -101,14 +101,15 @@ def account(biller_id: str, ref: str | None = None, lang: str = "en") -> dict:
             "say": say, "lang": lang}
 
 
-def price_line(sku: str, merchant: str, qty: int) -> dict:
-    """The order line for BILL-<biller>: the current balance, on that biller's own storefront only."""
+def price_line(sku: str, merchant: str, qty: int, account_ref: str | None = None) -> dict:
+    """The order line for BILL-<biller>: the current balance of the mandate's account (account_ref; the
+    biller's default when unknown), on that biller's own storefront only."""
     biller_id = sku[len(BILL_SKU_PREFIX):]
     if biller_id != merchant:
         raise BillError(422, f"{sku} can only be paid at {biller_id}")
     if qty != 1:
         raise BillError(422, "a bill is paid once per order (qty 1)")
-    facts = account(biller_id)
+    facts = account(biller_id, account_ref)
     if float(facts["balance_due"]) <= 0:
         raise BillError(409, f"nothing is due on {facts['account_ref']}")
     return {"sku": sku, "name": f"{facts['biller']} bill {masked(facts['account_ref'])}", "qty": 1,
