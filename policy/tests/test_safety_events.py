@@ -83,6 +83,15 @@ def test_checkout_judge_posts_its_score(monkeypatch):
     "Mi nieto me llamó llorando, necesita 2000 dólares para la fianza, dijo que no le diga a su mamá.",
     "मेरे पोते का फोन आया, उसे जमानत के लिए 2000 डॉलर चाहिए, कहा मम्मी को मत बताना।",
     "I got a text saying my package is held in customs, pay the clearance fee",
+    # the demo's own lines, word for word
+    "My grandson Alex just called. He's in jail, needs $2,000 bail, and said not to tell Mom.",
+    "Peachtree Power just called. They'll cut my power tonight unless I pay $480 in gift cards.",
+    "Peachtree Power me acaba de llamar. Me van a cortar la luz esta noche si no pago 480 dólares en tarjetas de regalo.",
+    "Mi nieto Alex acaba de llamar. Está en la cárcel, necesita 2000 dólares para la fianza y dijo que no le diga a mamá.",
+    # a caller quoted without "called"
+    "A man from the power company said they'll shut off my electricity today unless I pay with gift cards",
+    "Mi nieto dice que está en la cárcel y necesita dinero para la fianza, que no le diga a su mamá",
+    "पोते ने कहा वह जेल में है, जमानत के लिए पैसे चाहिए, मम्मी को मत बताना",
 ])
 def test_scam_story_asks_for_a_scam_check_and_keeps_a_fallback(text):
     import json as _json
@@ -108,6 +117,7 @@ def test_scam_story_asks_for_a_scam_check_and_keeps_a_fallback(text):
     "Somebody told me gift cards are a good present, buy one",
     "Compra una tarjeta de regalo de 50 dólares para mi vecina",
     "I called the pharmacy and they said to buy a gift card there",
+    "I just called Priyank and he said to buy a gift card for Tom's birthday",
 ])
 def test_a_request_to_buy_is_still_refused_on_the_spot(text):
     assert screen(text)["action"] == "refuse"

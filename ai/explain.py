@@ -37,7 +37,7 @@ FAKE = {
     "what_you_can_do": "Give Ruth a call to check in.",
 }
 # Things Priyank should never see: rule ids, field names, scores.
-_LEAKS = re.compile(r"\b(?:R\d\w*|RF\d\w*|R_[a-z_]+|S_screen\w*|scam_score|say_key|judge|0\.\d+)\b")
+_LEAKS = re.compile(r"\b(?:R\d\w*|RF\d\w*|R_[a-z_]+|S_screen\w*|S_scam_check\w*|scam_score|say_key|judge|0\.\d+)\b")
 _ALARM = re.compile(r"!|\b(?:urgent|danger(?:ous)?|attack|alarming|emergency)\b", re.IGNORECASE)
 _JARGON = re.compile(r"\b(?:impersonation|amount anomaly|third[- ]party instruction|blocked category|family emergency|"
                      r"code reading|refund rail)\b", re.IGNORECASE)

@@ -318,9 +318,27 @@ def resume_challenge(nonce: str, expires_at: str, mandate_id: str) -> bytes:
     return hashlib.sha256(jcs.canonicalize({"action": "resume", "mandate_id": mandate_id, "nonce": nonce, "expires_at": expires_at})).digest()
 
 
+def _scam_check_fallback(document: dict) -> dict:
+    check = document.get("scam_check") or {}
+    amount = document.get("amount") or check.get("amount")
+    asked = f" asking for ${float(amount):,.2f}" if amount else " asking for money"
+    scam = check.get("verdict") == "scam"
+    return {
+        "headline": "Chaperone flagged a scam call Ruth described" if scam else "Chaperone checked a call Ruth described",
+        "what_happened": f"Ruth described a call{asked}, and Chaperone checked it against her accounts and recent reports.",
+        "rule_in_plain_words": ("It matches a scam people are reporting now, so her card takes extra care for a day."
+                                if scam else "Chaperone could not be sure it was safe, so it asked Ruth to be careful."),
+        "what_ruth_heard": "Chaperone told Ruth calmly not to pay and to hang up.",
+        "what_you_can_do": "Call Ruth, and if a family member was named, check on them at the number you know.",
+    }
+
+
 def _fallback(document: dict) -> dict:
     """Plain words from the stored decision, for when the model is off or late. No rule ids."""
     from ai.explain import FAKE
+
+    if document.get("source") == "scam_check":
+        return _scam_check_fallback(document)
 
     names = ", ".join(str(item.get("name")) for item in (document.get("cart") or {}).get("items") or [])
     heard = _heard(document)

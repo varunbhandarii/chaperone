@@ -53,15 +53,19 @@ contexts:
   # (payment_ask, or the ask itself: remote access, reading codes, a safe account, a crypto ATM, a courier).
   # Bare "someone" is not a contact cue: "a gift card for someone at church" stays a plain refusal.
   story:
-    en: ["re:(?<!i )(?<!we )(?:called|phoned|texted|messaged|emailed|rang)",
+    en: ["re:(?<!i )(?<!we )(?<!i just )(?<!we just )(?<!i already )(?:called|phoned|texted|messaged|emailed|rang)",
          "re:(?:got|had|received|there was|there is) (?:a |an )?(?:call|phone call|text|message|email|pop ?up|voicemail)",
          "re:(?:the|this|that) (?:call|caller|text|message|email|pop ?up|voicemail)",
-         "re:(?:a|the) (?:man|woman|lady|guy|person|officer|agent) (?:on the phone|called|said|says|told|asked|wants)",
+         "re:(?:a|the) (?:man|woman|lady|guy|person|officer|agent)(?: from (?:the )?\\w+(?: \\w+){0,2})? (?:on the phone|called|said|says|told|asked|wants)",
+         "re:(?:my )?(?:grandson|granddaughter|grandchild|nephew|niece) (?:said|says|told me)",
          "re:(?:called|calling) from", "re:on the (?:phone|line)", "re:pop ?up (?:said|says|told)"]
-    es: ["re:(?:me )?(?:llamo|llamaron|escribio|escribieron|mandaron un mensaje)", "re:(?:una|la|esa) (?:llamada|mensaje|correo|ventana)",
+    es: ["re:(?:me )?(?:llamo|llamaron|escribio|escribieron|mandaron un mensaje)", "re:acaba(?:n)? de (?:llamar|escribir|mandar)",
+         "re:(?:mi )?(?:nieto|nieta|hijo|hija|sobrino|sobrina) (?:me )?(?:dice|dijo) que", "re:(?:una|la|esa) (?:llamada|mensaje|correo|ventana)",
          "re:(?:un|el|una|la) (?:senor|senora|hombre|mujer|agente) (?:me )?(?:llamo|dijo|dice|pidio)", "re:por telefono"]
-    hi: ["re:(?:फोन|कॉल|मैसेज) (?:आया|आई|किया)", "re:फोन पर", "re:(?:वाले|वाली|आदमी|औरत) ने (?:फोन|कॉल|कहा|बोला)"]
-    hi_latn: ["re:(?:phone|fone|call|message) (?:aaya|aayi|kiya)", "re:(?:phone|fone) (?:pe|par)", "re:(?:vale|vali|aadmi|aurat) ne (?:phone|fone|call|kaha|bola)"]
+    hi: ["re:(?:फोन|कॉल|मैसेज) (?:आया|आई|किया)", "re:फोन पर", "re:(?:वाले|वाली|आदमी|औरत) ने (?:फोन|कॉल|कहा|बोला)",
+         "re:(?:पोते|पोती|नाती|नातिन|बेटे|बेटी) ने (?:फोन|कॉल|कहा|बोला)"]
+    hi_latn: ["re:(?:phone|fone|call|message) (?:aaya|aayi|kiya)", "re:(?:phone|fone) (?:pe|par)", "re:(?:vale|vali|aadmi|aurat) ne (?:phone|fone|call|kaha|bola)",
+              "re:(?:pote|poti|beta|beti) ne (?:phone|fone|call|kaha|bola)"]
   payment_ask:
     en: ["re:pay(?:s|ing|ment)?", "re:money", "re:dollars?", "re:gift ?cards?", "re:bitcoin|crypto", "re:wire", "re:zelle|venmo|cash ?app", "re:card number", "bail"]
     es: ["re:pag(?:ar|ue|o|a|ues)", "re:dinero", "re:dolares?", "re:tarjetas? (?:de )?regalo", "re:bitcoin|cripto", "re:transferencia", "fianza"]
@@ -321,6 +325,7 @@ rules:
     terms:
       en:
         - "re:(?:dont|do not) tell"
+        - "re:not to tell"
         - "re:(?:keep|its) (?:it |this )?(?:a )?secret"
         - "re:between (?:us|you and me)"
         - "re:no ?one (?:can|should|must) know"
@@ -764,7 +769,7 @@ rules:
     detail: A grandchild asking for money and to keep it from the family is the grandparent scam, voice clone or not.
     terms:
       en:
-        - "re:(?:dont|do not|please dont|please do not) (?:tell|call|say anything to) (?:my |his |her |your )?(?:mom|mother|dad|father|parents|mum|daughter|son|family|anyone)"
+        - "re:(?:dont|do not|please dont|please do not|not to) (?:tell|call|say anything to) (?:my |his |her |your )?(?:mom|mother|dad|father|parents|mum|daughter|son|family|anyone)"
         - "re:(?:keep|its) (?:it |this )?(?:a )?secret"
         - "re:between (?:us|you and me)"
       es:

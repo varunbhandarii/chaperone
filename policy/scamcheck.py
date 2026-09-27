@@ -23,12 +23,14 @@ Order of work:
    for the next check of the same story. Then the cache (sessions/radar_cache.json): by story, the full
    answer; by pattern and language, only the sources and the generic line, never another story's details.
    Then a rules-only verdict.
-`say` is at most two sentences and 30 words; a longer one is replaced by the fixed line (sources kept).
+`say` is at most two sentences and 30 words (36 in Spanish, 45 in Hindi); a longer one is replaced by the fixed
+line (sources kept). A pattern's cached entry lends only its sources, never another story's words.
 
 Events: scam_checked; for a scam, caregiver_alerted {check_id, sources} and risk_changed (a 24-hour
 card cool-down through policy.risk).
 
-Env: XAI_API_KEY, RADAR_MODEL (grok-4.20-0309-non-reasoning), RADAR_TIMEOUT_S (12), RADAR_FAKE=1
+Env: XAI_API_KEY, RADAR_MODEL (grok-4.20-0309-non-reasoning), RADAR_BUDGET_S (the whole check's budget),
+RADAR_TIMEOUT_S (12, the background sources call after a hard-rule answer), RADAR_FAKE=1
 (no network: rules, cache and fallback only), MERCHANT_PUBLIC_URL for the biller.
 """
 
@@ -94,7 +96,7 @@ INSTRUCTIONS = (
     "- pattern: a short snake_case name for the scam (for example grandparent_emergency, utility_shutoff, "
     "tech_support, safe_account, crypto_atm), or none.\n"
     "- say: in the language given, speaking to Ruth formally (usted in Spanish, aap in Hindi), exactly two short "
-    "sentences. The first says plainly what this looks like, using a fact from her accounts when there is one. The "
+    "sentences, at most 30 words in English (36 in Spanish, 45 in Hindi). The first says plainly what this looks like, using a fact from her accounts when there is one. The "
     "second gives exactly one action: hang up, do not pay, or call a trusted person at the number she has saved. "
     "Warm, calm, never a score, never blame her, no source names.\n"
     "- actions: the one or two actions that fit.\n"
@@ -336,10 +338,13 @@ def radar(story: str, lang: str, caller: dict, facts: list[dict], hints: list[st
 _SENTENCE_END = re.compile(r"[.!?।](?:\s|$)")
 
 
-def say_ok(say: str) -> bool:
-    """At most two short sentences and 30 words, as the station and phone line speak it."""
+SAY_WORDS = {"en": 30, "es": 36, "hi": 45}  # Spanish and Hindi need more words for the same two sentences
+
+
+def say_ok(say: str, lang: str = "en") -> bool:
+    """At most two short sentences and SAY_WORDS words, as the station and phone line speak it."""
     text = (say or "").strip()
-    return bool(text) and len(_SENTENCE_END.findall(text + " ")) <= 2 and len(text.split()) <= 30
+    return bool(text) and len(_SENTENCE_END.findall(text + " ")) <= 2 and len(text.split()) <= SAY_WORDS.get(lang, 30)
 
 
 _NUM_WORDS = {
@@ -403,10 +408,17 @@ def _fallback(verdict: str, lang: str) -> str:
     return lines(lang)[f"scam_check_{verdict}"]
 
 
+def pattern_entry(pattern: str | None, lang: str) -> dict | None:
+    """What a pattern lends another story: sources and actions, never words. Entries cached before this rule kept
+    their story's say ("Alex is in jail..."), which must not be read to Ruth about someone else."""
+    entry = cache_get(f"pattern:{pattern}:{lang}") if pattern else None
+    return {**entry, "say": None} if entry else None
+
+
 def remember(v: dict, text: str, lang: str, pattern: str) -> None:
     """Cache a Grok verdict: the full answer for this story; for the pattern, only its sources (never another
     story's details, which the generic line replaces)."""
-    say = v.get("say") if say_ok(v.get("say")) else None
+    say = v.get("say") if say_ok(v.get("say"), lang) else None
     cache_put({"verdict": v["verdict"], "pattern": pattern, "say": say, "actions": v.get("actions") or [],
                "reported_recently": v.get("reported_recently"), "sources": v.get("sources") or []},
               story_key(text, lang))
@@ -492,9 +504,9 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
     if hard:
         facts = _wait(facts_future, min(FACTS_S, deadline - time.perf_counter()), [])
         pattern = rule_pattern or "gift_card_demand"
-        cached = cache_get(story_key(key_text, lang)) or cache_get(f"pattern:{pattern}:{lang}")
+        cached = cache_get(story_key(key_text, lang)) or pattern_entry(pattern, lang)
         verdict, from_cache = "scam", bool(cached)
-        say = (cached or {}).get("say") or _fallback("scam", lang)
+        say = (cached or {}).get("say") if say_ok((cached or {}).get("say"), lang) else _fallback("scam", lang)
         raw_actions = (cached or {}).get("actions") or ["hang_up", "do_not_pay"]
         sources = (cached or {}).get("sources") or []
         reported = (cached or {}).get("reported_recently")
@@ -505,14 +517,14 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
         try:
             v = radar(story, lang, caller, facts, hints, deadline - time.perf_counter(), transcript, on_late=late)
         except RadarError:
-            v = cache_get(story_key(key_text, lang)) or (cache_get(f"pattern:{rule_pattern}:{lang}") if rule_pattern else None)
+            v = cache_get(story_key(key_text, lang)) or pattern_entry(rule_pattern, lang)
             from_cache = bool(v)
         if v:
             verdict, raw_actions = v["verdict"], v.get("actions") or []
             sources, reported = v.get("sources") or [], v.get("reported_recently")
             grok_pattern = _slug(v.get("pattern"))
             pattern = grok_pattern if grok_pattern not in ("none", "unknown") else (rule_pattern or grok_pattern)
-            say = v.get("say") if say_ok(v.get("say")) else _fallback(verdict, lang)
+            say = v.get("say") if say_ok(v.get("say"), lang) else _fallback(verdict, lang)
             if not from_cache:
                 remember(v, key_text, lang, pattern)
         else:
