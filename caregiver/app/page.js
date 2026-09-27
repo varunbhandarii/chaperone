@@ -139,6 +139,19 @@ export default function Page() {
     };
   }, []);
 
+  const signedIn = screen !== "welcome";
+  useEffect(() => {
+    if (!signedIn) return undefined;
+    // Reopening the page with a live session skips Welcome: load what Priyank last signed and the family data
+    // here too, so a later Sign never starts from the defaults. Sound and the wake lock need a tap first.
+    refreshHome().catch(() => {});
+    loadFamily().catch(() => {});
+    fetch("/api/config", { headers: { "ngrok-skip-browser-warning": "1" } }).then((response) => response.json()).then(setConfig).catch(() => {});
+    const arm = () => armAlerts().catch(() => {});
+    window.addEventListener("pointerdown", arm, { once: true });
+    return () => window.removeEventListener("pointerdown", arm);
+  }, [signedIn]);
+
   const approvalId = approval && approval.approval_id;
   useEffect(() => {
     if (!approvalId) {
@@ -172,14 +185,14 @@ export default function Page() {
     }
     const attestation = await startRegistration({ optionsJSON });
     const verified = await post("/api/passkeys/verify-registration", attestation);
-    note("registration verified=" + verified.verified);
+    note(verified.verified ? "Passkey saved" : "Passkey not saved, try again");
   }
 
   async function signIn() {
     const optionsJSON = await post("/api/passkeys/generate-authentication-options", { session: true });
     const assertion = await startAuthentication({ optionsJSON });
     await post("/api/passkeys/verify-authentication", { response: assertion, purpose: "session" });
-    note("signed in");
+    note("Signed in");
     setScreen("home");
     refreshHome().catch(() => {});
     loadFamily().catch(() => {});
@@ -238,8 +251,9 @@ export default function Page() {
       ...signed,
       passkey: { credential_id: verified.credential_id, public_key: verified.public_key, response: assertion },
     });
-    note("rules signed");
+    note("Rules signed");
     setScreen("home");
+    refreshHome().catch(() => {});
   }
 
   async function refreshApprovals() {
@@ -309,7 +323,7 @@ export default function Page() {
       const assertion = await secureConfirmation(options);
       if (assertion) {
         const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: true, spc: true, response: assertion });
-        note("approval " + result.state);
+        note(result.state === "approved" ? "Approved" : result.state === "rejected" ? "Rejected" : "Approval " + result.state);
         setApproval(null);
         return;
       }
@@ -340,13 +354,13 @@ export default function Page() {
     }
     const assertion = packAssertion(credential);
     const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: true, response: assertion });
-    note("approval " + result.state);
+    note(result.state === "approved" ? "Approved" : result.state === "rejected" ? "Rejected" : "Approval " + result.state);
     setApproval(null);
   }
 
   async function reject() {
     const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: false, message: declineNote });
-    note("approval " + result.state);
+    note(result.state === "approved" ? "Approved" : result.state === "rejected" ? "Rejected" : "Approval " + result.state);
     setApproval(null);
   }
 
@@ -415,7 +429,7 @@ export default function Page() {
       if (document.visibilityState === "visible") holdWake();
     });
     if (navigator.vibrate) navigator.vibrate(50);
-    note("alerts armed");
+    note("Alerts on");
     let delay = 1000;
     const decoder = new TextDecoder();
     while (true) {
@@ -436,20 +450,27 @@ export default function Page() {
           const text = decoder.decode(value, { stream: true });
           const eventId = text.match(/^id: (\d+)/m);
           if (eventId) armAlerts.lastEventId = eventId[1];
-          const loud = text.includes("approval_requested") || text.includes("scam_checked") || text.includes("card_decision");
-          if (text.includes("caregiver_alerted") || loud) {
-            const dataLine = text.split("\n").find((line) => line.startsWith("data:"));
-            if (dataLine) {
-              try {
-                const event = JSON.parse(dataLine.slice(5).trim());
-                if (event.type === "caregiver_alerted") {
-                  setAlerts((prev) => [{ id: event.seq || Date.now(), text: "Something was stopped.", decision_id: event.decision_id }, ...prev].slice(0, 12));
-                }
-              } catch {
-                /* a heartbeat is not an alert */
-              }
+          const events = [];
+          for (const line of text.split("\n")) {
+            if (!line.startsWith("data:")) continue;
+            try {
+              events.push(JSON.parse(line.slice(5).trim()));
+            } catch {
+              /* a heartbeat is not an alert */
+            }
+          }
+          if (events.length) {
+            // Beep only for what needs Priyank: an approval, a scam, a declined swipe.
+            const loud = events.some((event) => event.type === "approval_requested"
+              || (event.type === "scam_checked" && event.verdict === "scam")
+              || (event.type === "card_decision" && event.result === "declined"));
+            const stops = events.filter((event) => event.type === "caregiver_alerted" && event.kind === "screen_refusal");
+            if (stops.length) {
+              setAlerts((prev) => [...stops.map((event) => ({ id: event.seq || Date.now(), text: "Chaperone stopped a request.", decision_id: event.decision_id })), ...prev].slice(0, 12));
             }
             refreshApprovals().catch(() => {});
+            if (events.some((event) => ["scam_checked", "card_decision", "card_hold_released", "risk_changed"].includes(event.type))) loadFamily().catch(() => {});
+            if (events.some((event) => ["cosigned", "mandate_paused"].includes(event.type))) refreshHome().catch(() => {});
             if (loud) {
               if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
               const beep = audio.createOscillator();

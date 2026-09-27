@@ -34,7 +34,7 @@ export default function Approvals({ approval, now, holds, declineNote, onDecline
       {holds.length === 0 ? <p>No holds.</p> : holds.map((hold) => (
         <article key={hold.hold_id} className="ch-card">
           <p>{hold.store} · {money(hold.max_amount)}</p>
-          <p>{hold.reason_key === "card_blocked_category" ? "Gift cards stay blocked." : hold.reason_key}</p>
+          <p>{hold.reason_key === "card_blocked_category" ? "This kind of store stays blocked on Ruth's card." : hold.reason || "Held by Ruth's card rules."}</p>
           {hold.reason_key === "card_blocked_category"
             ? null
             : <button className="ch-btn" onClick={() => onAllow(hold.hold_id)}>Allow once (10 min)</button>}

@@ -61,10 +61,11 @@ def fill_v2(mandate: dict, widen: bool = True) -> dict:
 
     The signed file is not rewritten. A later passkey sign stores the filled fields. With widen=False (what
     checkout enforces) the stores, categories and billers stay exactly as signed; only missing restrictions
-    (card rules, trusted contacts) take their defaults.
+    (card rules, trusted contacts) take their defaults. A file signed on the new form (it has card rules) is
+    never widened: a store Priyank switched off stays off.
     """
     filled = dict(mandate)
-    if not widen:
+    if not widen or mandate.get("card"):
         for key in ("card", "trusted_contacts"):
             if not filled.get(key):
                 filled[key] = DEFAULT_MANDATE[key]

@@ -309,6 +309,7 @@ def handle_authorization(payload: dict, mandate: dict | None = None) -> dict:
                 "max_amount": answer["amount"],
                 "card_last4": answer["card_last4"],
                 "reason_key": answer["reason_key"],
+                "reason": answer["reason"],
                 "released": False,
             }
         save_state(state)

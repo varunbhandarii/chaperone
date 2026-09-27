@@ -119,7 +119,10 @@ def get_mandate():
 
             from policy.mandate import mandate_hash
 
-            saved = json.loads(cosign_path.read_text(encoding="utf-8") or "{}")
+            try:
+                saved = json.loads(cosign_path.read_text(encoding="utf-8") or "{}")
+            except (OSError, ValueError):  # a damaged file is no co-sign, never a broken rules page
+                saved = {}
             current = base64.urlsafe_b64encode(mandate_hash(stored)).decode().rstrip("=")
             if saved.get("mandate_hash") == current:
                 body["cosign"] = saved
@@ -585,7 +588,9 @@ def _cosign_path():
 
     from common.config import env
 
-    return Path(env("COSIGN_PATH", "sessions/cosign.json"))
+    from policy.store import decisions_path
+
+    return Path(env("COSIGN_PATH", str(decisions_path().parent / "cosign.json")))
 
 
 @app.post("/mandate/cosign")

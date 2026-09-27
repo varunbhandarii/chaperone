@@ -2,11 +2,32 @@ import { money } from "@/lib/money";
 import { storeName } from "@/lib/stores";
 
 const PATTERNS = {
-  grandparent_emergency: "a family emergency",
-  refund_scam: "a refund scam",
-  tech_support: "a tech-support scam",
-  utility_impersonation: "someone pretending to be the power company",
+  grandparent_emergency: "Someone claiming a family emergency.",
+  refund_scam: "A refund scam.",
+  refund_overpayment: "A refund scam.",
+  refund_fee: "A refund scam.",
+  recovery_scam: "Someone offering to get lost money back for a fee.",
+  tech_support: "A fake tech-support call.",
+  utility_impersonation: "Someone pretending to be the power company.",
+  utility_shutoff: "Someone pretending to be the power company.",
+  bank_impersonation: "Someone pretending to be the bank.",
+  safe_account: "Someone asking to move money to a \"safe\" account.",
+  government_impersonation: "Someone pretending to be the government.",
+  digital_arrest: "Someone pretending to be the police.",
+  gift_card_codes: "Someone asking for gift card numbers.",
+  gift_card_demand: "Someone asking to be paid in gift cards.",
+  crypto_atm: "Someone asking for cash at a crypto machine.",
+  courier_pickup: "Someone sending a courier to collect money.",
+  parcel_customs: "A fake parcel or customs fee.",
+  fake_delivery: "A fake delivery fee.",
+  fake_renewal: "A fake subscription renewal.",
 };
+
+const VERDICTS = { scam: "This was a scam.", unsure: "This looked risky.", ok: "This looked fine." };
+
+function safeUrl(url) {
+  return /^https?:\/\//i.test(url || "") ? url : null;
+}
 
 export default function Safety({ checks, alerts, declines, onWhy }) {
   return (
@@ -16,8 +37,10 @@ export default function Safety({ checks, alerts, declines, onWhy }) {
       {checks.length === 0 ? <p>No scam checks yet.</p> : checks.map((check) => (
         <article key={check.check_id || check.decision_id} className="ch-card">
           <p>{check.story_excerpt}</p>
-          <p>{check.verdict === "scam" ? "This was a scam." : check.verdict} {PATTERNS[check.pattern] || check.pattern}</p>
-          {(check.sources || []).map((source) => <p key={source.url}><a href={source.url}>{source.title}</a></p>)}
+          <p>{VERDICTS[check.verdict] || ""} {PATTERNS[check.pattern] || ""}</p>
+          {(check.sources || []).map((source) => (
+            <p key={source.url}>{safeUrl(source.url) ? <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title || source.url}</a> : source.title}</p>
+          ))}
           {check.decision_id ? <button className="ch-btn" onClick={() => onWhy(check.decision_id)}>Why?</button> : null}
         </article>
       ))}
