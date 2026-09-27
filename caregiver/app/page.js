@@ -497,6 +497,7 @@ export default function Page() {
               risk={risk}
               protectedTotals={protectedTotals}
               history={history}
+              declines={declines}
               ruthPhone={config && config.ruthPhone}
               onPause={() => pauseAgent().catch((error) => note(String(error)))}
               onResume={() => resumeAgent().catch((error) => note(String(error)))}

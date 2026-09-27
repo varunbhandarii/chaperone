@@ -20,8 +20,8 @@ export default function HistoryView({ history, onCancel }) {
       <h1>Activity</h1>
       {orders.length === 0 ? <p>No orders yet.</p> : orders.map((order) => (
         <article key={order.order_id} className="ch-card">
-          <p>{storeName(order.merchant) || "Order"} · {money(order.total)}</p>
-          <p>{order.sku && String(order.sku).startsWith("BILL-") ? "Bill" : STATUS[order.status] || order.status}</p>
+          <p>{storeName(order.store || order.merchant) || "Order"} · {money(order.total)}</p>
+          <p>{order.store === "peachtree_power" ? "Bill" : STATUS[order.status] || order.status}</p>
           {order.status === "awaiting_payment" ? <button className="ch-btn" onClick={() => onCancel(order.order_id)}>Cancel</button> : null}
         </article>
       ))}

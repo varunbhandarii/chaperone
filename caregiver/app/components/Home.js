@@ -1,15 +1,26 @@
 import { money } from "@/lib/money";
 import { storeName } from "@/lib/stores";
 
-export default function Home({ budget, paused, risk, protectedTotals, history, ruthPhone, onPause, onResume, onClear }) {
+function thisWeek(history, declines) {
+  const start = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recent = (list) => (list || []).filter((row) => !row.at || new Date(row.at).getTime() >= start);
+  const orders = recent(history && history.orders).filter((order) => order.status && order.status !== "cancelled" && order.status !== "awaiting_payment");
+  const bills = orders.filter((order) => order.store === "peachtree_power" || (order.items || []).some((line) => String(line).toLowerCase().includes("bill")));
+  const errands = orders.filter((order) => !bills.includes(order));
+  const stopped = recent(history && history.refusals).length + recent(declines).length;
+  return { errands: errands.length, bills: bills.length, stopped };
+}
+
+export default function Home({ budget, paused, risk, protectedTotals, history, declines, ruthPhone, onPause, onResume, onClear }) {
   const spent = budget ? Number(budget.spent) : 0;
   const cap = budget ? Number(budget.monthly_cap) : 300;
   const left = Math.max(0, cap - (Number.isFinite(spent) ? spent : 0));
   const byStore = {};
   for (const order of (history && history.orders) || []) {
-    const id = order.merchant || "corner_market";
+    const id = order.store || order.merchant || "corner_market";
     byStore[id] = (byStore[id] || 0) + Number(order.total || 0);
   }
+  const week = thisWeek(history, declines);
   const until = risk && risk.active && risk.cooldown_until
     ? new Date(risk.cooldown_until).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" })
     : "";
@@ -29,6 +40,8 @@ export default function Home({ budget, paused, risk, protectedTotals, history, r
       ))}
       <h2>Protected</h2>
       <p>{money(protectedTotals.dollars)} stopped. {protectedTotals.scams_stopped} scams stopped. {protectedTotals.card_declines} card declines.</p>
+      <h2>This week</h2>
+      <p>{week.errands} errands done. {week.bills} bills paid. {week.stopped} attempts stopped.</p>
     </section>
   );
 }
