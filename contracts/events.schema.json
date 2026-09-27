@@ -620,6 +620,10 @@
           },
           "provider": {
             "type": "string"
+          },
+          "token": {
+            "type": "string",
+            "description": "Lithic transaction token, so Visa's answer can be matched to this swipe"
           }
         }
       },

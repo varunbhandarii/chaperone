@@ -317,7 +317,7 @@ def handle_authorization(payload: dict, mandate: dict | None = None) -> dict:
             _seen[token] = public
         post_event(
             "card_decision", "none", mandate_id,
-            card_last4=answer["card_last4"], store=answer["store"], mcc=answer["mcc"],
+            card_last4=answer["card_last4"], store=answer["store"], mcc=answer["mcc"], token=token,
             amount=answer["amount"], result=record["result"], reason_key=answer["reason_key"],
             reason=answer["reason"], hold_id=answer["hold_id"],
             cooldown=bool(risk.get("active") or risk.get("cooldown_until")),
