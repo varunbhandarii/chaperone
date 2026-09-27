@@ -279,7 +279,7 @@ def call_for(key: str | None) -> Call:
     end_quiet_calls(now)
     for stale in [k for k, c in CALLS.items() if now - c.seen > CALL_IDLE_S]:
         CALLS.pop(stale, None)
-    key = key or "line-default"
+    key = key or "call-" + secrets.token_hex(5)  # no key: a call of its own, never one shared by every caller
     call = CALLS.get(key)
     if call is None:
         call = CALLS[key] = Call(session_id="s_line_" + secrets.token_hex(5))
@@ -985,7 +985,10 @@ async def api(request: Request) -> JSONResponse:
     except ValueError:
         args = {}
     args = args if isinstance(args, dict) else {}
+    # Without X-Call-Id (or call_id) each request is a call of its own: its cart and PIN are shared with no one.
+    # Pass the call_id from the answer back to continue that call.
     call = call_for(request.headers.get("x-call-id") or args.get("call_id"))
+    CALLS[call.call_id] = call
     said = str(args.get("ruth_said") or "").strip()
     if said and looks_like_pin(call, said):
         t_verify_pin(call, pin_digits(said))
@@ -995,7 +998,7 @@ async def api(request: Request) -> JSONResponse:
     result = handler(call, args)
     if hasattr(result, "__await__"):
         result = await result
-    return JSONResponse(result)
+    return JSONResponse({**result, "call_id": call.call_id} if isinstance(result, dict) else result)
 
 
 @mcp.custom_route("/health", methods=["GET"])

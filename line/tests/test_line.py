@@ -298,3 +298,16 @@ def test_a_pin_passed_as_her_words_verifies_and_is_never_kept(line_url):
     sent = [e for e in httpx.get(f"{mock_base}/mock/log").json() if e.get("path") == "/checkout"][-1]["body"]
     assert "4321" not in sent.get("transcript", "").replace(" ", "")
     assert server.pin_digits("cuatro tres dos uno") == "4321" and server.mask_pin("my pin is 4 3 2 1 ok") == "my pin is [PIN] ok"
+
+
+def test_api_calls_without_a_call_id_share_nothing(line_url):
+    base, _, server = line_url
+    first = httpx.post(f"{base}/api/verify_pin", json={"pin": PIN}, headers={"Authorization": f"Bearer {TOKEN}"}, timeout=10).json()
+    assert first["verified"] is True and first["call_id"]
+    # a second request with no call id is another call: it is not verified by the first one's PIN
+    bill = httpx.post(f"{base}/api/bill_status", json={}, headers={"Authorization": f"Bearer {TOKEN}"}, timeout=10).json()
+    assert bill["call_id"] != first["call_id"]
+    assert not server.pin_ok(server.CALLS[bill["call_id"]])
+    # passing the call id back continues the first call
+    again = httpx.post(f"{base}/api/budget_left", json={"call_id": first["call_id"]}, headers={"Authorization": f"Bearer {TOKEN}"}, timeout=10).json()
+    assert again["call_id"] == first["call_id"]

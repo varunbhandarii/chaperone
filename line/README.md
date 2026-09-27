@@ -37,7 +37,7 @@ A phone call has no station screen, so safety lives in the tools:
   path (`/k/<token>/mcp`). Without the token set, the line serves nothing.
 
 `POST /api/<tool>` answers the same tools as plain JSON, for the Builder's `api_request` tool if its MCP field doesn't
-work. The call is keyed by the `X-Call-Id` header.
+work. The call is keyed by the `X-Call-Id` header (or a `call_id` in the body); every answer carries the `call_id`. A request with neither is a call of its own, so its cart and PIN are shared with no one.
 
 ## Run
 
