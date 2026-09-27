@@ -65,7 +65,20 @@ if ledger is not None:
 NO_STORE = {"Cache-Control": "no-store"}
 
 
-DESIGN_FILES = {"tokens.css": "text/css", "logo.svg": "image/svg+xml", "shield.svg": "image/svg+xml"}
+DESIGN_FILES = {
+    "tokens.css": "text/css",
+    "logo.svg": "image/svg+xml",
+    "logo-white.svg": "image/svg+xml",
+    "logo-black.svg": "image/svg+xml",
+    "mark.svg": "image/svg+xml",
+    "favicon.svg": "image/svg+xml",
+}
+DESIGN_FONTS = {
+    "noto-sans-latin.woff2",
+    "noto-sans-latin-ext.woff2",
+    "noto-sans-devanagari.woff2",
+    "noto-sans-mono-latin.woff2",
+}
 DESIGN_DIR = Path(__file__).resolve().parents[1] / "design"
 
 
@@ -77,6 +90,14 @@ def design_asset(name: str):
     if not path.is_file():
         raise HTTPException(404, "unknown design file")
     return FileResponse(path, media_type=DESIGN_FILES[name])
+
+
+@app.get("/design/fonts/{name}")
+def design_font(name: str):
+    path = DESIGN_DIR / "fonts" / name
+    if name not in DESIGN_FONTS or not path.is_file():
+        raise HTTPException(404, "unknown font file")
+    return FileResponse(path, media_type="font/woff2", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/health")

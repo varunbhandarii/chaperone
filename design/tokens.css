@@ -1,86 +1,332 @@
-/* Chaperone. A 20px base. Ruth's surfaces use --font-ruth (28–40px). Declined is never alarm red. */
+/* Chaperone design tokens, shared by every surface (served by the relay at /design/tokens.css and copied into the
+   caregiver app). Colours, radii, shadows and type sizes follow the Visa Product Design System (Nova) guidance for a
+   non-Visa product: Chaperone's own mark, Noto Sans instead of Visa Dialect, Visa named in plain text only.
 
-:root {
-  --ch-text: #1b2a4a;
-  --ch-bg: #f6f1e7;
-  --ch-surface: #fffdf8;
-  --ch-font: Georgia, "Iowan Old Style", serif;
-  --font-base: 20px;
-  --font-ruth: 32px;
-  --space: 16px;
-  --radius: 12px;
-  --protected: #1f7a4d;
-  --caution: #a15c07;
-  --declined: #6b4c3b;
-  --ok: #1f7a4d;
+   One meaning per colour, everywhere:
+     blue        protected: Chaperone stopped it (scam, refusal, protective card decline); also actions and links
+     green       went as planned: approved, paid, verified, agreed
+     yellow      a person decides: waiting for Priyank, card hold, extra care, paused
+     light blue  for information: checked and fine, Priyank told, over a limit
+     red         something broke (a service is down). Never a decline.
+     gold        money kept safe, signature seals, listening */
+
+@font-face {
+  font-family: "Noto Sans";
+  src: url("fonts/noto-sans-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Noto Sans";
+  src: url("fonts/noto-sans-latin-ext.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Noto Sans Devanagari";
+  src: url("fonts/noto-sans-devanagari.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF,
+    U+11B00-11B09;
+}
+@font-face {
+  font-family: "Noto Sans Mono";
+  src: url("fonts/noto-sans-mono-latin.woff2") format("woff2");
+  font-weight: 500 600;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+:root {
+  color-scheme: light;
+
+  --ch-font: "Noto Sans", "Noto Sans Devanagari", system-ui, "Segoe UI", "Nirmala UI", sans-serif;
+  --ch-mono: "Noto Sans Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  /* Visa Blue and its states; the deep blues are panels on a blue surface and the terminal body */
+  --ch-blue: #1434cb;
+  --ch-blue-hover: #173be8;
+  --ch-blue-pressed: #0f2595;
+  --ch-blue-deep: #122fba;
+  --ch-blue-tint: #eaf1ff;
+  --ch-navy: #021e4c;
+  --ch-navy-2: #011535;
+  --ch-navy-raised: #0a2a60;
+  --ch-navy-line: #173669;
+
+  /* money kept safe; text on gold is always navy */
+  --ch-gold: #fcc015;
+  --ch-on-gold: #021e4c;
+
+  --ch-surface: #ffffff;
+  --ch-ground: #f5f5f5;
+  --ch-raised: #f0f0f0;
+  --ch-line: #e6e6e6;
+  --ch-field: #8a8a8a;
+  --ch-text: #111111;
+  --ch-text-2: #4a4a4a;
+  --ch-on-blue: #ffffff;
+  --ch-on-blue-2: #d9d9d9;
+
+  /* status sets: background, graphic (icons, borders), text */
+  --ch-ok-bg: #d6f2c4;
+  --ch-ok: #40996b;
+  --ch-ok-text: #2c6849;
+  --ch-wait-bg: #ffef99;
+  --ch-wait: #c38004;
+  --ch-wait-text: #875903;
+  --ch-wait-strong: #6b4600;
+  --ch-info-bg: #c7edff;
+  --ch-info: #0088c7;
+  --ch-info-text: #005e8a;
+  --ch-err-bg: #ffd6e9;
+  --ch-err: #d65151;
+  --ch-err-text: #ad2929;
+
+  --ch-r-badge: 4px;
+  --ch-r-btn: 6px;
+  --ch-r-row: 8px;
+  --ch-r-card: 10px;
+  --ch-r-panel: 12px;
+
+  --ch-shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 0.1), 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  --ch-shadow-md: 0 4px 15px -1px rgb(0 0 0 / 0.08), 0 4px 2px -2px rgb(0 0 0 / 0.1);
+  --ch-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 4px 10px 2px rgb(0 0 0 / 0.1);
+  --ch-overlay: rgb(20 34 57 / 0.45);
+
+  /* reading sizes per surface */
+  --ch-size-phone: 17px;
+  --ch-size-ruth: 30px;
+  --ch-size-ruth-min: 24px;
+  --ch-size-wall: 21px;
+
+  /* older names, kept so any page that still uses them gets the new values */
+  --ch-bg: var(--ch-ground);
+  --protected: var(--ch-blue);
+  --ok: var(--ch-ok-text);
+  --caution: var(--ch-wait-text);
+  --declined: var(--ch-text-2);
+  --radius: var(--ch-r-card);
+  --space: 16px;
+  --font-base: var(--ch-size-phone);
+  --font-ruth: var(--ch-size-ruth);
+}
+
+:focus-visible {
+  outline: 2px dashed var(--ch-blue-pressed);
+  outline-offset: 2px;
+}
+
+.ch-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-mono {
+  font-family: var(--ch-mono);
+  overflow-wrap: anywhere;
+}
+
+.ch-overline {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ch-text-2);
+}
+
+/* Buttons: one primary per screen; loosening protection is never the primary */
 .ch-btn {
-  font-size: 1.15rem;
-  padding: 0.8rem 1.1rem;
-  margin: 0.35rem 0.35rem 0.35rem 0;
-  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
   min-width: 44px;
-  border-radius: var(--radius);
-  border: 1px solid var(--ch-text);
+  padding: 0 20px;
+  border: 1px solid var(--ch-blue);
+  border-radius: var(--ch-r-btn);
   background: var(--ch-surface);
-  color: var(--ch-text);
+  color: var(--ch-blue);
+  font: 600 16px/1.2 var(--ch-font);
+  text-decoration: none;
+  cursor: pointer;
+}
+.ch-btn:hover {
+  background: var(--ch-blue-tint);
+}
+.ch-btn:disabled,
+.ch-btn[aria-disabled="true"] {
+  border-color: var(--ch-line);
+  background: var(--ch-line);
+  color: #6b6b6b;
+  cursor: not-allowed;
+}
+.ch-btn--primary {
+  border-color: var(--ch-blue);
+  background: var(--ch-blue);
+  color: var(--ch-on-blue);
+}
+.ch-btn--primary:hover {
+  border-color: var(--ch-blue-hover);
+  background: var(--ch-blue-hover);
+}
+.ch-btn--primary:active {
+  border-color: var(--ch-blue-pressed);
+  background: var(--ch-blue-pressed);
+}
+.ch-btn--danger {
+  border-color: var(--ch-err-text);
+  color: var(--ch-err-text);
+}
+.ch-btn--danger:hover {
+  background: var(--ch-err-bg);
+}
+.ch-btn--text {
+  border-color: transparent;
+  background: transparent;
+  padding: 0 8px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ch-btn--text:hover {
+  background: var(--ch-blue-tint);
 }
 
 .ch-card {
   background: var(--ch-surface);
-  padding: var(--space);
-  margin: 0.8rem 0;
-  border-radius: var(--radius);
+  border-radius: var(--ch-r-panel);
+  padding: 18px 20px;
+  box-shadow: var(--ch-shadow-sm);
 }
 
+/* Badges: a status word, never colour alone */
+.ch-badge,
 .ch-pill {
-  display: inline-block;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  background: var(--ch-bg);
-  border: 1px solid var(--ch-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: var(--ch-r-badge);
+  background: var(--ch-raised);
+  color: #333333;
+  font: 700 13px/1.35 var(--ch-font);
+  white-space: nowrap;
+}
+.ch-badge--protected {
+  background: var(--ch-blue);
+  color: var(--ch-on-blue);
+}
+.ch-badge--ok {
+  background: var(--ch-ok-bg);
+  color: var(--ch-ok-text);
+}
+.ch-badge--wait {
+  background: var(--ch-wait-bg);
+  color: var(--ch-wait-strong);
+}
+.ch-badge--info {
+  background: var(--ch-info-bg);
+  color: var(--ch-info-text);
+}
+.ch-badge--err {
+  background: var(--ch-err-bg);
+  color: var(--ch-err-text);
+}
+.ch-badge--money {
+  background: var(--ch-gold);
+  color: var(--ch-on-gold);
+}
+.ch-badge--visa {
+  background: transparent;
+  border: 1px solid var(--ch-blue);
+  color: var(--ch-blue);
+  padding: 2px 7px;
 }
 
+/* Messages: tinted, with an icon and words; red only when something broke */
 .ch-banner {
-  background: var(--ch-surface);
-  border-left: 6px solid var(--protected);
-  padding: var(--space);
-  border-radius: var(--radius);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: var(--ch-r-row);
+  background: var(--ch-blue-tint);
+  color: var(--ch-text);
+}
+.ch-banner--ok {
+  background: var(--ch-ok-bg);
+  color: var(--ch-ok-text);
+}
+.ch-banner--wait {
+  background: var(--ch-wait-bg);
+  color: var(--ch-wait-strong);
+}
+.ch-banner--info {
+  background: var(--ch-info-bg);
+  color: var(--ch-info-text);
+}
+.ch-banner--err {
+  background: var(--ch-err-bg);
+  color: var(--ch-err-text);
 }
 
+/* Phone tab bar: icons plus words, a 3px blue rule on the current tab, the home-bar inset below */
 .ch-tabs {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 10;
   display: flex;
   background: var(--ch-surface);
-  border-top: 1px solid var(--ch-text);
+  border-top: 1px solid var(--ch-line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-
-.ch-tabs button {
+.ch-tabs button,
+.ch-tabs a {
+  position: relative;
   flex: 1;
-  min-height: 52px;
-  font-size: 0.85rem;
-  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 56px;
+  padding: 8px 0 6px;
   border: 0;
-  color: var(--ch-text);
+  background: transparent;
+  color: var(--ch-text-2);
+  font: 600 12px/1.2 var(--ch-font);
+  text-decoration: none;
+  cursor: pointer;
+}
+.ch-tabs [aria-current="page"] {
+  color: var(--ch-blue);
+  font-weight: 700;
+  box-shadow: inset 0 3px 0 var(--ch-blue);
 }
 
 .ch-page {
-  padding-bottom: 5rem;
   max-width: 36rem;
+  margin: 0 auto;
+  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ch-text: #f3efe6;
-    --ch-bg: #1b2433;
-    --ch-surface: #243044;
-    --protected: #7dcea0;
-    --caution: #e3b341;
-    --declined: #c4a484;
-    --ok: #7dcea0;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
