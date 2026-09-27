@@ -6,10 +6,15 @@ import type { Lang } from "./lang.ts";
 
 /** GET {merchant}/orders/{id}/receipt, and what the print helper and the on-screen receipt take. */
 export interface Receipt {
+  /** the store's name, as printed at the top */
   merchant: string;
+  merchant_id?: string;
   items: Array<{ name: string; qty: number; price: number }>;
   total: number;
+  /** "after 3 pm"; empty when there is nothing to pick up (a bill) */
   pickup: string;
+  /** a bill payment: printed as "Paid to Peachtree Power · account …0098", with no pickup */
+  bill?: { account_ref: string };
   order_id: string;
   decision_id?: string;
   paid_at?: string | number;
@@ -17,7 +22,7 @@ export interface Receipt {
   lang: Lang;
   /** what the promotions saved, when there were any (regular minus paid) */
   savings?: number;
-  /** Corner Market Rewards points for this order */
+  /** the store's rewards points for this order */
   loyalty_points?: number;
   pickup_code?: string;
 }
@@ -47,7 +52,21 @@ function num(v: unknown): number | null {
  * the station keeps unit prices (a line shows qty x price). Without `unit_price`, prices that add up to the total
  * are taken as line totals.
  */
-export function parseReceipt(body: unknown, fallbackLang: Lang = "en"): Receipt | null {
+/** What the station knows about its stores (contracts/merchants.json): names, and which ones are billers. */
+export interface StoreRegistry {
+  name(id: string): string | undefined;
+  isBiller(id: string): boolean;
+  /** the account Ruth pays at a biller, e.g. "PP-2231-0098" */
+  account?(id: string): string | undefined;
+}
+
+/** "PP-2231-0098" -> "…0098": enough for Ruth and Priyank to recognise, not the whole number. */
+export function maskAccount(ref: string): string {
+  const tail = ref.replace(/[^0-9A-Za-z]/g, "").slice(-4);
+  return tail ? `…${tail}` : "";
+}
+
+export function parseReceipt(body: unknown, fallbackLang: Lang = "en", stores?: StoreRegistry): Receipt | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;
   const total = num(b.total);
@@ -65,11 +84,18 @@ export function parseReceipt(body: unknown, fallbackLang: Lang = "en"): Receipt 
     qty: i.qty,
     price: i.unit ?? (pricesAreLineTotals ? Math.round((cents(i.price ?? 0) / i.qty)) / 100 : (i.price ?? 0)),
   }));
+  const merchantId = typeof b.merchant_id === "string" && b.merchant_id ? b.merchant_id : undefined;
+  const named = typeof b.store === "string" && b.store ? b.store : typeof b.merchant === "string" && b.merchant ? b.merchant : undefined;
+  const isBill = b.kind === "biller" || b.kind === "bill" || b.bill === true || (merchantId ? stores?.isBiller(merchantId) === true : false);
+  const account = typeof b.account_ref === "string" ? b.account_ref : merchantId ? stores?.account?.(merchantId) : undefined;
   return {
-    merchant: typeof b.merchant === "string" && b.merchant ? b.merchant : "Corner Market",
+    merchant: named ?? (merchantId ? stores?.name(merchantId) : undefined) ?? "",
+    ...(merchantId ? { merchant_id: merchantId } : {}),
     items,
     total,
-    pickup: typeof b.pickup === "string" && b.pickup ? b.pickup : "after 3 pm",
+    // null means nothing to pick up (a bill); an older receipt without the field is a store pickup after 3 pm
+    pickup: isBill || b.pickup === null ? "" : typeof b.pickup === "string" && b.pickup ? b.pickup : "after 3 pm",
+    ...(isBill ? { bill: { account_ref: account ? maskAccount(account) : "" } } : {}),
     order_id: b.order_id,
     ...(typeof b.decision_id === "string" ? { decision_id: b.decision_id } : {}),
     ...(typeof b.paid_at === "string" || typeof b.paid_at === "number" ? { paid_at: b.paid_at } : {}),
@@ -83,11 +109,13 @@ export function parseReceipt(body: unknown, fallbackLang: Lang = "en"): Receipt 
 
 /** The same receipt from the station's own record of the order (the merchant's endpoint is the better source). */
 export function localReceipt(order: PlacedOrder, sessionUrl: string | undefined, paidAt: number | string | undefined): Receipt {
+  const bill = order.lines.length > 0 && order.lines.every((l) => l.bill);
   return {
-    merchant: "Corner Market",
+    merchant: order.lines.find((l) => l.store)?.store ?? "",
     items: order.lines.map((l) => ({ name: l.name, qty: l.qty, price: l.price })),
     total: fromCents(order.totalCents),
-    pickup: "after 3 pm",
+    pickup: bill ? "" : "after 3 pm",
+    ...(bill ? { bill: { account_ref: "" } } : {}),
     order_id: order.order_id,
     ...(order.decision_id ? { decision_id: order.decision_id } : {}),
     ...(paidAt !== undefined ? { paid_at: paidAt } : {}),
@@ -140,6 +168,7 @@ export const RECEIPT_LABELS: Record<
     saved: (amount: string) => string;
     points: (n: number) => string;
     code: string;
+    paidTo: (store: string, account: string) => string;
   }
 > = {
   en: {
@@ -152,8 +181,9 @@ export const RECEIPT_LABELS: Record<
     decision: "Decision",
     paid: "Paid",
     saved: (amount) => `You saved ${amount}`,
-    points: (n) => `+${n} Corner Market Rewards points`,
+    points: (n) => `+${n} rewards points`,
     code: "Pickup code",
+    paidTo: (store, account) => `Paid to ${store}${account ? ` · account ${account}` : ""}`,
   },
   es: {
     title: "Recibo",
@@ -165,8 +195,9 @@ export const RECEIPT_LABELS: Record<
     decision: "Decisión",
     paid: "Pagado",
     saved: (amount) => `Usted ahorró ${amount}`,
-    points: (n) => `+${n} puntos Corner Market Rewards`,
+    points: (n) => `+${n} puntos de recompensa`,
     code: "Código de recogida",
+    paidTo: (store, account) => `Pagado a ${store}${account ? ` · cuenta ${account}` : ""}`,
   },
   hi: {
     title: "रसीद",
@@ -178,8 +209,9 @@ export const RECEIPT_LABELS: Record<
     decision: "निर्णय",
     paid: "भुगतान",
     saved: (amount) => `आपने ${amount} बचाए`,
-    points: (n) => `+${n} कॉर्नर मार्केट रिवॉर्ड्स पॉइंट`,
+    points: (n) => `+${n} रिवॉर्ड पॉइंट`,
     code: "पिकअप कोड",
+    paidTo: (store, account) => `${store} को भुगतान${account ? ` · खाता ${account}` : ""}`,
   },
 };
 

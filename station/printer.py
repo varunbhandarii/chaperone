@@ -102,8 +102,11 @@ class Receipt(BaseModel):
     session_url: str | None = None
     lang: str | None = "en"
     savings: float | None = None  # promotions, when there were any
-    loyalty_points: int | None = None  # Corner Market Rewards
+    loyalty_points: int | None = None  # the store's rewards points
     pickup_code: str | None = None
+    merchant_id: str | None = None
+    # a bill payment: "Paid to Peachtree Power · account …0098", and nothing to pick up
+    bill: dict | None = None
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -130,7 +133,9 @@ TEXT = {
         "scan": "Scan for your session",
         "code": "Pickup code",
         "saved": "You saved {amount}",
-        "points": "+{n} Corner Market Rewards points",
+        "points": "+{n} rewards points",
+        "paid_to": "Paid to {store}",
+        "account": "Account {ref}",
     },
     "es": {
         "total": "Total",
@@ -144,7 +149,9 @@ TEXT = {
         "scan": "Escanee para ver su sesión",
         "code": "Código de recogida",
         "saved": "Usted ahorró {amount}",
-        "points": "+{n} puntos Corner Market Rewards",
+        "points": "+{n} puntos de recompensa",
+        "paid_to": "Pagado a {store}",
+        "account": "Cuenta {ref}",
     },
     "hi": {
         "total": "कुल",
@@ -158,7 +165,9 @@ TEXT = {
         "scan": "अपना सत्र देखने के लिए स्कैन करें",
         "code": "पिकअप कोड",
         "saved": "आपने {amount} बचाए",
-        "points": "+{n} कॉर्नर मार्केट रिवॉर्ड्स पॉइंट",
+        "points": "+{n} रिवॉर्ड पॉइंट",
+        "paid_to": "{store} को भुगतान",
+        "account": "खाता {ref}",
     },
 }
 
@@ -222,7 +231,7 @@ def time_line(paid_at: Any, lang: str) -> str:
 
 
 def merchant_name(merchant: str | None) -> str:
-    name = (merchant or "").strip() or "Corner Market"
+    name = (merchant or "").strip()  # the store's own name; no store is ever assumed
     if name == name.lower():  # an id such as corner_market
         name = re.sub(r"[_-]+", " ", name).title()
     return name
@@ -402,7 +411,9 @@ def render_receipt(receipt: Receipt | dict, fonts: Fonts) -> Image.Image:
     label, small = fonts.get(LABEL_PX), fonts.get(SMALL_PX)
 
     s = Sheet()
-    s.text(merchant_name(r.merchant), title, "center")
+    store = merchant_name(r.merchant)
+    if store:
+        s.text(store, title, "center")
     s.gap(12)
     amounts = line_amounts(r)
     for item, amount in zip(r.items, amounts):
@@ -413,8 +424,14 @@ def render_receipt(receipt: Receipt | dict, fonts: Fonts) -> Image.Image:
     s.gap(10)
     s.row(t["total"], money(r.total if r.total is not None else sum(amounts)), body_bold)
     s.gap(12)
-    s.text(pickup_line(r.pickup, lang), body)
-    code = "".join(ch for ch in (r.pickup_code or "") if ch.isalnum())
+    if r.bill is not None:  # a bill: who was paid and which account, and nothing to pick up
+        s.text(t["paid_to"].format(store=store or "the biller"), body_bold)
+        ref = str((r.bill or {}).get("account_ref") or "").strip()
+        if ref:
+            s.text(t["account"].format(ref=ref), body)
+    elif r.pickup != "":  # "" means nothing to pick up; None is an older receipt, picked up after 3 pm
+        s.text(pickup_line(r.pickup, lang), body)
+    code = "".join(ch for ch in (r.pickup_code or "") if ch.isalnum()) if r.bill is None else ""
     if code:
         s.gap(8)
         s.text(t["code"], label, "center")
@@ -636,7 +653,7 @@ def save_pdf(img: Image.Image, path: Path) -> None:
     page = Image.new("1", (max(PAPER_DOTS, bw.width), bw.height + 2 * PAGE_MARGIN), 1)
     page.paste(bw, ((page.width - bw.width) // 2, PAGE_MARGIN))
     tmp = path.with_suffix(".pdf.tmp")
-    page.save(tmp, "PDF", resolution=203, title="Corner Market receipt")
+    page.save(tmp, "PDF", resolution=203, title="Receipt")
     os.replace(tmp, path)
 
 

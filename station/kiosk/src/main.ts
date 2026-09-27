@@ -105,6 +105,7 @@ window.addEventListener(
     if (e.key === "Escape") {
       if (!chooser.hidden) chooser.hidden = true;
       else if (agent?.isReplaying) agent.stopReplay();
+      else if (!$("protected").hidden) ui.protect(null);
       else ui.receipt(null);
       return;
     }
@@ -120,22 +121,26 @@ window.addEventListener(
   { capture: true },
 );
 
-// ---------- shopper view: the companion screen without operator panels (?view=shopper) ----------
+// ---------- kiosk: Ruth's shopper view by default; ?operator (or Ctrl+Shift+O) shows the operator panels ----------
 
-const VIEW_STORAGE = "chaperone.view";
 const viewBtn = $<HTMLButtonElement>("view-toggle");
 
 function setShopperView(on: boolean): void {
   document.body.classList.toggle("shopper", on);
   viewBtn.textContent = on ? "Operator view" : "Shopper view";
   viewBtn.setAttribute("aria-pressed", String(on));
-  save(VIEW_STORAGE, on ? "shopper" : "operator");
 }
 
-setShopperView(new URLSearchParams(location.search).get("view") === "shopper" || load(VIEW_STORAGE, "operator") === "shopper");
+setShopperView(!new URLSearchParams(location.search).has("operator"));
 viewBtn.addEventListener("click", () => {
   setShopperView(!document.body.classList.contains("shopper"));
   viewBtn.blur(); // keep Space for push-to-talk
+});
+window.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "o") {
+    e.preventDefault();
+    setShopperView(!document.body.classList.contains("shopper"));
+  }
 });
 
 // ---------- start / stop ----------

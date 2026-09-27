@@ -25,6 +25,8 @@ export interface PricedCartItem {
   category: string;
   qty: number;
   price: number;
+  /** the store that sells this line; policy places one signed order per store */
+  merchant?: string;
 }
 
 export interface PricedCart {
@@ -171,6 +173,11 @@ export interface CartLineView {
   qty: number;
   price: number;
   line_total: number;
+  /** the store's name ("Parkside Pharmacy") and id, when the catalog gave them */
+  store?: string;
+  merchant?: string;
+  /** a bill payment (BILL-<biller>): read back as "your bill", one per cart, never a quantity */
+  bill?: boolean;
 }
 
 type Result<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -182,6 +189,9 @@ export class Cart {
 
   add(item: CatalogItem, qty = 1): Result<{ qty: number }> {
     if (!Number.isInteger(qty) || qty < 1) return { ok: false, error: "qty must be a whole number of at least 1" };
+    if (isBill(item) && (qty !== 1 || this.entries.has(item.sku))) {
+      return { ok: false, error: "a bill is paid once: it is already in the cart, with quantity 1" };
+    }
     const next = (this.entries.get(item.sku)?.qty ?? 0) + qty;
     if (next > MAX_QTY) return { ok: false, error: `at most ${MAX_QTY} of one item per order` };
     this.entries.set(item.sku, { item, qty: next });
@@ -224,19 +234,27 @@ export class Cart {
       qty,
       price: fromCents(toCents(item.price)),
       line_total: fromCents(toCents(item.price) * qty),
+      ...(typeof item.store === "string" && item.store ? { store: item.store } : {}),
+      ...(typeof item.merchant === "string" && item.merchant ? { merchant: item.merchant } : {}),
+      ...(isBill(item) ? { bill: true } : {}),
     }));
   }
 
-  /** The priced cart for /checkout; category carries the mandate category when the catalog provides it. */
-  priced(merchant: string): PricedCart {
+  /**
+   * The priced cart for /checkout. Each line carries its own store, so policy places one signed order per store;
+   * `merchant` is the store for lines the catalog gave none (and the cart's store when there is only one).
+   */
+  priced(fallbackMerchant: string): PricedCart {
     const items = [...this.entries.values()].map(({ item, qty }) => ({
       sku: item.sku,
       name: item.name,
       category: item.mandate_category ?? item.category,
       qty,
       price: fromCents(toCents(item.price)),
+      merchant: typeof item.merchant === "string" && item.merchant ? item.merchant : fallbackMerchant,
     }));
-    return { merchant, items, total: fromCents(this.totalCents) };
+    const stores = [...new Set(items.map((i) => i.merchant))];
+    return { merchant: stores.length === 1 ? stores[0] : fallbackMerchant, items, total: fromCents(this.totalCents) };
   }
 
   /** What the model gets back after a cart change. */
@@ -291,18 +309,39 @@ export function money(cents: number, lang: Lang = "en"): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-/** The exact read-back sentence for the current cart, in the shopper's language. */
+export function isBill(item: { sku: string; category?: string }): boolean {
+  return item.sku.startsWith("BILL-") || item.category === "utility_bill";
+}
+
+const YOUR_BILL: Record<Lang, string> = { en: "your bill", es: "su factura", hi: "आपका बिल" };
+
+/**
+ * The exact read-back sentence for the current cart, in the shopper's language. When the lines carry their stores,
+ * it names each one: "From Parkside Pharmacy: Lisinopril, $8.00. From Peachtree Power: your bill, $86.40. Total …".
+ */
 export function readBackSay(lines: CartLineView[], totalCents: number, lang: Lang = "en"): string {
   if (!lines.length) {
     return { es: "Su carrito está vacío.", hi: "आपकी कार्ट खाली है।", en: "Your cart is empty." }[lang];
   }
-  const parts = lines.map((l) => {
-    const cents = toCents(l.line_total);
-    const qty = l.qty > 1 ? `${l.qty} ` : "";
-    return `${qty}${l.name}, ${money(cents, lang)}`;
-  });
-  const list = parts.join("; ");
+  const said = (l: CartLineView) => {
+    const qty = l.qty > 1 && !l.bill ? `${l.qty} ` : "";
+    return `${qty}${l.bill ? YOUR_BILL[lang] : l.name}, ${money(toCents(l.line_total), lang)}`;
+  };
   const total = money(totalCents, lang);
+  const stores = [...new Set(lines.map((l) => l.store ?? ""))];
+  if (stores.every(Boolean)) {
+    const groups = stores.map((store) => ({ store, list: lines.filter((l) => l.store === store).map(said).join("; ") }));
+    if (groups.length === 1) {
+      const { store, list } = groups[0];
+      if (lang === "es") return `Su pedido de ${store}: ${list}. Total: ${total}. ¿Hago el pedido?`;
+      if (lang === "hi") return `${store} से आपका ऑर्डर: ${list}। कुल ${total}। क्या मैं ऑर्डर कर दूँ?`;
+      return `Your order from ${store}: ${list}. Total ${total}. Shall I place the order?`;
+    }
+    if (lang === "es") return `${groups.map((g) => `De ${g.store}: ${g.list}.`).join(" ")} Total: ${total}. ¿Hago el pedido?`;
+    if (lang === "hi") return `${groups.map((g) => `${g.store} से: ${g.list}।`).join(" ")} कुल ${total}। क्या मैं ऑर्डर कर दूँ?`;
+    return `${groups.map((g) => `From ${g.store}: ${g.list}.`).join(" ")} Total ${total}. Shall I place the order?`;
+  }
+  const list = lines.map(said).join("; ");
   if (lang === "es") return `Su pedido: ${list}. Total: ${total}. ¿Hago el pedido?`;
   if (lang === "hi") return `आपका ऑर्डर: ${list}। कुल ${total}। क्या मैं ऑर्डर कर दूँ?`;
   return `Your order: ${list}. Total ${total}. Shall I place the order?`;
@@ -380,15 +419,21 @@ const SAY: Record<string, Record<Lang, string>> = {
     es: "Priyank no contestó, así que no se pidió nada. Le guardé su carrito.",
     hi: "प्रियंक ने जवाब नहीं दिया, इसलिए कुछ ऑर्डर नहीं हुआ। आपकी कार्ट रखी हुई है।",
   },
+  // Slots: {total} {store} {pickup}; {pickup} is pickup_line, empty for a bill
   receipt_done: {
-    en: "Done. {total} at Corner Market, pickup after 3 pm. I printed your receipt.",
-    es: "Listo. {total} en Corner Market, para recoger después de las 3. Le imprimí su recibo.",
-    hi: "हो गया। कॉर्नर मार्केट में {total}, दोपहर 3 बजे के बाद ले सकते हैं। आपकी रसीद छप गई है।",
+    en: "Done. {total} at {store}. {pickup} I printed your receipt.",
+    es: "Listo. {total} en {store}. {pickup} Le imprimí su recibo.",
+    hi: "हो गया। {store} में {total}। {pickup} आपकी रसीद छप गई है।",
   },
   receipt_on_screen: {
-    en: "Done. {total} at Corner Market, pickup after 3 pm. Your receipt is on the screen.",
-    es: "Listo. {total} en Corner Market, para recoger después de las 3. Su recibo está en la pantalla.",
-    hi: "हो गया। कॉर्नर मार्केट में {total}, दोपहर 3 बजे के बाद ले सकते हैं। आपकी रसीद स्क्रीन पर है।",
+    en: "Done. {total} at {store}. {pickup} Your receipt is on the screen.",
+    es: "Listo. {total} en {store}. {pickup} Su recibo está en la pantalla.",
+    hi: "हो गया। {store} में {total}। {pickup} आपकी रसीद स्क्रीन पर है।",
+  },
+  pickup_line: {
+    en: "Pickup is after 3 pm, and your code is {code}.",
+    es: "Puede recogerlo después de las 3, y su código es {code}.",
+    hi: "दोपहर 3 बजे के बाद ले जा सकते हैं, और आपका कोड {code} है।",
   },
   // After payment. Slots: {status} {code} {amount} {last4} {saved} {points} {total}
   order_status: {
@@ -397,9 +442,9 @@ const SAY: Record<string, Record<Lang, string>> = {
     hi: "आपका ऑर्डर {status}।",
   },
   order_ready: {
-    en: "Your order is ready for pickup after 3 pm. Your pickup code is {code}.",
-    es: "Su pedido está listo para recoger después de las 3. Su código de recogida es {code}.",
-    hi: "आपका ऑर्डर दोपहर 3 बजे के बाद ले जाने के लिए तैयार है। आपका पिकअप कोड {code} है।",
+    en: "Your order at {store} is ready for pickup. Your pickup code is {code}.",
+    es: "Su pedido en {store} está listo para recoger. Su código de recogida es {code}.",
+    hi: "{store} पर आपका ऑर्डर ले जाने के लिए तैयार है। आपका पिकअप कोड {code} है।",
   },
   order_cancelled: {
     en: "I cancelled your order. Nothing was charged.",
@@ -466,6 +511,85 @@ const SAY: Record<string, Record<Lang, string>> = {
     en: "I can't reach the store just now. Please try again in a minute.",
     es: "No puedo comunicarme con la tienda ahora mismo. Intente otra vez en un minuto.",
     hi: "अभी दुकान से संपर्क नहीं हो पा रहा। थोड़ी देर बाद फिर से कोशिश कीजिए।",
+  },
+  // The approval went to Priyank because the safety check could not run (not because of the amount).
+  asking_priya_check: {
+    en: "I couldn't finish my safety check, so I've sent this to Priyank. He usually answers in a minute.",
+    es: "No pude terminar mi revisión de seguridad, así que se lo mandé a Priyank. Él suele contestar en un minuto.",
+    hi: "मैं अपनी सुरक्षा जाँच पूरी नहीं कर पाई, इसलिए मैंने इसे प्रियंक को भेज दिया है। वे आमतौर पर जल्दी जवाब देते हैं।",
+  },
+  // The card guard, spoken when a swipe is declined or allowed once. Slots: {amount} {store}
+  card_declined_blocked: {
+    en: "I stopped a {amount} charge at {store}. Your card never pays that kind of store. If someone asked you to buy gift cards or send money, that's a scam.",
+    es: "Detuve un cargo de {amount} en {store}. Su tarjeta nunca paga en ese tipo de tienda. Si alguien le pidió comprar tarjetas de regalo o enviar dinero, es una estafa.",
+    hi: "मैंने {store} पर {amount} का भुगतान रोक दिया। आपका कार्ड ऐसी दुकान पर कभी भुगतान नहीं करता। अगर किसी ने गिफ्ट कार्ड खरीदने या पैसे भेजने को कहा है, तो यह धोखा है।",
+  },
+  card_declined_cooldown: {
+    en: "I stopped a {amount} charge at {store}, because of the scam call earlier. If it's real, Priyank can allow it once.",
+    es: "Detuve un cargo de {amount} en {store} por la llamada de estafa de antes. Si es real, Priyank lo puede permitir una vez.",
+    hi: "पहले आई धोखे वाली कॉल की वजह से मैंने {store} पर {amount} का भुगतान रोक दिया। अगर यह सही है, तो प्रियंक इसे एक बार की अनुमति दे सकते हैं।",
+  },
+  card_declined_over_cap: {
+    en: "I stopped a {amount} charge at {store}; it's over your limit for that store. Priyank can allow it once.",
+    es: "Detuve un cargo de {amount} en {store}; pasa su límite para esa tienda. Priyank lo puede permitir una vez.",
+    hi: "मैंने {store} पर {amount} का भुगतान रोक दिया; यह उस दुकान की आपकी सीमा से ज़्यादा है। प्रियंक इसे एक बार की अनुमति दे सकते हैं।",
+  },
+  card_declined_unusual: {
+    en: "I stopped a {amount} charge at {store}; it's much more than you usually spend there. Priyank can allow it once.",
+    es: "Detuve un cargo de {amount} en {store}; es mucho más de lo que suele gastar ahí. Priyank lo puede permitir una vez.",
+    hi: "मैंने {store} पर {amount} का भुगतान रोक दिया; यह वहाँ आपके आम खर्च से बहुत ज़्यादा है। प्रियंक इसे एक बार की अनुमति दे सकते हैं।",
+  },
+  card_declined_atm: {
+    en: "I stopped a {amount} cash withdrawal; it's over today's limit. Priyank can allow it once.",
+    es: "Detuve un retiro de {amount}; pasa el límite de hoy. Priyank lo puede permitir una vez.",
+    hi: "मैंने {amount} की नकद निकासी रोक दी; यह आज की सीमा से ज़्यादा है। प्रियंक इसे एक बार की अनुमति दे सकते हैं।",
+  },
+  card_allowed_once: {
+    en: "Priyank allowed that charge once. Please try the card again.",
+    es: "Priyank permitió ese cargo una vez. Por favor intente con la tarjeta otra vez.",
+    hi: "प्रियंक ने वह भुगतान एक बार के लिए मंज़ूर कर दिया है। कृपया कार्ड फिर से लगाइए।",
+  },
+  cooldown_on: {
+    en: "For the next day I'll take extra care with your card.",
+    es: "Durante el próximo día cuidaré su tarjeta con más atención.",
+    hi: "अगले एक दिन मैं आपके कार्ड का ख़ास ध्यान रखूँगी।",
+  },
+  refund_not_allowed_bill: {
+    en: "A bill payment can't be returned. If something is wrong with the bill, Priyank can call {biller}.",
+    es: "El pago de una factura no se puede devolver. Si algo está mal con la factura, Priyank puede llamar a {biller}.",
+    hi: "बिल का भुगतान वापस नहीं होता। अगर बिल में कोई गड़बड़ है, तो प्रियंक {biller} को फ़ोन कर सकते हैं।",
+  },
+  // What the recorded clips say (no amount or store, so one recording fits every swipe); the screen shows the rest.
+  card_declined_blocked_clip: {
+    en: "I stopped a charge at a store your card never pays. If someone asked you to buy gift cards or send money, that's a scam.",
+    es: "Detuve un cargo en una tienda donde su tarjeta nunca paga. Si alguien le pidió comprar tarjetas de regalo o enviar dinero, es una estafa.",
+    hi: "मैंने ऐसी दुकान का भुगतान रोक दिया जहाँ आपका कार्ड कभी भुगतान नहीं करता। अगर किसी ने गिफ्ट कार्ड खरीदने या पैसे भेजने को कहा है, तो यह धोखा है।",
+  },
+  card_declined_cooldown_clip: {
+    en: "I stopped a charge because of the scam call earlier. If it's real, Priyank can allow it once.",
+    es: "Detuve un cargo por la llamada de estafa de antes. Si es real, Priyank lo puede permitir una vez.",
+    hi: "पहले आई धोखे वाली कॉल की वजह से मैंने एक भुगतान रोक दिया। अगर यह सही है, तो प्रियंक इसे एक बार की अनुमति दे सकते हैं।",
+  },
+  scam_check_scam: {
+    en: "Ruth, this sounds like a scam that fools many smart people. Please hang up and don't send any money; I've told Priyank.",
+    es: "Ruth, esto parece una estafa que engaña a mucha gente lista. Por favor cuelgue y no mande dinero; ya le avisé a Priyank.",
+    hi: "रूथ, यह एक ऐसा धोखा लगता है जिसमें कई समझदार लोग फँस जाते हैं। कृपया फ़ोन रख दीजिए और कोई पैसा न भेजें; मैंने प्रियंक को बता दिया है।",
+  },
+  // Ruth agrees to the rules Priyank signed. Slots: {rules}
+  cosign_ask: {
+    en: "Priyank set your rules: {rules}. Do you agree?",
+    es: "Priyank puso sus reglas: {rules}. ¿Está de acuerdo?",
+    hi: "प्रियंक ने आपके नियम तय किए हैं: {rules}। क्या आप सहमत हैं?",
+  },
+  cosign_thanks: {
+    en: "Thank you. Your rules are set, and Priyank can see that you agreed.",
+    es: "Gracias. Sus reglas quedaron listas, y Priyank puede ver que usted estuvo de acuerdo.",
+    hi: "धन्यवाद। आपके नियम तय हो गए, और प्रियंक देख सकते हैं कि आप सहमत हैं।",
+  },
+  cosign_not_yet: {
+    en: "All right, nothing changes until you agree. You can talk it over with Priyank.",
+    es: "Está bien, nada cambia hasta que usted esté de acuerdo. Puede hablarlo con Priyank.",
+    hi: "ठीक है, जब तक आप सहमत नहीं होतीं, कुछ नहीं बदलेगा। आप प्रियंक से बात कर सकती हैं।",
   },
   // The Ask guard. Slots: {biller} {amount} {due}
   scam_check_unavailable: {
@@ -583,11 +707,15 @@ export function checkoutOutcome(reply: Record<string, unknown>, totalCents: numb
     };
   }
   if (decision === "approve") {
-    const approval = (reply.approval ?? null) as { approval_id?: unknown } | null;
+    const approval = (reply.approval ?? null) as { approval_id?: unknown; rule?: unknown; reason?: unknown } | null;
+    // Sent to Priyank because the safety check could not run, not because of the amount: say that instead.
+    const checkDown = typeof reply.judge_error === "string" || approval?.rule === "R7_scam_judge" ||
+      (typeof approval?.reason === "string" && /safety check|unavailable/i.test(approval.reason));
+    const key = checkDown ? "asking_priya_check" : "asking_priya";
     return {
       status: "waiting_for_caregiver",
-      say_key: "asking_priya",
-      say: sayFor("asking_priya", lang),
+      say_key: key,
+      say: sayFor(key, lang),
       total: fromCents(totalCents),
       decision_id: decisionId,
       ...(approval && typeof approval.approval_id === "string" ? { approval_id: approval.approval_id } : {}),

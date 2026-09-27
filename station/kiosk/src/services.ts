@@ -1,7 +1,7 @@
 // HTTP calls to the relay, catalog and policy services. Every call degrades gracefully:
 // a missing or unreachable service produces a logged warning and a safe fallback, never a crash.
 
-import { URLS, VOICE } from "./config.ts";
+import { STORES, URLS, VOICE } from "./config.ts";
 import { parseApproval, parseReceipt, type ApprovalStatus, type Receipt } from "./receipt.ts";
 import {
   parseCancelReply,
@@ -485,6 +485,54 @@ export async function getMandateBillers(): Promise<Array<{ merchant_id: string; 
   }
 }
 
+// ---------- the card and family guards: cool-down, pause, co-sign ----------
+
+/** GET {policy}/mandate: the signed rules (or the default), with `paused` beside them. */
+export async function getMandate(): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await call(`${URLS.policy}/mandate`, { signal: AbortSignal.timeout(2500) });
+    if (!res.ok) return null;
+    const body = (await readJson(res)) as { mandate?: Record<string, unknown> } | null;
+    return body?.mandate && typeof body.mandate === "object" ? body.mandate : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The card's cool-down (GET {policy}/risk) and whether Priyank paused shopping (GET {policy}/mandate). */
+export async function getGuardState(): Promise<{ cooldown_until: string | number | null; paused: boolean } | null> {
+  try {
+    const [risk, mandate] = await Promise.all([
+      call(`${URLS.policy}/risk?mandate_id=${encodeURIComponent(VOICE.mandate_id)}`, { signal: AbortSignal.timeout(2500) }).then((r) => (r.ok ? readJson(r) : null), () => null),
+      call(`${URLS.policy}/mandate`, { signal: AbortSignal.timeout(2500) }).then((r) => (r.ok ? readJson(r) : null), () => null),
+    ]);
+    const r = (risk ?? {}) as { cooldown_until?: unknown };
+    const m = (mandate ?? {}) as { paused?: unknown };
+    const until = r.cooldown_until;
+    return {
+      cooldown_until: typeof until === "string" || typeof until === "number" ? until : null,
+      paused: m.paused === true || (typeof m.paused === "object" && m.paused !== null && (m.paused as { paused?: unknown }).paused === true),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** POST {policy}/mandate/cosign {session_id, said, lang}: Ruth agreed to the rules Priyank signed, in her own words. */
+export async function postCosign(body: { session_id: string; said: string; lang: Lang }): Promise<boolean> {
+  try {
+    const res = await call(`${URLS.policy}/mandate/cosign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(4000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ---------- receipt ----------
 
 /** GET {merchant}/orders/{id}/receipt; null when unavailable (the station then builds the receipt itself). */
@@ -492,7 +540,7 @@ export async function getReceipt(orderId: string, lang: Lang): Promise<Receipt |
   try {
     const res = await call(`${URLS.merchant}/orders/${encodeURIComponent(orderId)}/receipt?lang=${lang}`, { signal: AbortSignal.timeout(2000) });
     health.mark("merchant", "up");
-    return res.ok ? parseReceipt(await readJson(res), lang) : null;
+    return res.ok ? parseReceipt(await readJson(res), lang, STORES) : null;
   } catch (err) {
     if (isNetworkFailure(err)) health.mark("merchant", "down");
     return null;

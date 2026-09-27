@@ -453,3 +453,17 @@ def test_savings_points_and_pickup_code_make_the_receipt_longer(fonts):
     assert plain.height < no_savings.height < extra.height
     for lang in ("es", "hi"):
         P.render_receipt({**SAMPLE, "lang": lang, "savings": 0.5, "loyalty_points": 3, "pickup_code": "472"}, fonts)
+
+
+def test_a_bill_says_who_was_paid_and_has_no_pickup_or_code(fonts):
+    bill = {**SAMPLE, "merchant": "Peachtree Power", "items": [{"name": "Peachtree Power bill", "qty": 1, "price": 86.4}], "total": 86.4,
+            "pickup": "", "pickup_code": "472", "bill": {"account_ref": "…0098"}}
+    img = P.render_receipt(bill, fonts)
+    assert img.width == 384
+    for lang in ("es", "hi"):
+        P.render_receipt({**bill, "lang": lang}, fonts)
+    assert P.TEXT["en"]["paid_to"].format(store="Peachtree Power") == "Paid to Peachtree Power"
+    assert P.TEXT["en"]["points"].format(n=11) == "+11 rewards points"
+    # no store is assumed: an empty name prints no title
+    assert P.merchant_name("") == ""
+    P.render_receipt({**SAMPLE, "merchant": ""}, fonts)

@@ -54,8 +54,8 @@ dev server proxies them to `SERVICES_HOST` from the root `.env` (relay :8000, po
 restart `npm run dev` after changing it). The services therefore need no CORS headers, and a service that is
 down answers the proxy's marked 502, which the page treats as "down" at once. `?host=192.168.8.10` or
 `?relay=`, `?policy=`, `?catalog=` (full URLs) call services directly instead, which needs CORS on them. The voice follows the shopper's language (`voice_by_lang` in `voice.json`: Spanish
-`carina`, English and Hindi `ara`); `?voice=<name>` forces one voice for the whole session. `?view=shopper` opens the
-companion screen without the operator panels (also the **Shopper view** button).
+`carina`, English and Hindi `ara`); `?voice=<name>` forces one voice for the whole session. The page opens as Ruth's kiosk
+(shopper view); `?operator` or **Ctrl+Shift+O** shows the operator panels.
 
 For direct calls, the relay answers browsers only from `STATION_ORIGINS` (default
 `http://localhost:5173,http://127.0.0.1:5173`), so another page on the LAN cannot mint voice tokens.
@@ -189,12 +189,34 @@ and, when present, `ai/prompts/lines.<lang>.json` (`{"key": "text"}`; `{total}` 
 After-payment lines use the slots `{status}`, `{code}`, `{amount}`, `{last4}`, `{saved}` and `{points}`, and
 `"repeat_phrases": ["...", ...]` in a line file adds "repeat that" triggers for that language.
 
-## Companion screen
+## Ruth's kiosk (shopper view)
 
-**Shopper view** hides the latency meter, hardware panel and tool notes, leaving the state strip
-(*Listening*, *Thinking*, *Speaking*, *Waiting for Priyank*), the red refusal banner with the rule id, the
-order outcome, the cart with its total and both sides of the transcript. All shopper-facing text is at
-least 24 px on a dark background with at least 4.5:1 contrast; buttons are at least 48 px tall.
+The page opens in shopper view. The operator panels, status line, rule ids, order and decision ids, sandbox notes and
+fallback markers are marked `.dev`, and show only with `?operator` or **Ctrl+Shift+O**.
+
+- **One state, in words, in Ruth's language:** "Press and hold to talk", "Listening…", "Checking…", "Speaking…" and
+  "Asking Priyank…". The big button and the strip say the same thing.
+- **Colours** come from `design/tokens.css`, which the relay serves. The page is warm and high contrast, follows the
+  device's light or dark mode, and uses 28–40 px type for Ruth. It never uses alarm red: a refusal or a decline reads
+  calm.
+- **The Protected card** is a full-screen shield with one sentence in her language, the one action, and "Priyank has
+  been told". It shows for a scam refusal, a `scam_check` verdict of `scam` (green) or `unsure` (amber, "Be careful"),
+  and a declined card swipe. The next button press or Escape dismisses it.
+- **The cart by store:** lines are grouped under each store's name, and the read-back names the stores ("From
+  Parkside Pharmacy: … From Peachtree Power: your bill, … Total …"). Checkout sends each line's `merchant`, so policy
+  places one signed order per store, and each store's receipt stacks on screen as its `paid` arrives. A bill prints
+  "Paid to Peachtree Power · account …0098" and has no pickup. A bill is paid once, never with a quantity.
+- **Card events** come from the relay's stream:
+  - A declined swipe (`card_decision`) shows the Protected card with the whole `card_declined_*` line (store and
+    amount). Ruth hears the recorded clip (`line.card_declined_blocked` or `_cooldown`, whose words leave out the
+    amount), or the whole line verbatim if the clip can't load. `card_allowed_once` and policy's fixed
+    `scam_check_scam` answer play their clips the same way.
+  - `card_hold_released` says `card_allowed_once`.
+  - `risk_changed` shows "Extra care on your card until 9:05 PM tomorrow" and says `cooldown_on` once.
+  - `mandate_paused` shows "Priyank has paused shopping", and checkout is not offered until `mandate_resumed`.
+- **Ruth agrees by voice:** on `mandate_signed`, the station reads the rules in plain words and asks "Do you agree?".
+  A yes (in any of her languages) posts `POST {policy}/mandate/cosign {session_id, said, lang}` with her own words. A
+  no changes nothing.
 
 ## Session resumption
 
