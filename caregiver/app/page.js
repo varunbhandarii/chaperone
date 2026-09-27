@@ -1,16 +1,23 @@
 "use client";
 
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import AppBar from "./components/AppBar";
 import Approvals from "./components/Approvals";
+import Confirm from "./components/Confirm";
 import HistoryView from "./components/HistoryView";
 import Home from "./components/Home";
-import Rules from "./components/Rules";
-import Safety from "./components/Safety";
+import Message from "./components/Message";
+import Rules, { ruleChanges, SignFooter } from "./components/Rules";
+import Safety, { safetyItems } from "./components/Safety";
+import TabBar, { TABS } from "./components/TabBar";
 import Welcome from "./components/Welcome";
 import Why from "./components/Why";
+import { money } from "@/lib/money";
 import { approvalWords, plainError, RETRY } from "@/lib/status";
-import { payeeName } from "@/lib/stores";
+import { payeeName, storeName } from "@/lib/stores";
+import { categoryName, clockTime } from "@/lib/words";
+
 
 const MANDATE = {
   mandate_id: "m_ruth_2026_09",
@@ -76,6 +83,13 @@ function bytesToB64url(bytes) {
   return out;
 }
 
+const HEADERS = { "ngrok-skip-browser-warning": "1" };
+const TAB_IDS = TABS.map((item) => item.id);
+const SEEN_KEY = "chaperone.safety.seen";
+
+// Set by the page: a 401 "sign in required" from any call sends Priyank back to sign in.
+let sessionEnded = () => {};
+
 async function post(url, body) {
   const response = await fetch(url, {
     method: "POST",
@@ -89,46 +103,107 @@ async function post(url, body) {
   } catch {
     throw new Error("bad response " + response.status + " " + text.slice(0, 60));
   }
-  if (!response.ok) throw new Error(payload.error || payload.detail || response.statusText);
+  if (!response.ok) {
+    const error = new Error(payload.error || payload.detail || response.statusText);
+    // Only a lapsed session: a wrong setup code is also a 401, and so is a rules signature from another session.
+    if (response.status === 401 && /sign in required/i.test(String(payload.error || payload.detail || ""))) {
+      error.expired = true;
+      sessionEnded();
+    }
+    throw error;
+  }
   return payload;
 }
 
+// Every GET behind the session. A 401 means the session lapsed.
+async function get(url, init) {
+  const response = await fetch(url, { ...init, headers: { ...HEADERS, ...((init && init.headers) || {}) } });
+  if (response.status === 401) sessionEnded();
+  return response;
+}
+
+function readSeen() {
+  try {
+    const value = Number(window.localStorage.getItem(SEEN_KEY));
+    return Number.isFinite(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSeen(value) {
+  try {
+    window.localStorage.setItem(SEEN_KEY, String(value));
+  } catch {
+    /* private mode: the badge just resets on reload */
+  }
+}
+
 export default function Page() {
-  const [log, setLog] = useState("");
+  const [message, setMessage] = useState(null);
   const [config, setConfig] = useState(null);
   const [setupCode, setSetupCode] = useState("");
-  const [approval, setApproval] = useState(null);
+  const [approvals, setApprovals] = useState([]);
   const [now, setNow] = useState(Date.now());
-  const [fallbackCode, setFallbackCode] = useState("");
-  const [declineNote, setDeclineNote] = useState("");
   const [history, setHistory] = useState(null);
   const [prepared, setPrepared] = useState(null);
-  const [screen, setScreen] = useState("welcome");
+  const [screen, setScreen] = useState("loading");
   const [mandate, setMandate] = useState(MANDATE);
+  const [signedMandate, setSignedMandate] = useState(null);
+  const [rulesSigned, setRulesSigned] = useState(false);
+  const [signedAt, setSignedAt] = useState(null);
   const [budget, setBudget] = useState(null);
   const [paused, setPaused] = useState(false);
   const [alerts, setAlerts] = useState([]);
+  const [alertsOn, setAlertsOn] = useState(false);
   const [explanation, setExplanation] = useState(null);
+  const [ask, setAsk] = useState(null);
   const [tab, setTab] = useState("home");
   const [cosign, setCosign] = useState(null);
   const [risk, setRisk] = useState(null);
   const [holds, setHolds] = useState([]);
+  const [allowedHolds, setAllowedHolds] = useState({});
   const [declines, setDeclines] = useState([]);
   const [checks, setChecks] = useState([]);
+  const [seenAt, setSeenAt] = useState(null);
   const [protectedTotals, setProtectedTotals] = useState({ dollars: 0, scams_stopped: 0, card_declines: 0 });
+  const screenRef = useRef(screen);
+  // One alert stream per page, whichever render armed it.
+  const stream = useRef({ started: false, lastEventId: null });
+
+  useEffect(() => {
+    screenRef.current = screen;
+  }, [screen]);
+
+  // Back to sign in, once, when the session lapses while Priyank is signed in.
+  useEffect(() => {
+    sessionEnded = () => {
+      if (screenRef.current !== "app") return;
+      screenRef.current = "welcome";
+      setScreen("welcome");
+      setExplanation(null);
+      setAsk(null);
+      setMessage({ text: "Please sign in again.", tone: "info", at: Date.now() });
+    };
+    return () => {
+      sessionEnded = () => {};
+    };
+  }, []);
 
   useEffect(() => {
     fetch("/api/config", { headers: { "ngrok-skip-browser-warning": "1" } })
       .then((response) => response.json())
-      .then(setConfig);
+      .then(setConfig)
+      .catch(() => {});
     const pull = () => {
-      fetch("/api/approvals", { headers: { "ngrok-skip-browser-warning": "1" } })
+      get("/api/approvals")
         .then((response) => {
-          if (response.ok) setScreen((current) => (current === "welcome" ? "home" : current));
+          if (response.ok) setScreen((current) => (current === "welcome" || current === "loading" ? "app" : current));
+          else setScreen((current) => (current === "loading" ? "welcome" : current));
           return response.ok ? response.json() : [];
         })
-        .then((rows) => setApproval(Array.isArray(rows) && rows.length ? rows[0] : null))
-        .catch(() => {});
+        .then((rows) => setApprovals(Array.isArray(rows) ? rows : []))
+        .catch(() => setScreen((current) => (current === "loading" ? "welcome" : current)));
     };
     pull();
     // A safety net only: the alert stream refreshes approvals at once. ngrok's free tier is 20k requests a month.
@@ -140,7 +215,18 @@ export default function Page() {
     };
   }, []);
 
-  const signedIn = screen !== "welcome";
+  // The tab lives in the address (#approvals), so a reload keeps it.
+  useEffect(() => {
+    const fromHash = () => {
+      const id = window.location.hash.replace("#", "");
+      if (TAB_IDS.includes(id)) setTab(id);
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+  }, []);
+
+  const signedIn = screen === "app";
   useEffect(() => {
     if (!signedIn) return undefined;
     // Reopening the page with a live session skips Welcome: load what Priyank last signed and the family data
@@ -153,9 +239,8 @@ export default function Page() {
     return () => window.removeEventListener("pointerdown", arm);
   }, [signedIn]);
 
-  const approvalId = approval && approval.approval_id;
+  const approvalId = approvals[0] && approvals[0].approval_id;
   useEffect(() => {
-    setFallbackCode("");
     if (!approvalId) {
       setPrepared(null);
       return undefined;
@@ -163,7 +248,7 @@ export default function Page() {
     let cancel = false;
     post(`/api/approvals/${approvalId}/decide`, { prepare: true })
       .then((next) => {
-        if (!cancel) setPrepared(next);
+        if (!cancel) setPrepared({ id: approvalId, next });
       })
       .catch(() => {});
     return () => {
@@ -171,14 +256,28 @@ export default function Page() {
     };
   }, [approvalId]);
 
-  function note(line) {
-    setLog((prev) => prev + line + "\n");
+  // A success fades after a while; an error stays until Priyank closes it or something new replaces it.
+  useEffect(() => {
+    if (!message || message.tone === "err") return undefined;
+    const timer = setTimeout(() => setMessage((current) => (current === message ? null : current)), 8000);
+    return () => clearTimeout(timer);
+  }, [message]);
+
+  function note(text, tone = "ok") {
+    setMessage({ text, tone, at: Date.now() });
   }
 
   // Priyank sees plain words; the detail goes to the console.
   function fail(error) {
     console.error(error);
-    note(plainError(error));
+    if (error && error.expired) return;
+    const words = plainError(error);
+    note(words, words === "Cancelled" ? "info" : "err");
+  }
+
+  function approvalNote(state) {
+    const words = approvalWords(state);
+    note(words, state === "approved" ? "ok" : words === RETRY ? "err" : "info");
   }
 
   async function register() {
@@ -193,7 +292,8 @@ export default function Page() {
     }
     const attestation = await startRegistration({ optionsJSON });
     const verified = await post("/api/passkeys/verify-registration", attestation);
-    note(verified.verified ? "Passkey saved" : "Passkey not saved, try again");
+    if (verified.verified) note("Passkey saved. Now sign in with it.");
+    else note("Your passkey wasn't saved. Please try again.", "err");
   }
 
   async function signIn() {
@@ -201,23 +301,27 @@ export default function Page() {
     const assertion = await startAuthentication({ optionsJSON });
     await post("/api/passkeys/verify-authentication", { response: assertion, purpose: "session" });
     note("Signed in");
-    setScreen("home");
+    screenRef.current = "app";
+    setScreen("app");
     refreshHome().catch(() => {});
     loadFamily().catch(() => {});
     armAlerts().catch(() => {});
   }
 
   async function refreshHome() {
-    const headers = { "ngrok-skip-browser-warning": "1" };
-    const budgetResponse = await fetch("/api/budget", { headers });
+    const budgetResponse = await get("/api/budget");
     if (budgetResponse.ok) setBudget(await budgetResponse.json());
-    const mandateResponse = await fetch("/api/mandate", { headers });
+    const mandateResponse = await get("/api/mandate");
     if (mandateResponse.ok) {
       const body = await mandateResponse.json();
       setPaused(Boolean(body.paused));
       setCosign(body.cosign || null);
+      setRulesSigned(Boolean(body.signed));
       // Start the rules form from what Priyank last signed, so signing again never resets a limit.
-      if (body.signed && body.mandate) setMandate((prev) => ({ ...prev, ...body.mandate }));
+      if (body.signed && body.mandate) {
+        setMandate((prev) => ({ ...prev, ...body.mandate }));
+        setSignedMandate({ ...MANDATE, ...body.mandate });
+      }
     }
   }
 
@@ -259,15 +363,17 @@ export default function Page() {
       ...signed,
       passkey: { credential_id: verified.credential_id, public_key: verified.public_key, response: assertion },
     });
-    note("Rules signed");
-    setScreen("home");
+    setSignedMandate(signed);
+    setRulesSigned(true);
+    setSignedAt(new Date().toISOString());
+    note("Rules signed. Ruth will hear them next.");
     refreshHome().catch(() => {});
   }
 
   async function refreshApprovals() {
-    const response = await fetch("/api/approvals", { headers: { "ngrok-skip-browser-warning": "1" } });
+    const response = await get("/api/approvals");
     const rows = await response.json();
-    setApproval(Array.isArray(rows) && rows.length ? rows[0] : null);
+    setApprovals(Array.isArray(rows) ? rows : []);
   }
 
   function asBytes(value) {
@@ -296,7 +402,7 @@ export default function Page() {
     };
   }
 
-  async function secureConfirmation(options) {
+  async function secureConfirmation(options, approval) {
     if (!window.PaymentRequest || !PaymentRequest.securePaymentConfirmationAvailability) return null;
     if ((await PaymentRequest.securePaymentConfirmationAvailability()) !== "available") return null;
     const request = new PaymentRequest(
@@ -324,15 +430,20 @@ export default function Page() {
     return assertion;
   }
 
-  async function approve() {
-    const ready = prepared || (await post(`/api/approvals/${approval.approval_id}/decide`, { prepare: true }));
+  function settled(approval) {
+    setApprovals((prev) => prev.filter((row) => row.approval_id !== approval.approval_id));
+  }
+
+  async function approve(approval) {
+    const ready = (prepared && prepared.id === approval.approval_id && prepared.next)
+      || (await post(`/api/approvals/${approval.approval_id}/decide`, { prepare: true }));
     const options = ready.optionsJSON;
     try {
-      const assertion = await secureConfirmation(options);
+      const assertion = await secureConfirmation(options, approval);
       if (assertion) {
         const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: true, spc: true, response: assertion });
-        note(approvalWords(result.state));
-        setApproval(null);
+        approvalNote(result.state);
+        settled(approval);
         return;
       }
     } catch (error) {
@@ -363,24 +474,25 @@ export default function Page() {
     }
     const assertion = packAssertion(credential);
     const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: true, response: assertion });
-    note(approvalWords(result.state));
-    setApproval(null);
+    approvalNote(result.state);
+    settled(approval);
   }
 
-  async function reject() {
+  async function reject(approval, declineNote) {
     const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: false, message: declineNote });
-    note(approvalWords(result.state));
-    setApproval(null);
+    approvalNote(result.state);
+    settled(approval);
   }
 
   async function pauseAgent() {
     const result = await post("/api/pause");
     setPaused(Boolean(result.paused));
-    note(result.paused ? "Agent paused" : RETRY);
+    if (result.paused) note("Shopping is paused. Chaperone won't buy anything until you resume.", "info");
+    else note(RETRY, "err");
   }
 
   async function resumeAgent() {
-    const challenge = await fetch("/api/resume", { headers: { "ngrok-skip-browser-warning": "1" } }).then((response) => response.json());
+    const challenge = await get("/api/resume").then((response) => response.json());
     const credential = await navigator.credentials.get({
       publicKey: {
         challenge: b64urlToBuffer(challenge.challenge),
@@ -391,18 +503,18 @@ export default function Page() {
     });
     const result = await post("/api/resume", { response: packAssertion(credential), nonce: challenge.nonce });
     setPaused(result.paused !== false);
-    note(result.paused === false ? "Agent resumed" : RETRY);
+    if (result.paused === false) note("Shopping is back on.");
+    else note(RETRY, "err");
   }
 
   async function loadHistory() {
-    const response = await fetch("/api/history", { headers: { "ngrok-skip-browser-warning": "1" } });
+    const response = await get("/api/history");
     setHistory(await response.json());
   }
 
   async function explainDecision(decisionId) {
-    const id = decisionId || (approval && approval.decision_id);
-    if (!id) return;
-    const response = await fetch(`/api/decisions/${id}/explain`, { headers: { "ngrok-skip-browser-warning": "1" } });
+    if (!decisionId) return;
+    const response = await get(`/api/decisions/${decisionId}/explain`);
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || "no explanation");
     setExplanation(body);
@@ -410,35 +522,45 @@ export default function Page() {
 
   async function cancelOrder(orderId) {
     const result = await post(`/api/orders/${orderId}/cancel`);
-    note(result.status === "cancelled" ? "Order cancelled" : RETRY);
+    if (result.status === "cancelled") note("Order cancelled. Nothing was charged.");
+    else note(RETRY, "err");
     loadHistory().catch(() => {});
   }
 
-  async function submitCode() {
-    const code = fallbackCode.trim();
+  async function submitCode(approval, typed, clear) {
+    const code = String(typed || "").trim();
     if (!code) {
-      note("Type the code from the host screen first.");
+      note("Type the code from the host screen first.", "info");
       return;
     }
     const result = await post("/api/code/verify", { approval_id: approval.approval_id, code });
-    note(result.verified ? "Approved" : "That code didn't work.");
+    if (result.verified) note("Approved");
+    else note("That code didn't work.", "err");
     if (result.verified) {
-      setFallbackCode("");
-      setApproval(null);
+      clear();
+      settled(approval);
     }
   }
 
   // Allow once or keep blocked. The family data reloads either way, so a hold already handled drops off too.
   function decideHold(id, action) {
     return post(`/api/card/holds/${encodeURIComponent(id)}/${action}`)
-      .then(() => note(action === "allow" ? "Allowed once for 10 minutes" : "Kept blocked"))
+      .then((result) => {
+        if (action === "allow") {
+          if (result && result.allowed_until) setAllowedHolds((prev) => ({ ...prev, [id]: { ...result, hold_id: id } }));
+          const until = result && result.allowed_until ? clockTime(result.allowed_until) : "";
+          note(until ? `Allowed once. Ruth can tap her card again until ${until}.` : "Allowed once for 10 minutes");
+        } else {
+          note("Kept blocked");
+        }
+      })
       .catch(fail)
       .finally(() => loadFamily().catch(() => {}));
   }
 
   async function armAlerts() {
-    if (armAlerts.started) return;
-    armAlerts.started = true;
+    if (stream.current.started) return;
+    stream.current.started = true;
     const audio = new AudioContext();
     await audio.resume();
     const holdWake = async () => {
@@ -454,17 +576,20 @@ export default function Page() {
       if (document.visibilityState === "visible") holdWake();
     });
     if (navigator.vibrate) navigator.vibrate(50);
-    note("Alerts on");
+    setAlertsOn(true);
     let delay = 1000;
     const decoder = new TextDecoder();
     while (true) {
       try {
         const headers = { "ngrok-skip-browser-warning": "1" };
-        if (armAlerts.lastEventId) headers["Last-Event-ID"] = armAlerts.lastEventId;
+        if (stream.current.lastEventId) headers["Last-Event-ID"] = stream.current.lastEventId;
         const response = await fetch("/api/alerts/stream", { headers });
         if (response.status === 401) {
-          armAlerts.started = false;
-          throw new Error("sign in required");
+          // The session lapsed: stop listening until Priyank signs in again (signIn arms the alerts anew).
+          stream.current.started = false;
+          setAlertsOn(false);
+          sessionEnded();
+          return;
         }
         if (!response.ok || !response.body) throw new Error("stream down");
         delay = 1000;
@@ -474,7 +599,7 @@ export default function Page() {
           if (done) break;
           const text = decoder.decode(value, { stream: true });
           const eventId = text.match(/^id: (\d+)/m);
-          if (eventId) armAlerts.lastEventId = eventId[1];
+          if (eventId) stream.current.lastEventId = eventId[1];
           const events = [];
           for (const line of text.split("\n")) {
             if (!line.startsWith("data:")) continue;
@@ -491,11 +616,22 @@ export default function Page() {
               || (event.type === "card_decision" && event.result === "declined"));
             const stops = events.filter((event) => event.type === "caregiver_alerted" && event.kind === "screen_refusal");
             if (stops.length) {
+              const at = new Date().toISOString();
               setAlerts((prev) => {
                 const fresh = stops
-                  .map((event, index) => ({ id: event.seq ? String(event.seq) : `${Date.now()}-${index}`, text: "Chaperone stopped a request.", decision_id: event.decision_id }))
+                  .map((event, index) => ({ id: event.seq ? String(event.seq) : `${Date.now()}-${index}`, text: "Chaperone stopped a request.", decision_id: event.decision_id, at }))
                   .filter((item) => !prev.some((old) => old.id === item.id));
                 return [...fresh, ...prev].slice(0, 12);
+              });
+            }
+            const released = events.filter((event) => event.type === "card_hold_released" && event.hold_id && event.allowed_until);
+            if (released.length) {
+              setAllowedHolds((prev) => {
+                const next = { ...prev };
+                for (const event of released) {
+                  next[event.hold_id] = { hold_id: event.hold_id, store: event.store, max_amount: event.max_amount, allowed_until: event.allowed_until };
+                }
+                return next;
               });
             }
             refreshApprovals().catch(() => {});
@@ -518,12 +654,11 @@ export default function Page() {
   }
 
   async function loadFamily() {
-    const headers = { "ngrok-skip-browser-warning": "1" };
     const [riskBody, cardBody, checksBody, protectedBody] = await Promise.all([
-      fetch("/api/risk", { headers }).then((response) => (response.ok ? response.json() : null)).catch(() => null),
-      fetch("/api/card", { headers }).then((response) => (response.ok ? response.json() : null)).catch(() => null),
-      fetch("/api/scam-checks", { headers }).then((response) => (response.ok ? response.json() : [])).catch(() => []),
-      fetch("/api/protected", { headers }).then((response) => (response.ok ? response.json() : null)).catch(() => null),
+      get("/api/risk").then((response) => (response.ok ? response.json() : null)).catch(() => null),
+      get("/api/card").then((response) => (response.ok ? response.json() : null)).catch(() => null),
+      get("/api/scam-checks").then((response) => (response.ok ? response.json() : [])).catch(() => []),
+      get("/api/protected").then((response) => (response.ok ? response.json() : null)).catch(() => null),
     ]);
     if (riskBody) setRisk(riskBody);
     if (cardBody) {
@@ -535,68 +670,188 @@ export default function Page() {
     loadHistory().catch(() => {});
   }
 
+  function openTab(name) {
+    setTab(name);
+    try {
+      window.history.replaceState(null, "", `#${name}`);
+    } catch {
+      /* the address just keeps the old tab */
+    }
+    window.scrollTo(0, 0);
+    loadFamily().catch(() => {});
+  }
+
+  // Safety's badge counts only what arrived since Priyank last looked (kept on this phone).
+  const items = safetyItems({ checks, refusals: history && history.refusals, alerts, declines });
+  const newest = items.reduce((latest, item) => Math.max(latest, Date.parse(item.at || "") || 0), 0);
+  useEffect(() => {
+    const stored = readSeen();
+    if (stored) setSeenAt(stored);
+    else {
+      const start = Date.now();
+      writeSeen(start);
+      setSeenAt(start);
+    }
+  }, []);
+  useEffect(() => {
+    if (tab !== "safety" || !signedIn) return;
+    const mark = Math.max(Date.now(), newest);
+    writeSeen(mark);
+    setSeenAt(mark);
+  }, [tab, signedIn, newest]);
+  const unseen = seenAt === null ? 0 : items.filter((item) => {
+    if (item.kind === "scam" && item.check.verdict === "ok") return false;
+    return (Date.parse(item.at || "") || 0) > seenAt;
+  }).length;
+
+  const rules = signedMandate || mandate;
+  const changes = ruleChanges(mandate, rulesSigned ? signedMandate : null);
+  const showFooter = tab === "rules" && (!rulesSigned || changes.count > 0);
+
+  function askDecline(approval) {
+    setAsk({
+      kind: "destroy",
+      title: `Decline ${money(approval.amount)} at ${payeeName(approval)}?`,
+      body: "Nothing is bought. Ruth hears that you said no.",
+      note: { label: "Note for Ruth (optional)", help: "Chaperone passes it on with your answer." },
+      confirmLabel: "Decline",
+      safeLabel: "Back",
+      run: (text) => reject(approval, text).catch(fail),
+    });
+  }
+
+  function askAllow(hold) {
+    setAsk({
+      kind: "loosen",
+      title: `Let ${money(hold.max_amount)} at ${storeName(hold.store) || "this store"} through once?`,
+      body: "Ruth has 10 minutes to tap her card again.",
+      confirmLabel: "Allow once",
+      safeLabel: "Keep blocked",
+      run: () => decideHold(hold.hold_id, "allow"),
+    });
+  }
+
+  function askEndCare() {
+    const over = (((rules.card || {}).cooldown || {}).caps || {}).default;
+    setAsk({
+      kind: "loosen",
+      title: "End extra care now?",
+      body: `${over !== undefined ? `Card charges over ${money(over)} will go through without asking you again.` : "Ruth's card goes back to its usual limits."} Only end it early if you're sure the call was not a scam.`,
+      confirmLabel: "End early",
+      safeLabel: "Keep extra care",
+      run: () => post("/api/risk/clear", {}).then(() => { note("Extra care ended."); return loadFamily(); }).catch(fail),
+    });
+  }
+
+  function askUnblock(id) {
+    const name = categoryName(id).toLowerCase();
+    setAsk({
+      kind: "loosen",
+      title: `Unblock ${name}?`,
+      body: `Chaperone could then buy ${name} for Ruth. Scammers often ask for these. Nothing changes until you sign and Ruth agrees by voice.`,
+      confirmLabel: "Unblock",
+      safeLabel: "Keep blocked",
+      run: () => toggleBlocked(id),
+    });
+  }
+
+  function askCancel(order) {
+    const store = storeName(order.store || order.merchant) || "this store";
+    setAsk({
+      kind: "destroy",
+      title: `Cancel the ${store} order?`,
+      body: `${money(order.total)} has not been paid yet. Cancelling puts Ruth's budget back where it was.`,
+      confirmLabel: "Cancel order",
+      safeLabel: "Keep order",
+      run: () => cancelOrder(order.order_id).catch(fail),
+    });
+  }
+
+  if (screen === "loading") {
+    return (
+      <div className="cg-loading" aria-busy="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/design/logo.svg" alt="Chaperone" height={34} />
+        <p role="status">Opening…</p>
+      </div>
+    );
+  }
+
+  if (screen === "welcome") {
+    return (
+      <Welcome
+        setupCode={setupCode}
+        onSetupCode={setSetupCode}
+        onRegister={() => register().catch(fail)}
+        onSignIn={() => signIn().catch(fail)}
+        message={message}
+        onDismiss={() => setMessage(null)}
+      />
+    );
+  }
+
+  const ruthPhone = config && config.ruthPhone;
   return (
-    <main className="ch-page">
-      {screen === "welcome" ? (
-        <Welcome setupCode={setupCode} onSetupCode={setSetupCode} onRegister={() => register().catch(fail)} onSignIn={() => signIn().catch(fail)} />
-      ) : (
-        <>
-          {tab === "home" ? (
-            <Home
-              budget={budget}
-              paused={paused}
-              risk={risk}
-              protectedTotals={protectedTotals}
-              history={history}
-              declines={declines}
-              ruthPhone={config && config.ruthPhone}
-              onPause={() => pauseAgent().catch(fail)}
-              onResume={() => resumeAgent().catch(fail)}
-              onClear={() => post("/api/risk/clear", {}).then(() => loadFamily()).catch(fail)}
-            />
-          ) : null}
-          {tab === "safety" ? <Safety checks={checks} alerts={alerts} declines={declines} onWhy={(id) => explainDecision(id).catch(fail)} /> : null}
-          {tab === "approvals" ? (
-            <Approvals
-              approval={approval}
-              now={now}
-              holds={holds}
-              declineNote={declineNote}
-              onDecline={setDeclineNote}
-              onApprove={() => approve().catch(fail)}
-              onReject={() => reject().catch(fail)}
-              onWhy={() => explainDecision().catch(fail)}
-              onAllow={(id) => decideHold(id, "allow")}
-              onKeep={(id) => decideHold(id, "keep")}
-              code={fallbackCode}
-              onCode={setFallbackCode}
-              onSubmitCode={() => submitCode().catch(fail)}
-            />
-          ) : null}
-          {tab === "activity" ? <HistoryView history={history} onCancel={(id) => cancelOrder(id).catch(fail)} /> : null}
-          {tab === "rules" ? (
-            <Rules
-              mandate={mandate}
-              cosign={cosign}
-              onChange={changeRule}
-              onToggleBlocked={toggleBlocked}
-              onToggleStore={toggleStore}
-              onSign={() => assertMandate().catch(fail)}
-            />
-          ) : null}
-          <nav className="ch-tabs">
-            {["home", "safety", "approvals", "activity", "rules"].map((name) => (
-              <button key={name} type="button" onClick={() => { setTab(name); if (name !== "welcome") loadFamily().catch(() => {}); }} style={{ fontWeight: tab === name ? "700" : "400" }}>
-                {name[0].toUpperCase() + name.slice(1)}
-                {name === "approvals" && (approval || holds.length) ? " ·" : ""}
-                {name === "safety" && (alerts.length || checks.length) ? " ·" : ""}
-              </button>
-            ))}
-          </nav>
-        </>
-      )}
-      <Why explanation={explanation} onClose={() => setExplanation(null)} />
-      {log ? <p role="status">{log.trim().split("\n").pop()}</p> : null}
-    </main>
+    <div className="cg-shell">
+      <AppBar alertsOn={alertsOn} />
+      <main className={`cg-main${showFooter ? " cg-main--footer" : ""}`}>
+        <Message message={message} onDismiss={() => setMessage(null)} />
+        {tab === "home" ? (
+          <Home
+            budget={budget}
+            paused={paused}
+            risk={risk}
+            protectedTotals={protectedTotals}
+            history={history}
+            declines={declines}
+            mandate={rules}
+            ruthPhone={ruthPhone}
+            now={now}
+            onPause={() => pauseAgent().catch(fail)}
+            onResume={() => resumeAgent().catch(fail)}
+            onEndCare={askEndCare}
+            onOpenSafety={() => openTab("safety")}
+          />
+        ) : null}
+        {tab === "safety" ? (
+          <Safety items={items} now={now} ruthPhone={ruthPhone} mandate={rules} allowedHolds={allowedHolds} onWhy={(id) => explainDecision(id).catch(fail)} />
+        ) : null}
+        {tab === "approvals" ? (
+          <Approvals
+            approvals={approvals}
+            now={now}
+            holds={holds}
+            declines={declines}
+            allowedHolds={allowedHolds}
+            threshold={rules.approval_threshold}
+            onApprove={(approval) => approve(approval).catch(fail)}
+            onDecline={askDecline}
+            onWhy={(id) => explainDecision(id).catch(fail)}
+            onAllow={askAllow}
+            onKeep={(id) => decideHold(id, "keep")}
+            onSubmitCode={(approval, code, clear) => submitCode(approval, code, clear).catch(fail)}
+          />
+        ) : null}
+        {tab === "activity" ? <HistoryView history={history} now={now} onCancel={askCancel} /> : null}
+        {tab === "rules" ? (
+          <Rules
+            mandate={mandate}
+            signedMandate={signedMandate}
+            signed={rulesSigned}
+            cosign={cosign}
+            signedAt={signedAt}
+            changes={changes}
+            onChange={changeRule}
+            onBlock={toggleBlocked}
+            onUnblock={askUnblock}
+            onToggleStore={toggleStore}
+          />
+        ) : null}
+      </main>
+      {showFooter ? <SignFooter signed={rulesSigned} count={changes.count} onSign={() => assertMandate().catch(fail)} /> : null}
+      <TabBar tab={tab} counts={{ approvals: approvals.length + holds.length, safety: unseen }} onTab={openTab} />
+      <Why explanation={explanation} ruthPhone={ruthPhone} onClose={() => setExplanation(null)} />
+      <Confirm key={ask ? ask.title : "none"} ask={ask} onClose={() => setAsk(null)} />
+    </div>
   );
 }

@@ -3,13 +3,20 @@ import { capitalize, categoryName, humanize, joinWords } from "./words.js";
 
 const lower = (id) => categoryName(id).toLowerCase();
 
+// A limit as it is being typed ("55.", "", "abc") never reaches the sentence raw.
+function limitWords(value) {
+  const number = Number(value);
+  if (String(value ?? "").trim() === "" || !Number.isFinite(number) || number < 0) return "an amount not set yet";
+  return shortMoney(number);
+}
+
 export function rulesSentence(mandate, storeNames = {}) {
   const blocked = joinWords((mandate.blocked_categories || []).map(lower));
   const refused = blocked ? `${capitalize(blocked)} are always refused.` : "Nothing is blocked.";
   const stores = (mandate.allowed_merchants || []).map((id) => storeNames[id] || humanize(id));
-  const where = stores.length ? stores.join(", ") : "her stores";
+  const where = joinWords(stores) || "her stores";
   const categories = joinWords((mandate.allowed_categories || []).map(lower)) || "the categories you allowed";
-  return `Ruth can spend up to $${mandate.per_purchase_cap} at a time and $${mandate.monthly_cap} a month at ${where} on ${categories}. Anything over $${mandate.approval_threshold} comes to you. ${refused}`;
+  return `Ruth can spend up to ${limitWords(mandate.per_purchase_cap)} at a time and ${limitWords(mandate.monthly_cap)} a month at ${where} on ${categories}. Anything over ${limitWords(mandate.approval_threshold)} comes to you. ${refused}`;
 }
 
 // The card sentence reads the mandate being edited: the drugstore cap (MCC 5912) and the cool-down length.

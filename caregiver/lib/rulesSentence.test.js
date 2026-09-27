@@ -25,8 +25,27 @@ test("the rules sentence names categories in plain words", () => {
     blocked_categories: ["wire", "gift_card", "lottery"],
   }, { corner_market: "Corner Market", peachtree_power: "Peachtree Power" });
   assert.doesNotMatch(sentence, /_/);
-  assert.match(sentence, /at Corner Market, Peachtree Power on groceries, pharmacy, household and utility bills\./);
+  assert.match(sentence, /at Corner Market and Peachtree Power on groceries, pharmacy, household and utility bills\./);
   assert.match(sentence, /Wire transfers, gift cards and lottery are always refused\./);
+});
+
+test("three or more stores join with commas and a final and", () => {
+  const sentence = rulesSentence({
+    per_purchase_cap: 60,
+    monthly_cap: 300,
+    approval_threshold: 40,
+    allowed_merchants: ["corner_market", "parkside_pharmacy", "peachtree_power"],
+  }, { corner_market: "Corner Market", parkside_pharmacy: "Parkside Pharmacy", peachtree_power: "Peachtree Power" });
+  assert.match(sentence, /at Corner Market, Parkside Pharmacy and Peachtree Power on/);
+});
+
+test("a limit still being typed never shows raw", () => {
+  const sentence = rulesSentence({ per_purchase_cap: "55.", monthly_cap: "", approval_threshold: 40.5, blocked_categories: [] });
+  assert.match(sentence, /up to \$55 at a time/);
+  assert.doesNotMatch(sentence, /\$55\./);
+  assert.match(sentence, /and an amount not set yet a month/);
+  assert.match(sentence, /Anything over \$40\.50 comes to you/);
+  assert.doesNotMatch(sentence, /\$ /);
 });
 
 test("with nothing blocked the sentence says so", () => {

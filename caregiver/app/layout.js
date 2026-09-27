@@ -1,14 +1,27 @@
-export const metadata = { title: "Chaperone caregiver" };
+import "./app.css";
 
+export const metadata = {
+  title: "Chaperone for Priyank",
+  description: "Approve Ruth's purchases, see what Chaperone stopped, and sign her rules with your passkey.",
+  icons: { icon: [{ url: "/design/favicon.svg", type: "image/svg+xml" }] },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#1434CB",
+  colorScheme: "light",
+};
+
+// The shared tokens (and the fonts they load) are copied from design/ into public/design before dev and build.
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
         <link rel="stylesheet" href="/design/tokens.css" />
       </head>
-      <body style={{ fontFamily: "var(--ch-font, Georgia, serif)", fontSize: "var(--font-base, 20px)", margin: "1.5rem", background: "var(--ch-bg, #f6f1e7)", color: "var(--ch-text, #1b2a4a)" }}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
