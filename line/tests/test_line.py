@@ -311,3 +311,33 @@ def test_api_calls_without_a_call_id_share_nothing(line_url):
     # passing the call id back continues the first call
     again = httpx.post(f"{base}/api/budget_left", json={"call_id": first["call_id"]}, headers={"Authorization": f"Bearer {TOKEN}"}, timeout=10).json()
     assert again["call_id"] == first["call_id"]
+
+
+def test_the_pin_can_be_typed_on_the_keypad_even_in_pieces(line_url):
+    base, _, server = line_url
+    ask = api(base, "bill_status", "call-12")
+    assert "keypad" in api(base, "add_to_cart", "call-12", sku=ask["sku"])["say"]
+    # she pauses after two digits: the keypad sends "43", then "21"; the first piece is not a wrong try
+    part = api(base, "verify_pin", "call-12", pin="43")
+    assert part["incomplete"] is True and "rest of your PIN" in part["say"]
+    assert server.CALLS["call-12"].pin_attempts == 0
+    assert api(base, "verify_pin", "call-12", pin="21#")["verified"] is True
+
+
+def test_keypad_pieces_passed_as_her_words_are_a_pin_and_never_kept(line_url):
+    base, mock_base, server = line_url
+    bill = api(base, "bill_status", "call-13")
+    assert api(base, "add_to_cart", "call-13", sku=bill["sku"])["error"] == "pin_required"
+    again = api(base, "add_to_cart", "call-13", sku=bill["sku"], ruth_said="43")
+    assert again["error"] == "pin_required" and "rest of your PIN" in again["say"]  # asks for the rest only
+    assert api(base, "add_to_cart", "call-13", sku=bill["sku"], ruth_said="21#").get("error") != "pin_required"
+    assert not any(h.strip("# ") in ("43", "21") for h in server.CALLS["call-13"].heard)
+
+
+def test_an_old_piece_is_dropped_and_a_wrong_whole_pin_is_one_try(line_url):
+    base, _, server = line_url
+    api(base, "verify_pin", "call-14", pin="43")
+    server.CALLS["call-14"].pin_partial_at -= 120  # two minutes later
+    wrong = api(base, "verify_pin", "call-14", pin="21")  # alone it is only a piece again
+    assert wrong["incomplete"] is True
+    assert api(base, "verify_pin", "call-14", pin="9999")["tries_left"] == 2

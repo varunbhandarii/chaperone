@@ -142,7 +142,7 @@ def sku_merchant(sku: str) -> str | None:
     """Which store sells a sku: BILL-<biller> is that biller's, anything else is the catalog's."""
     if biller.is_bill(sku):
         return sku[len(biller.BILL_SKU_PREFIX):]
-    item = catalog.items.get(sku)
+    item = catalog.item(sku)
     return item.get("merchant", merchants.DEFAULT) if item else None
 
 
@@ -212,7 +212,7 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict, entry: 
             total_cents += aftercare.cents(bill_line["unit_price"])
             lines.append(bill_line)
             continue
-        item = catalog.items.get(line.sku)
+        item = catalog.item(line.sku)
         if item is None:
             raise HTTPException(422, f"unknown sku {line.sku}")
         cents = round(item["price"] * 100)

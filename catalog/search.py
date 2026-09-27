@@ -11,6 +11,9 @@ GET /resolve?q=my blood pressure medicine and bread
                              profile phrases -> saved items (pharmacy pickup, usual bread)
 GET /suggest?sku=BAK-001     discovery: alternatives in the same group with spoken-friendly reasons
 GET /items/{sku}             one item (the merchant prices carts from this, never from the agent)
+
+Anything the snapshot doesn't carry is searched at Kroger live (catalog/live.py) and kept, so policy and the
+merchant price it through Catalog.item() exactly as search showed it.
 """
 
 import json
@@ -20,6 +23,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
 
+from catalog import live
 from common import merchants
 
 HERE = Path(__file__).parent
@@ -93,8 +97,11 @@ GENERIC = {t for w in GENERIC_WORDS for t in tokens(w)}
 
 
 class Catalog:
-    def __init__(self, catalog: dict, profile: dict):
+    def __init__(self, catalog: dict, profile: dict, live_store: live.LiveStore | None = None):
         self.items = {it["sku"]: it for it in catalog["items"]}
+        self.live_store = live_store
+        self.kroger: live.LiveKroger | None = None
+        self.snapshot = set(self.items)  # what catalog.json carries; only this decides whether Kroger is asked
         self.group_aliases = {g: [normalize(a) for a in aliases] for g, aliases in catalog["group_aliases"].items()}
         self.profile = profile
         self.usual_skus = {u["sku"] for u in profile.get("usuals", [])}
@@ -109,7 +116,42 @@ class Catalog:
 
     @classmethod
     def load(cls, catalog_path: Path = CATALOG_PATH, profile_path: Path = PROFILE_PATH) -> "Catalog":
-        return cls(json.loads(catalog_path.read_text(encoding="utf-8")), json.loads(profile_path.read_text(encoding="utf-8")))
+        return cls(json.loads(catalog_path.read_text(encoding="utf-8")), json.loads(profile_path.read_text(encoding="utf-8")),
+                   live.LiveStore(live.store_path()))
+
+    def enable_live(self) -> bool:
+        """The catalog service searches Kroger live; policy and the merchant only read what it kept."""
+        if not self.live_store or not live.enabled():
+            return False
+        self.kroger = live.LiveKroger(self.live_store)
+        self._add(list(self.live_store.load()["items"].values()))
+        self.kroger.warm()
+        return True
+
+    def item(self, sku: str) -> dict | None:
+        """The snapshot's item, else a live one Kroger answered earlier. Carts are priced with this."""
+        return self.items.get(sku) or (self.live_store.item(sku) if self.live_store else None)
+
+    def _add(self, items: list[dict]) -> None:
+        for it in items:
+            if it["sku"] in self.items:
+                continue
+            self.items[it["sku"]] = it
+            self._index[it["sku"]] = self._index_tokens(it)
+            self.copies.setdefault(it.get("product_key", it["sku"]), []).append(it["sku"])
+
+    def covered(self, q: str) -> bool:
+        """Something in the snapshot matches every specific word asked for; if not, Kroger is asked (once per words:
+        live.LiveKroger keeps each answer). Live items don't count here: a "Wine-Tone" frame found for reading
+        glasses must not stand in for "wine"."""
+        specific = [t for t in tokens(q) if t not in GENERIC]
+        if not specific:
+            return True
+        for sku in self.snapshot:
+            own, group = self._index[sku]
+            if all(t in own or t in group or (len(t) >= 3 and any(w.startswith(t) for w in own)) for t in specific):
+                return True
+        return any(contains_phrase(normalize(q), a) for aliases in self.group_aliases.values() for a in aliases if " " in a)
 
     def _index_tokens(self, it: dict) -> tuple[set[str], set[str]]:
         own = [it["name"], it["brand"]] + [t.replace("_", " ") for t in it["tags"]]
@@ -143,6 +185,9 @@ class Catalog:
         return wanted
 
     def search(self, q: str, limit: int = 10, store: str | None = None) -> list[dict]:
+        if self.kroger and not self.covered(q):
+            words = " ".join(w for w in normalize(q).split() if w not in STOPWORDS)
+            self._add(self.kroger.search(words or q))
         qn = normalize(q)
         qtokens = tokens(q)
         specific = [t for t in qtokens if t not in GENERIC]
@@ -174,15 +219,18 @@ class Catalog:
                 score += PROFILE_GROUP_BONUS
             weak = GENERIC_WEIGHT * sum((t in own) + (t in group) for t in generic)
             if score > 0 or weak > 0:
-                scored.append((score + weak, score, it))
+                scored.append((score + weak, score, it, self._words_matched(specific, own, group)))
         if specific or profile_groups:  # "my blood pressure medicine" or "cough medicine" must not list every OTC
             scored = [s for s in scored if s[1] > 0]  # item; only a bare "medicine" does
         if not scored:
             return []
-        best = max(s[0] for s in scored)
+        # Items with every word asked for come first ("prune juice": prune juices, then other juices).
+        most = max(s[3] for s in scored)
+        best = max(s[0] for s in scored if s[3] == most)
         # Strong matches first; among them her usual, then the lowest price, then the closer match.
-        scored.sort(key=lambda s: (s[0] < best - STRONG_MARGIN, not self.is_usual(s[2]), s[2]["price"], -s[0],
-                                   "store_brand" in s[2]["tags"]))
+        scored.sort(key=lambda s: (s[3] < most, s[0] < best - STRONG_MARGIN, not self.is_usual(s[2]), s[2]["price"],
+                                   -s[0], "store_brand" in s[2]["tags"]))
+        scored = [s[:3] for s in scored]
         results, seen = [], set()
         for _, _, it in scored:  # one result per product: its best offer, with the other stores in elsewhere
             key = it.get("product_key", it["sku"])
@@ -190,6 +238,11 @@ class Catalog:
                 seen.add(key)
                 results.append(it)
         return [self.view(it) for it in self._mix_brands(results, best, scored)[:limit]]
+
+    @staticmethod
+    def _words_matched(specific: list[str], own: set[str], group: set[str]) -> int:
+        return sum(1 for t in set(specific) if t in own or t in group
+                   or (len(t) >= 3 and any(w != t and (w.startswith(t) or (len(w) >= 5 and t.startswith(w))) for w in own)))
 
     def _mix_brands(self, results: list[dict], best: float, scored) -> list[dict]:
         """At most SAME_BRAND_ON_TOP strong results per brand before every other strong brand has had a turn."""
@@ -263,9 +316,14 @@ catalog = Catalog.load()
 app = FastAPI(title="Chaperone catalog")
 
 
+@app.on_event("startup")
+def live_search():
+    print(f"[catalog] Kroger live search {'on' if catalog.enable_live() else 'off'}", flush=True)
+
+
 @app.get("/health")
 def health():
-    return {"ok": True, "items": len(catalog.items)}
+    return {"ok": True, "items": len(catalog.items), "kroger_live": catalog.kroger is not None}
 
 
 @app.get("/search")
@@ -290,16 +348,19 @@ def resolve(q: str = Query(..., min_length=1)):
 
 @app.get("/suggest")
 def suggest(sku: str, budget: float | None = None, limit: int = Query(3, ge=1, le=10)):
-    if sku not in catalog.items:
+    if catalog.item(sku) is None:
         raise HTTPException(404, f"unknown sku {sku}")
+    if sku not in catalog.items:
+        catalog._add([catalog.item(sku)])
     return {"sku": sku, "alternatives": catalog.suggest(sku, budget, limit)}
 
 
 @app.get("/items/{sku}")
 def get_item(sku: str):
-    if sku not in catalog.items:
+    found = catalog.item(sku)
+    if found is None:
         raise HTTPException(404, f"unknown sku {sku}")
-    return catalog.view(catalog.items[sku])
+    return catalog.view(found)
 
 
 @app.get("/profile")

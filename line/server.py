@@ -107,28 +107,30 @@ FALLBACK_LINES: dict[str, dict[str, str]] = {
     },
     "cart_empty": {"en": "Your cart is empty.", "es": "Su carrito está vacío.", "hi": "आपकी कार्ट खाली है।"},
     "line_pin_ask": {
-        "en": "Before I place anything, please tell me your four-digit Chaperone PIN.",
-        "es": "Antes de hacer cualquier pedido, por favor dígame su PIN de Chaperone de cuatro dígitos.",
-        "hi": "कुछ भी ऑर्डर करने से पहले, कृपया अपना चार अंकों का Chaperone PIN बताइए।",
+        "en": "Before I order by phone, please say your four-digit PIN, or type it on your phone's keypad and press the pound key.",
+        "es": "Antes de hacer pedidos por teléfono, por favor dígame su PIN de cuatro dígitos, o márquelo en el teclado de su teléfono y oprima la tecla de numeral.",
+        "hi": "फ़ोन से ऑर्डर करने से पहले, कृपया अपना चार अंकों का पिन बोलिए, या उसे फ़ोन के कीपैड पर दबाकर हैश (#) का बटन दबाइए।",
     },
     "line_pin_wrong": {
-        "en": "That PIN doesn't match. Please say it again, one number at a time. You have {left} more tries.",
-        "es": "Ese PIN no coincide. Por favor dígalo otra vez, un número a la vez. Le quedan {left} intentos.",
-        "hi": "यह PIN मेल नहीं खाता। कृपया फिर से बोलिए, एक-एक अंक करके। आपके पास {left} कोशिशें और हैं।",
+        "en": "That PIN doesn't match. Please say it again one number at a time, or type it on the keypad and press pound. You have {left} more tries.",
+        "es": "Ese PIN no coincide. Por favor dígalo otra vez, un número a la vez, o márquelo en el teclado y oprima numeral. Le quedan {left} intentos.",
+        "hi": "यह पिन मेल नहीं खाता। कृपया फिर से एक-एक अंक करके बोलिए, या कीपैड पर दबाकर हैश (#) दबाइए। आपके पास {left} कोशिशें और हैं।",
     },
     "line_pin_wrong_last": {
-        "en": "That PIN doesn't match. Please say it again slowly, one number at a time. This is your last try for now.",
-        "es": "Ese PIN no coincide. Por favor dígalo otra vez despacio, un número a la vez. Es su último intento por ahora.",
-        "hi": "यह PIN मेल नहीं खाता। कृपया धीरे-धीरे, एक-एक अंक करके फिर से बोलिए। अभी यह आपकी आखिरी कोशिश है।",
+        "en": "That PIN doesn't match. Please say it slowly, one number at a time, or type it on the keypad and press pound. This is your last try for now.",
+        "es": "Ese PIN no coincide. Por favor dígalo despacio, un número a la vez, o márquelo en el teclado y oprima numeral. Es su último intento por ahora.",
+        "hi": "यह पिन मेल नहीं खाता। कृपया धीरे-धीरे, एक-एक अंक करके बोलिए, या कीपैड पर दबाकर हैश (#) दबाइए। अभी यह आपकी आखिरी कोशिश है।",
     },
     "line_pin_ok": {"en": "Thank you, that's right.", "es": "Gracias, es correcto.", "hi": "धन्यवाद, यह सही है।"},
+    "line_pin_more": {
+        "en": "I got part of it. Please type the rest of your PIN, then press the pound key.",
+        "es": "Recibí una parte. Por favor marque el resto de su PIN y luego oprima la tecla de numeral.",
+        "hi": "मुझे कुछ अंक मिल गए। कृपया बाकी पिन कीपैड पर दबाइए, फिर हैश (#) का बटन दबाइए।",
+    },
     "line_pin_locked": {
-        "en": "That was three tries, so to keep your account safe I've paused the PIN for {minutes} minutes. "
-              "After that, just tell me your PIN again. If you've forgotten it, Priyank has it.",
-        "es": "Fueron tres intentos, así que para proteger su cuenta pausé el PIN por {minutes} minutos. "
-              "Después, solo dígame su PIN otra vez. Si lo olvidó, Priyank lo tiene.",
-        "hi": "तीन कोशिशें हो गईं, इसलिए आपके खाते की सुरक्षा के लिए मैंने PIN को {minutes} मिनट के लिए रोक दिया है। "
-              "उसके बाद बस अपना PIN फिर से बताइए। अगर आप भूल गई हैं, तो प्रियंक के पास है।",
+        "en": "That was three tries, so to keep your account safe I've paused the PIN for {minutes} minutes. After that, just say or type your PIN again. If you've forgotten it, Priyank has it.",
+        "es": "Fueron tres intentos, así que para proteger su cuenta pausé el PIN por {minutes} minutos. Después, solo dígame o marque su PIN otra vez. Si lo olvidó, Priyank lo tiene.",
+        "hi": "तीन कोशिशें हो गईं, इसलिए आपके खाते की सुरक्षा के लिए मैंने पिन को {minutes} मिनट के लिए रोक दिया है। उसके बाद बस अपना पिन फिर से बोलिए या कीपैड पर दबाइए। अगर आप भूल गई हैं, तो प्रियंक के पास है।",
     },
     "order_cancelled": {"en": "I cancelled your order. Nothing was charged.", "es": "Cancelé su pedido. No se le cobró nada.", "hi": "आपका ऑर्डर रद्द कर दिया है। कोई पैसा नहीं कटा।"},
     "cancel_too_late": {
@@ -251,6 +253,9 @@ class Call:
     refund_last4: str = ""
     verified_until: float = 0.0
     pin_attempts: int = 0
+    # digits typed on the keypad with a pause arrive in pieces ("43", then "21"): they wait here, never a wrong try
+    pin_partial: str = ""
+    pin_partial_at: float = 0.0
     # after PIN_TRIES wrong tries: no PIN is taken until this time (2, then 4, then 8 minutes, and so on)
     pin_locked_until: float = 0.0
     pin_lockouts: int = 0
@@ -331,10 +336,14 @@ def pin_digits(text: str) -> str:
 
 
 def looks_like_pin(call: Call, text: str) -> bool:
-    """A short answer that is only a PIN's worth of digits, while a PIN is expected (or not yet given)."""
+    """A short answer that is only a PIN's worth of digits, while a PIN is expected (or not yet given). Keypad digits
+    come as text ("4321", or "43" and then "21" when she pauses), so a piece of one counts too."""
     expected = (env("LINE_PIN") or "").strip()
     if not expected or pin_ok(call) or len(text.split()) > 8:
         return False
+    typed = re.fullmatch(r"[\d\s#*.,-]+", text.strip()) is not None
+    if typed and (call.awaiting_pin or call.pin_partial) and 0 < len(re.sub(r"\D", "", text)) < len(expected):
+        return True
     return (call.awaiting_pin or expected in re.sub(r"\D", "", text)) and len(pin_digits(text)) == len(expected)
 
 
@@ -364,8 +373,11 @@ def is_yes(text: str) -> bool:
 
 def pin_needed(call: Call) -> dict:
     call.awaiting_pin = True
-    return {"error": "pin_required", "say": say("line_pin_ask", call.lang),
-            "instruction": "Ask Ruth for her four-digit PIN, call verify_pin with it, then try again. Never repeat the PIN back."}
+    # part of the PIN already typed: ask for the rest, not the whole PIN again
+    return {"error": "pin_required", "say": say("line_pin_more" if call.pin_partial else "line_pin_ask", call.lang),
+            "instruction": "Say the say text: Ruth can say her four-digit PIN or type it on her keypad and press #. "
+                           "Typed digits reach you as a message of digits. Call verify_pin with them, then try again. "
+                           "Never repeat the PIN back."}
 
 
 def heard(call: Call, ruth_said: str | None) -> None:
@@ -492,7 +504,7 @@ async def t_search(call: Call, query: str, store: str | None) -> dict:
         return {"error": "query is required"}
     params = {"q": query, "limit": 3, **({"store": store} if store else {})}
     (s1, resolved), (s2, found) = await _gather(get_json(f"{CATALOG}/resolve", params={"q": query}, timeout=3.0),
-                                               get_json(f"{CATALOG}/search", params=params, timeout=3.0))
+                                               get_json(f"{CATALOG}/search", params=params, timeout=4.0))  # may ask Kroger live
     if s2 != 200 or not isinstance(found, dict):
         return {"error": "catalog unavailable", "say": say("store_unavailable", call.lang)}
     items: list[dict] = []
@@ -670,6 +682,18 @@ def t_verify_pin(call: Call, pin: str) -> dict:
     if now < call.pin_locked_until:
         return locked(call, now)
     given = re.sub(r"\D", "", str(pin or ""))
+    if call.pin_partial and now - call.pin_partial_at > 60:
+        call.pin_partial = ""  # an old piece is not part of this PIN
+    if len(given) >= len(expected):
+        call.pin_partial = ""  # a whole PIN typed or said again
+    elif given:
+        given = call.pin_partial + given
+        if len(given) < len(expected):
+            call.pin_partial, call.pin_partial_at, call.awaiting_pin = given, now, True
+            return {"verified": False, "incomplete": True, "say": say("line_pin_more", call.lang),
+                    "instruction": "Ruth is typing her PIN in pieces. Say the say text, then pass what she types next "
+                                   "to verify_pin. Never repeat the digits."}
+        call.pin_partial = ""
     if hmac.compare_digest(given.encode(), expected.encode()):
         call.verified_until = now + PIN_VALID_S
         call.pin_attempts = 0
@@ -874,7 +898,7 @@ async def scam_check(story: str, ctx: Context, caller_org: str = "", caller_phon
 # Read-only for the Builder: it changes nothing outside this call, and the Builder leaves write tools off by default.
 @mcp.tool(annotations=READ)
 async def verify_pin(pin: str, ctx: Context, ruth_said: str = "", call_id: str = "") -> dict:
-    """Check Ruth's four-digit Chaperone PIN. Ask for it before any purchase, bill payment, cancel or return. Never repeat the PIN back. Returns verified and say."""
+    """Check Ruth's four-digit Chaperone PIN. Ask for it before any purchase, bill payment, cancel or return. She can say it or type it on her phone's keypad and press #: typed digits reach you as a message of digits; pass them as pin, even a part of them. Never repeat the PIN back. Returns verified and say."""
     call = _call(ctx, "", call_id)  # the PIN is never kept as her words
     return _done(call, t_verify_pin(call, pin), "verify_pin")
 

@@ -67,8 +67,9 @@ Tests use a real MCP client against the station's mock services:
      Replace the "station plays a soft sound" sentence with: say one short "Let me check that for you" before
      `scam_check` only. Then add an `## On the phone` section: pass Ruth's latest words as `ruth_said` on every tool
      call, and there is no screen.
-   - Add to the prompt: "Before any purchase, bill payment, cancel or return, ask Ruth for her four-digit PIN and call
-     verify_pin with it. Never repeat the PIN back."
+   - Add to the prompt: "Before any purchase, bill payment, cancel or return, ask Ruth for her four-digit PIN. Tell her
+     she can say it or type it on her phone's keypad and press the pound key. Typed digits reach you as a message of
+     digits: call verify_pin with them, even if they are only part of the PIN. Never repeat the PIN or the digits back."
    - **Welcome message:** "Hi, this is Chaperone. How can I help you today? Hola, soy Chaperone, ¿en qué le puedo
      ayudar?"
    - **Speech:** the voice Ara.

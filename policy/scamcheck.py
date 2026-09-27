@@ -469,7 +469,8 @@ def _fact_line(pattern: str | None, facts: list[dict], lang: str) -> str | None:
             return lines(lang)["scam_check_bill_paid"].format(biller=paid)
     if pattern == "grandparent_emergency":
         name = next((f["fact"].split("'s number")[0] for f in facts
-                     if "'s number on file" in f["fact"] and "(daughter)" not in f["fact"]), None)
+                     if "'s number on file" in f["fact"]
+                     and not any(rel in f["fact"] for rel in ("(son)", "(daughter)"))), None)
         if name:
             return lines(lang)["scam_check_family"].format(name=name)
     return None

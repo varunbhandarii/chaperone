@@ -169,7 +169,8 @@ export async function searchCatalog(query: string, warn: Warn, store?: string): 
         async (res) => (res.ok ? parseResolveResponse(await readJson(res)) : []),
         () => [] as CatalogItem[],
       ),
-      call(`${URLS.catalog}/search?q=${q}&limit=3${store ? `&store=${encodeURIComponent(store)}` : ""}`, { signal: AbortSignal.timeout(2500) }),
+      // a product the snapshot lacks is looked up at Kroger live (up to 2 s), so search gets longer than resolve
+      call(`${URLS.catalog}/search?q=${q}&limit=3${store ? `&store=${encodeURIComponent(store)}` : ""}`, { signal: AbortSignal.timeout(4000) }),
     ]);
     health.mark("catalog", "up");
     if (!searched.ok) throw new Error(`HTTP ${searched.status}`);

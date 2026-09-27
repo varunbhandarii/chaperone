@@ -25,7 +25,7 @@ def reprice(cart: dict) -> dict:
     items = []
     for line in cart.get("items") or []:
         sku = line["sku"]
-        item = catalog().items.get(sku)
+        item = catalog().item(sku)
         if item is None:
             raise UnknownSku(sku)
         qty = int(line.get("qty") or 1)

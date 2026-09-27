@@ -163,7 +163,9 @@ export default function Rules({ mandate, signedMandate, signed, cosign, signedAt
       <section className="cg-card cg-card--list" aria-labelledby="people-title">
         <h2 id="people-title" className="cg-card__title">People Ruth trusts</h2>
         {(mandate.trusted_contacts || []).map((person) => {
-          const you = String(person.name || "").toLowerCase() === String(mandate.caregiver || "").toLowerCase();
+          // the caregiver's id may be a short form of the name shown
+          const me = String(mandate.caregiver || "").toLowerCase();
+          const you = !!me && String(person.name || "").toLowerCase().startsWith(me);
           return (
             <div key={person.phone || person.name} className="cg-person">
               <span className="cg-person__avatar" aria-hidden="true">{String(person.name || "?")[0].toUpperCase()}</span>

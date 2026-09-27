@@ -23,7 +23,8 @@ OUT = HERE / "catalog.json"
 MERCHANT = "corner_market"
 # Gift and prepaid cards are only sold by the blocked shop, so the merchant's 403 for it is real as well as R1.
 STORE_BY_CATEGORY = {"otc_medicine": "parkside_pharmacy", "pharmacy_pickup": "parkside_pharmacy",
-                     "household": "main_street_home", "gift_card": "quickgift_cards", "prepaid_card": "quickgift_cards"}
+                     "personal_care": "parkside_pharmacy", "household": "main_street_home",
+                     "gift_card": "quickgift_cards", "prepaid_card": "quickgift_cards"}
 # Name-brand grocery basics a drugstore stocks. Its own prices: groceries cost more there, nutrition shakes less.
 PARKSIDE_BASICS = ["BAK-001", "BAK-004", "BAK-005", "DAI-003", "DAI-004", "EGG-002", "PRO-001", "SOU-001",
                    "SOU-002", "SOU-003", "PAN-001", "PAN-002", "BEV-001", "BEV-002", "BEV-003", "NUT-001",
@@ -172,10 +173,13 @@ def same_product(a: str, b: str) -> bool:
 # from here and ignores whatever the station sends.
 MANDATE_CATEGORY = {
     "bakery": "grocery", "beverages": "grocery", "dairy": "grocery", "nutrition": "grocery",
-    "pantry": "grocery", "produce": "grocery",
-    "otc_medicine": "pharmacy", "pharmacy_pickup": "pharmacy",
+    "pantry": "grocery", "produce": "grocery", "frozen": "grocery", "meat": "grocery", "deli": "grocery",
+    "pet": "grocery",
+    "otc_medicine": "pharmacy", "pharmacy_pickup": "pharmacy", "personal_care": "pharmacy",
     "gift_card": "gift_card", "prepaid_card": "prepaid_card",
     "household": "household",
+    # Alcohol and tobacco (live Kroger items): a category Priyank's rules don't list, so they are refused.
+    "age_restricted": "age_restricted",
 }
 
 

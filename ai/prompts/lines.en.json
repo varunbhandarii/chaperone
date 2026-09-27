@@ -57,13 +57,14 @@
   "card_allowed_once": "Priyank allowed that charge once. Please try the card again.",
   "cooldown_on": "For the next day I'll take extra care with your card.",
   "refund_not_allowed_bill": "A bill payment can't be returned. If something is wrong with the bill, Priyank can call {biller}.",
-  "line_pin_ask": "Before I order by phone, please tell me your four-digit PIN.",
-  "line_pin_wrong": "That PIN doesn't match. Please say it again, one number at a time. You have {left} more tries.",
+  "line_pin_ask": "Before I order by phone, please say your four-digit PIN, or type it on your phone's keypad and press the pound key.",
+  "line_pin_wrong": "That PIN doesn't match. Please say it again one number at a time, or type it on the keypad and press pound. You have {left} more tries.",
   "asking_priya_check": "I couldn't finish my safety check, so I've sent this to Priyank. He usually answers in a minute.",
   "cosign_ask": "Priyank set your rules: {rules}. Do you agree?",
   "cosign_thanks": "Thank you. Your rules are set, and Priyank can see that you agreed.",
   "cosign_not_yet": "All right, nothing changes until you agree. You can talk it over with Priyank.",
-  "line_pin_wrong_last": "That PIN doesn't match. Please say it again slowly, one number at a time. This is your last try for now.",
-  "line_pin_locked": "That was three tries, so to keep your account safe I've paused the PIN for {minutes} minutes. After that, just tell me your PIN again. If you've forgotten it, Priyank has it.",
-  "line_pin_ok": "Thank you, that's right."
+  "line_pin_wrong_last": "That PIN doesn't match. Please say it slowly, one number at a time, or type it on the keypad and press pound. This is your last try for now.",
+  "line_pin_locked": "That was three tries, so to keep your account safe I've paused the PIN for {minutes} minutes. After that, just say or type your PIN again. If you've forgotten it, Priyank has it.",
+  "line_pin_ok": "Thank you, that's right.",
+  "line_pin_more": "I got part of it. Please type the rest of your PIN, then press the pound key."
 }
