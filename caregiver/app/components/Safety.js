@@ -1,5 +1,6 @@
 import { money } from "@/lib/money";
 import { storeName } from "@/lib/stores";
+import { humanize } from "@/lib/words";
 
 const PATTERNS = {
   grandparent_emergency: "Someone claiming a family emergency.",
@@ -29,6 +30,21 @@ function safeUrl(url) {
   return /^https?:\/\//i.test(url || "") ? url : null;
 }
 
+// A source with no title is named by its site, never by a long raw link.
+function sourceLabel(source) {
+  if (source.title) return source.title;
+  try {
+    return new URL(source.url).hostname.replace(/^www\./, "");
+  } catch {
+    return "Source";
+  }
+}
+
+function patternWords(pattern) {
+  if (PATTERNS[pattern]) return PATTERNS[pattern];
+  return pattern && pattern !== "unknown" ? `${humanize(pattern)}.` : "";
+}
+
 export default function Safety({ checks, alerts, declines, onWhy }) {
   return (
     <section>
@@ -36,10 +52,10 @@ export default function Safety({ checks, alerts, declines, onWhy }) {
       <h2>Scam checks</h2>
       {checks.length === 0 ? <p>No scam checks yet.</p> : checks.map((check) => (
         <article key={check.check_id || check.decision_id} className="ch-card">
-          <p>{check.story_excerpt}</p>
-          <p>{VERDICTS[check.verdict] || ""} {PATTERNS[check.pattern] || ""}</p>
-          {(check.sources || []).map((source) => (
-            <p key={source.url}>{safeUrl(source.url) ? <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title || source.url}</a> : source.title}</p>
+          {check.story_excerpt ? <p>{check.story_excerpt}</p> : null}
+          <p>{VERDICTS[check.verdict] || ""} {patternWords(check.pattern)}</p>
+          {(check.sources || []).filter((source) => safeUrl(source.url) || source.title).map((source) => (
+            <p key={source.url} style={{ overflowWrap: "anywhere" }}>{safeUrl(source.url) ? <a href={source.url} target="_blank" rel="noopener noreferrer">{sourceLabel(source)}</a> : source.title}</p>
           ))}
           {check.decision_id ? <button className="ch-btn" onClick={() => onWhy(check.decision_id)}>Why?</button> : null}
         </article>

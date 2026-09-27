@@ -9,6 +9,7 @@ import Rules from "./components/Rules";
 import Safety from "./components/Safety";
 import Welcome from "./components/Welcome";
 import Why from "./components/Why";
+import { approvalWords, plainError, RETRY } from "@/lib/status";
 import { payeeName } from "@/lib/stores";
 
 const MANDATE = {
@@ -154,6 +155,7 @@ export default function Page() {
 
   const approvalId = approval && approval.approval_id;
   useEffect(() => {
+    setFallbackCode("");
     if (!approvalId) {
       setPrepared(null);
       return undefined;
@@ -171,6 +173,12 @@ export default function Page() {
 
   function note(line) {
     setLog((prev) => prev + line + "\n");
+  }
+
+  // Priyank sees plain words; the detail goes to the console.
+  function fail(error) {
+    console.error(error);
+    note(plainError(error));
   }
 
   async function register() {
@@ -323,12 +331,13 @@ export default function Page() {
       const assertion = await secureConfirmation(options);
       if (assertion) {
         const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: true, spc: true, response: assertion });
-        note(result.state === "approved" ? "Approved" : result.state === "rejected" ? "Rejected" : "Approval " + result.state);
+        note(approvalWords(result.state));
         setApproval(null);
         return;
       }
     } catch (error) {
-      if (error && error.name !== "NotAllowedError") note("payment dialog " + (error.message || error.name));
+      // The passkey prompt below is the fallback, so a failed payment dialog is only logged.
+      if (error && error.name !== "NotAllowedError") console.error("payment dialog", error);
     }
     const challenge = b64urlToBuffer(options.challenge);
     const request = {
@@ -354,20 +363,20 @@ export default function Page() {
     }
     const assertion = packAssertion(credential);
     const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: true, response: assertion });
-    note(result.state === "approved" ? "Approved" : result.state === "rejected" ? "Rejected" : "Approval " + result.state);
+    note(approvalWords(result.state));
     setApproval(null);
   }
 
   async function reject() {
     const result = await post(`/api/approvals/${approval.approval_id}/decide`, { approved: false, message: declineNote });
-    note(result.state === "approved" ? "Approved" : result.state === "rejected" ? "Rejected" : "Approval " + result.state);
+    note(approvalWords(result.state));
     setApproval(null);
   }
 
   async function pauseAgent() {
     const result = await post("/api/pause");
     setPaused(Boolean(result.paused));
-    note(result.paused ? "agent paused" : "pause failed");
+    note(result.paused ? "Agent paused" : RETRY);
   }
 
   async function resumeAgent() {
@@ -382,7 +391,7 @@ export default function Page() {
     });
     const result = await post("/api/resume", { response: packAssertion(credential), nonce: challenge.nonce });
     setPaused(result.paused !== false);
-    note(result.paused === false ? "agent resumed" : "resume failed");
+    note(result.paused === false ? "Agent resumed" : RETRY);
   }
 
   async function loadHistory() {
@@ -401,14 +410,30 @@ export default function Page() {
 
   async function cancelOrder(orderId) {
     const result = await post(`/api/orders/${orderId}/cancel`);
-    note(result.status === "cancelled" ? "order cancelled" : "cancel failed");
+    note(result.status === "cancelled" ? "Order cancelled" : RETRY);
     loadHistory().catch(() => {});
   }
 
   async function submitCode() {
-    const result = await post("/api/code/verify", { approval_id: approval.approval_id, code: fallbackCode });
-    note(result.verified ? "code accepted" : "code rejected");
-    if (result.verified) setApproval(null);
+    const code = fallbackCode.trim();
+    if (!code) {
+      note("Type the code from the host screen first.");
+      return;
+    }
+    const result = await post("/api/code/verify", { approval_id: approval.approval_id, code });
+    note(result.verified ? "Approved" : "That code didn't work.");
+    if (result.verified) {
+      setFallbackCode("");
+      setApproval(null);
+    }
+  }
+
+  // Allow once or keep blocked. The family data reloads either way, so a hold already handled drops off too.
+  function decideHold(id, action) {
+    return post(`/api/card/holds/${encodeURIComponent(id)}/${action}`)
+      .then(() => note(action === "allow" ? "Allowed once for 10 minutes" : "Kept blocked"))
+      .catch(fail)
+      .finally(() => loadFamily().catch(() => {}));
   }
 
   async function armAlerts() {
@@ -466,7 +491,12 @@ export default function Page() {
               || (event.type === "card_decision" && event.result === "declined"));
             const stops = events.filter((event) => event.type === "caregiver_alerted" && event.kind === "screen_refusal");
             if (stops.length) {
-              setAlerts((prev) => [...stops.map((event) => ({ id: event.seq || Date.now(), text: "Chaperone stopped a request.", decision_id: event.decision_id })), ...prev].slice(0, 12));
+              setAlerts((prev) => {
+                const fresh = stops
+                  .map((event, index) => ({ id: event.seq ? String(event.seq) : `${Date.now()}-${index}`, text: "Chaperone stopped a request.", decision_id: event.decision_id }))
+                  .filter((item) => !prev.some((old) => old.id === item.id));
+                return [...fresh, ...prev].slice(0, 12);
+              });
             }
             refreshApprovals().catch(() => {});
             if (events.some((event) => ["scam_checked", "card_decision", "card_hold_released", "risk_changed"].includes(event.type))) loadFamily().catch(() => {});
@@ -508,7 +538,7 @@ export default function Page() {
   return (
     <main className="ch-page">
       {screen === "welcome" ? (
-        <Welcome setupCode={setupCode} onSetupCode={setSetupCode} onRegister={() => register().catch((error) => note(String(error)))} onSignIn={() => signIn().catch((error) => note(String(error)))} />
+        <Welcome setupCode={setupCode} onSetupCode={setSetupCode} onRegister={() => register().catch(fail)} onSignIn={() => signIn().catch(fail)} />
       ) : (
         <>
           {tab === "home" ? (
@@ -520,12 +550,12 @@ export default function Page() {
               history={history}
               declines={declines}
               ruthPhone={config && config.ruthPhone}
-              onPause={() => pauseAgent().catch((error) => note(String(error)))}
-              onResume={() => resumeAgent().catch((error) => note(String(error)))}
-              onClear={() => post("/api/risk/clear", {}).then(() => loadFamily()).catch((error) => note(String(error)))}
+              onPause={() => pauseAgent().catch(fail)}
+              onResume={() => resumeAgent().catch(fail)}
+              onClear={() => post("/api/risk/clear", {}).then(() => loadFamily()).catch(fail)}
             />
           ) : null}
-          {tab === "safety" ? <Safety checks={checks} alerts={alerts} declines={declines} onWhy={(id) => explainDecision(id).catch((error) => note(String(error)))} /> : null}
+          {tab === "safety" ? <Safety checks={checks} alerts={alerts} declines={declines} onWhy={(id) => explainDecision(id).catch(fail)} /> : null}
           {tab === "approvals" ? (
             <Approvals
               approval={approval}
@@ -533,13 +563,17 @@ export default function Page() {
               holds={holds}
               declineNote={declineNote}
               onDecline={setDeclineNote}
-              onApprove={() => approve().catch((error) => note(String(error)))}
-              onReject={() => reject().catch((error) => note(String(error)))}
-              onWhy={() => explainDecision().catch((error) => note(String(error)))}
-              onAllow={(id) => post(`/api/card/holds/${id}/allow`).then(() => loadFamily()).catch((error) => note(String(error)))}
+              onApprove={() => approve().catch(fail)}
+              onReject={() => reject().catch(fail)}
+              onWhy={() => explainDecision().catch(fail)}
+              onAllow={(id) => decideHold(id, "allow")}
+              onKeep={(id) => decideHold(id, "keep")}
+              code={fallbackCode}
+              onCode={setFallbackCode}
+              onSubmitCode={() => submitCode().catch(fail)}
             />
           ) : null}
-          {tab === "activity" ? <HistoryView history={history} onCancel={(id) => cancelOrder(id).catch((error) => note(String(error)))} /> : null}
+          {tab === "activity" ? <HistoryView history={history} onCancel={(id) => cancelOrder(id).catch(fail)} /> : null}
           {tab === "rules" ? (
             <Rules
               mandate={mandate}
@@ -547,7 +581,7 @@ export default function Page() {
               onChange={changeRule}
               onToggleBlocked={toggleBlocked}
               onToggleStore={toggleStore}
-              onSign={() => assertMandate().catch((error) => note(String(error)))}
+              onSign={() => assertMandate().catch(fail)}
             />
           ) : null}
           <nav className="ch-tabs">

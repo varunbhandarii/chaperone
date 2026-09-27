@@ -1,5 +1,6 @@
 import { money } from "@/lib/money";
-import { storeName } from "@/lib/stores";
+import { isBiller, storeName } from "@/lib/stores";
+import { cardWords } from "@/lib/words";
 
 const STATUS = {
   awaiting_payment: "waiting for payment",
@@ -21,13 +22,13 @@ export default function HistoryView({ history, onCancel }) {
       {orders.length === 0 ? <p>No orders yet.</p> : orders.map((order) => (
         <article key={order.order_id} className="ch-card">
           <p>{storeName(order.store || order.merchant) || "Order"} · {money(order.total)}</p>
-          <p>{order.store === "peachtree_power" ? "Bill" : STATUS[order.status] || order.status}</p>
+          <p>{isBiller(order.store) ? `Bill, ${STATUS[order.status] || "sent"}` : STATUS[order.status] || "in progress"}</p>
           {order.status === "awaiting_payment" ? <button className="ch-btn" onClick={() => onCancel(order.order_id)}>Cancel</button> : null}
         </article>
       ))}
       <h2>Refunds</h2>
       {refunds.length === 0 ? <p>No refunds yet.</p> : refunds.map((refund, index) => (
-        <p key={index}>{money(refund.amount)} back to the card ending {refund.card_last4 || "the card that paid"}</p>
+        <p key={refund.order_id ? `${refund.order_id}-${index}` : index}>{money(refund.amount)} back to {cardWords(refund.card_last4)}</p>
       ))}
     </section>
   );

@@ -1,14 +1,19 @@
-import registry from "./merchants.json";
+import registry from "./merchants.json" with { type: "json" };
+import { humanize } from "./words.js";
 
 const merchants = registry.merchants || [];
 
 export function storeName(id) {
   const found = merchants.find((entry) => entry.id === id);
-  return found ? found.name : id || "";
+  return found ? found.name : humanize(id);
 }
 
 export function storefronts() {
   return merchants.filter((entry) => entry.kind === "store" || entry.kind === "biller");
+}
+
+export function isBiller(id) {
+  return merchants.some((entry) => entry.id === id && entry.kind === "biller");
 }
 
 export function payeeName(approval) {
