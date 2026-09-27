@@ -16,7 +16,7 @@ import {
 import { FALLBACK_ITEMS, mergeResults, parseResolveResponse, parseSearchResponse, type CatalogItem, type CheckoutBody } from "./cart.ts";
 import type { Lang } from "./lang.ts";
 import { parseScreen, type ScreenResult } from "./screen.ts";
-import { parseBill, parseScamReply, type BillView, type ScamVerdict } from "./guards.ts";
+import { parseBill, parseMandateReply, parseScamReply, type BillView, type MandateRead, type ScamVerdict } from "./guards.ts";
 
 export type Warn = (msg: string) => void;
 
@@ -453,10 +453,11 @@ export async function scamCheck(body: Record<string, unknown>): Promise<ScamRepl
   }
 }
 
-/** GET {merchant}/billers/{id}/accounts/{ref}: what Ruth really owes. */
-export async function getBill(billerId: string, accountRef: string): Promise<BillView | null> {
+/** GET {merchant}/billers/{id}/accounts/{ref}?session_id=: what Ruth really owes (the merchant's bill_checked names the session). */
+export async function getBill(billerId: string, accountRef: string, sessionId: string): Promise<BillView | null> {
   try {
-    const res = await call(`${URLS.merchant}/billers/${encodeURIComponent(billerId)}/accounts/${encodeURIComponent(accountRef)}`, {
+    const url = `${URLS.merchant}/billers/${encodeURIComponent(billerId)}/accounts/${encodeURIComponent(accountRef)}?session_id=${encodeURIComponent(sessionId)}`;
+    const res = await call(url, {
       signal: AbortSignal.timeout(3000),
       cache: "no-store",
     });
@@ -487,13 +488,12 @@ export async function getMandateBillers(): Promise<Array<{ merchant_id: string; 
 
 // ---------- the card and family guards: cool-down, pause, co-sign ----------
 
-/** GET {policy}/mandate: the signed rules (or the default), with `paused` beside them. */
-export async function getMandate(): Promise<Record<string, unknown> | null> {
+/** GET {policy}/mandate: the signed rules (or the default) and, when signed, their hash. */
+export async function getMandate(): Promise<MandateRead | null> {
   try {
-    const res = await call(`${URLS.policy}/mandate`, { signal: AbortSignal.timeout(2500) });
+    const res = await call(`${URLS.policy}/mandate`, { signal: AbortSignal.timeout(2500), cache: "no-store" });
     if (!res.ok) return null;
-    const body = (await readJson(res)) as { mandate?: Record<string, unknown> } | null;
-    return body?.mandate && typeof body.mandate === "object" ? body.mandate : null;
+    return parseMandateReply(await readJson(res));
   } catch {
     return null;
   }
@@ -518,8 +518,11 @@ export async function getGuardState(): Promise<{ cooldown_until: string | number
   }
 }
 
-/** POST {policy}/mandate/cosign {session_id, said, lang}: Ruth agreed to the rules Priyank signed, in her own words. */
-export async function postCosign(body: { session_id: string; said: string; lang: Lang }): Promise<boolean> {
+/**
+ * POST {policy}/mandate/cosign {session_id, said, lang, mandate_hash}: Ruth agreed to the rules Priyank signed, in her
+ * own words. "stale" (409): the rules changed since they were read to her, so her yes was not recorded.
+ */
+export async function postCosign(body: { session_id: string; said: string; lang: Lang; mandate_hash?: string }): Promise<"ok" | "stale" | "failed"> {
   try {
     const res = await call(`${URLS.policy}/mandate/cosign`, {
       method: "POST",
@@ -527,9 +530,9 @@ export async function postCosign(body: { session_id: string; said: string; lang:
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(4000),
     });
-    return res.ok;
+    return res.ok ? "ok" : res.status === 409 ? "stale" : "failed";
   } catch {
-    return false;
+    return "failed";
   }
 }
 

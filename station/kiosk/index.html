@@ -33,32 +33,32 @@
 
     <button id="ptt" class="ptt state-off" type="button" disabled>
       <span id="ptt-label">Press Start first</span>
-      <span id="ptt-hint" class="ptt-hint">hold to talk &middot; key: Space</span>
+      <span id="ptt-hint" class="ptt-hint"><span data-words="hold_to_talk">hold to talk</span><span class="dev"> &middot; key: <span id="ptt-hint-key">Space</span></span></span>
     </button>
 
     <div id="outcome" class="outcome" role="status" aria-live="polite" hidden></div>
 
     <section id="cart-panel" class="panel cart" aria-label="Your order">
-      <h2>Your order</h2>
+      <h2 data-words="your_order">Your order</h2>
       <ul id="cart" class="items"><li class="empty">Nothing yet</li></ul>
-      <div class="cart-total"><span>Total</span> <span id="cart-total" class="price">$0.00</span></div>
+      <div class="cart-total"><span data-words="total">Total</span> <span id="cart-total" class="price">$0.00</span></div>
     </section>
 
     <section class="panel">
-      <h2>Conversation</h2>
+      <h2 data-words="conversation">Conversation</h2>
       <ol id="log" class="log" aria-live="polite"></ol>
     </section>
 
     <section id="items-panel" class="panel" hidden>
-      <h2>Found <span id="items-source" class="tag dev"></span></h2>
+      <h2><span data-words="found">Found</span> <span id="items-source" class="tag dev"></span></h2>
       <ul id="items" class="items"></ul>
     </section>
 
     <form id="typed" class="typed panel" autocomplete="off">
-      <label for="typed-input">Type instead of speaking</label>
+      <label for="typed-input" data-words="type_instead">Type instead of speaking</label>
       <div class="typed-row">
-        <input id="typed-input" type="text" placeholder="Type here" />
-        <button type="submit">Send</button>
+        <input id="typed-input" type="text" placeholder="Type here" data-words="type_here" />
+        <button type="submit" data-words="send">Send</button>
       </div>
     </form>
 
@@ -121,8 +121,8 @@
       <div class="receipts">
         <div id="receipts" class="receipts"></div>
         <div class="receipt-actions">
-          <button type="button" id="receipt-reprint">Reprint</button>
-          <button type="button" id="receipt-close">Close</button>
+          <button type="button" id="receipt-reprint" data-words="reprint">Reprint</button>
+          <button type="button" id="receipt-close" data-words="close">Close</button>
         </div>
       </div>
     </div>

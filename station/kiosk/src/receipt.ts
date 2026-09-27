@@ -1,7 +1,7 @@
 // Receipts and caregiver approvals: parsing the services' replies and building a receipt locally.
 // Pure functions: no DOM or network, so they run under `node --test`.
 
-import { fromCents, type CartLineView } from "./cart.ts";
+import { fromCents, toCents, type CartLineView } from "./cart.ts";
 import type { Lang } from "./lang.ts";
 
 /** GET {merchant}/orders/{id}/receipt, and what the print helper and the on-screen receipt take. */
@@ -27,13 +27,61 @@ export interface Receipt {
   pickup_code?: string;
 }
 
-/** What the station remembers about the order it placed, for a receipt when the merchant's is unavailable. */
+/** What the station remembers about an order it placed, for a receipt when the merchant's is unavailable. */
 export interface PlacedOrder {
   order_id: string;
   decision_id?: string;
   lines: CartLineView[];
   totalCents: number;
   lang: Lang;
+  /** the store's name, when its lines carry none */
+  store?: string;
+}
+
+/** A store's order as policy lists it in a checkout or approval reply. */
+export interface StoreOrder {
+  order_id: string;
+  /** the store's id ("parkside_pharmacy") */
+  merchant?: string;
+}
+
+/** Every store's order in a checkout or approval reply: `orders` (one per store), else the single `order`. */
+export function storeOrders(reply: unknown): StoreOrder[] {
+  if (!reply || typeof reply !== "object") return [];
+  const r = reply as Record<string, unknown>;
+  const list: unknown[] = Array.isArray(r.orders) && r.orders.length ? r.orders : r.order ? [r.order] : [];
+  return list
+    .filter((o): o is Record<string, unknown> => !!o && typeof o === "object" && typeof (o as Record<string, unknown>).order_id === "string")
+    .map((o) => ({ order_id: String(o.order_id), ...(typeof o.merchant === "string" && o.merchant ? { merchant: o.merchant } : {}) }));
+}
+
+/**
+ * The station's record of each store's order: the cart's lines grouped by store (a line with no store of its own
+ * belongs to `fallbackMerchant`, as at checkout), each with its own subtotal. A single order keeps every line and
+ * the whole total, as before, unless the cart had lines at a store whose order was not placed.
+ */
+export function placedOrders(
+  orders: StoreOrder[],
+  lines: CartLineView[],
+  base: { decision_id?: string; totalCents: number; lang: Lang; fallbackMerchant: string; storeName?: (id: string) => string | undefined },
+): PlacedOrder[] {
+  const storeOf = (l: CartLineView) => l.merchant || base.fallbackMerchant;
+  return orders.flatMap((o) => {
+    const matched = o.merchant ? lines.filter((l) => storeOf(l) === o.merchant) : [];
+    const mine = matched.length ? matched : orders.length === 1 ? lines : [];
+    if (!mine.length) return [];
+    const name = mine.find((l) => l.store)?.store ?? (o.merchant ? base.storeName?.(o.merchant) : undefined);
+    return [
+      {
+        order_id: o.order_id,
+        ...(base.decision_id ? { decision_id: base.decision_id } : {}),
+        lines: mine,
+        totalCents: mine.length === lines.length ? base.totalCents : mine.reduce((t, l) => t + toCents(l.line_total), 0),
+        lang: base.lang,
+        ...(name ? { store: name } : {}),
+      },
+    ];
+  });
 }
 
 function isLang(v: unknown): v is Lang {
@@ -111,7 +159,7 @@ export function parseReceipt(body: unknown, fallbackLang: Lang = "en", stores?: 
 export function localReceipt(order: PlacedOrder, sessionUrl: string | undefined, paidAt: number | string | undefined): Receipt {
   const bill = order.lines.length > 0 && order.lines.every((l) => l.bill);
   return {
-    merchant: order.lines.find((l) => l.store)?.store ?? "",
+    merchant: order.lines.find((l) => l.store)?.store ?? order.store ?? "",
     items: order.lines.map((l) => ({ name: l.name, qty: l.qty, price: l.price })),
     total: fromCents(order.totalCents),
     pickup: bill ? "" : "after 3 pm",
@@ -153,6 +201,14 @@ function pickupHi(when: string): string {
   return `${part} ${p.h}${p.m ? `:${p.m}` : ""} बजे के बाद ले जाएँ`;
 }
 
+/** The line under the on-screen receipt: whether it printed. The timing or the reason goes to the operator view. */
+export type ReceiptNoteKey = "preparing" | "printed" | "printed_again" | "on_screen";
+export interface ReceiptNote {
+  key?: ReceiptNoteKey;
+  /** operator view only: the print time, or why it did not print */
+  detail?: string;
+}
+
 /** Labels for the on-screen receipt, in the session's language. */
 export const RECEIPT_LABELS: Record<
   Lang,
@@ -169,6 +225,8 @@ export const RECEIPT_LABELS: Record<
     points: (n: number) => string;
     code: string;
     paidTo: (store: string, account: string) => string;
+    pdf: string;
+    note: Record<ReceiptNoteKey, string>;
   }
 > = {
   en: {
@@ -184,6 +242,8 @@ export const RECEIPT_LABELS: Record<
     points: (n) => `+${n} rewards points`,
     code: "Pickup code",
     paidTo: (store, account) => `Paid to ${store}${account ? ` · account ${account}` : ""}`,
+    pdf: "Open PDF",
+    note: { preparing: "Preparing your receipt…", printed: "Your receipt is printed", printed_again: "Printed again", on_screen: "Your receipt is on the screen" },
   },
   es: {
     title: "Recibo",
@@ -198,6 +258,8 @@ export const RECEIPT_LABELS: Record<
     points: (n) => `+${n} puntos de recompensa`,
     code: "Código de recogida",
     paidTo: (store, account) => `Pagado a ${store}${account ? ` · cuenta ${account}` : ""}`,
+    pdf: "Abrir PDF",
+    note: { preparing: "Preparando su recibo…", printed: "Su recibo está impreso", printed_again: "Impreso otra vez", on_screen: "Su recibo está en la pantalla" },
   },
   hi: {
     title: "रसीद",
@@ -212,6 +274,8 @@ export const RECEIPT_LABELS: Record<
     points: (n) => `+${n} रिवॉर्ड पॉइंट`,
     code: "पिकअप कोड",
     paidTo: (store, account) => `${store} को भुगतान${account ? ` · खाता ${account}` : ""}`,
+    pdf: "PDF खोलें",
+    note: { preparing: "आपकी रसीद तैयार हो रही है…", printed: "आपकी रसीद छप गई है", printed_again: "रसीद फिर से छप गई", on_screen: "आपकी रसीद स्क्रीन पर है" },
   },
 };
 
@@ -232,6 +296,8 @@ export interface ApprovalStatus {
   expires_at_ms?: number;
   amount?: number;
   order_id?: string;
+  /** every store's order once approved (a cart across stores places one per store); order_id is the first */
+  orders?: StoreOrder[];
   message?: string;
 }
 
@@ -246,12 +312,14 @@ export function parseApproval(body: unknown): ApprovalStatus | null {
   const expires =
     typeof b.expires_at === "number" ? (b.expires_at < 1e12 ? b.expires_at * 1000 : b.expires_at) : typeof b.expires_at === "string" ? Date.parse(b.expires_at) : NaN;
   const order = b.order as { order_id?: unknown } | null | undefined;
+  const orders = storeOrders(b);
   return {
     approval_id: b.approval_id,
     state,
     ...(Number.isFinite(expires) ? { expires_at_ms: expires } : {}),
     ...(typeof b.amount === "number" ? { amount: b.amount } : {}),
     ...(order && typeof order.order_id === "string" ? { order_id: order.order_id } : {}),
+    ...(orders.length ? { orders } : {}),
     ...(typeof b.message === "string" && b.message.trim() ? { message: b.message.trim() } : {}),
   };
 }

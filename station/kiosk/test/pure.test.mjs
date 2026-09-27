@@ -783,10 +783,21 @@ test("the cart names its stores: grouped read-back, one store or several, and a 
   // each line goes to checkout with its own store; the cart's merchant is the fallback when stores differ
   const priced = cart.priced("corner_market");
   assert.deepEqual(priced.items.map((i) => i.merchant), ["parkside_pharmacy", "peachtree_power"]);
-  // a bill is paid once
-  assert.equal(cart.add({ sku: "BILL-peachtree_power", name: "x", category: "utility_bill", price: 86.4 }).ok, false);
+  // a bill is paid once: a second one is refused because it is already in the cart
+  const again = cart.add({ sku: "BILL-peachtree_power", name: "x", category: "utility_bill", price: 86.4 });
+  assert.equal(again.ok, false);
+  assert.match(again.error, /already in the cart/);
+  // any quantity asked for a bill goes in as 1
   const c2 = new Cart();
+  const clamped = c2.add({ sku: "BILL-peachtree_power", name: "x", category: "utility_bill", price: 86.4 }, 2);
+  assert.equal(clamped.ok, true);
+  assert.equal(clamped.qty, 1);
+  assert.equal(c2.lines()[0].qty, 1);
+  assert.equal(c2.totalCents, 8640);
   assert.equal(c2.add({ sku: "BILL-peachtree_power", name: "x", category: "utility_bill", price: 86.4 }, 2).ok, false);
+  // everything else still counts its quantity
+  assert.equal(c2.add({ sku: "BAK-001", name: "Bread", category: "bakery", price: 3.49 }, 0).ok, false);
+  assert.equal(c2.add({ sku: "BAK-001", name: "Bread", category: "bakery", price: 3.49 }, 2).qty, 2);
 });
 
 test("store-aware receipts: the store's name, no pickup for a bill, the account masked, no Corner Market fallback", () => {
@@ -846,4 +857,116 @@ test("receipt and order lines take the store and the pickup; a bill has no picku
   assert.equal(bill.merchant, "Peachtree Power");
   assert.ok(bill.bill);
   assert.equal(parseOrder({ order_id: "o", status: "ready_for_pickup", store: "Parkside Pharmacy", timeline: [] }).store, "Parkside Pharmacy");
+});
+
+// ---------- receipts per store, the co-sign hash, and the words on the screen ----------
+
+import { placedOrders, storeOrders } from "../src/receipt.ts";
+import { parseMandateReply } from "../src/guards.ts";
+import { NOTHING_YET, NOTICE_WORDS, OUTCOME_TITLES, PAGE_WORDS, STATE_WORDS, THE_STORE, TITLES, TOLD } from "../src/words.ts";
+
+const RX_LINE = { sku: "RX-001", name: "Lisinopril", qty: 1, price: 8, line_total: 8, store: "Parkside Pharmacy", merchant: "parkside_pharmacy" };
+const BREAD_LINE = { sku: "BAK-001", name: "Bread", qty: 2, price: 3.49, line_total: 6.98, store: "Corner Market", merchant: "corner_market" };
+const BILL_LINE = { sku: "BILL-peachtree_power", name: "Peachtree Power bill …0098", qty: 1, price: 86.4, line_total: 86.4, store: "Peachtree Power", merchant: "peachtree_power", bill: true };
+
+test("a checkout across stores keeps one local receipt per store: its own store, lines and subtotal", () => {
+  const reply = {
+    decision: "allow",
+    order: { order_id: "o_rx", merchant: "parkside_pharmacy" },
+    orders: [{ order_id: "o_rx", merchant: "parkside_pharmacy", total: 8 }, { order_id: "o_cm", merchant: "corner_market", total: 6.98 }, { order_id: "o_pp", merchant: "peachtree_power", total: 86.4 }],
+  };
+  const orders = storeOrders(reply);
+  assert.deepEqual(orders.map((o) => o.order_id), ["o_rx", "o_cm", "o_pp"]);
+  const placed = placedOrders(orders, [RX_LINE, BREAD_LINE, BILL_LINE], { decision_id: "d_1", totalCents: 10138, lang: "es", fallbackMerchant: "corner_market" });
+  assert.deepEqual(placed.map((p) => [p.order_id, p.lines.map((l) => l.sku), p.totalCents]), [
+    ["o_rx", ["RX-001"], 800],
+    ["o_cm", ["BAK-001"], 698],
+    ["o_pp", ["BILL-peachtree_power"], 8640],
+  ]);
+  const receipts = placed.map((p) => localReceipt(p, undefined, 1790400000));
+  assert.deepEqual(receipts.map((r) => [r.order_id, r.merchant, r.total, r.items.length, r.decision_id, r.lang]), [
+    ["o_rx", "Parkside Pharmacy", 8, 1, "d_1", "es"],
+    ["o_cm", "Corner Market", 6.98, 1, "d_1", "es"],
+    ["o_pp", "Peachtree Power", 86.4, 1, "d_1", "es"],
+  ]);
+  // the bill's own receipt is a bill (no pickup); the stores' receipts have a pickup
+  assert.equal(receipts[2].pickup, "");
+  assert.ok(receipts[2].bill);
+  assert.equal(receipts[0].pickup, "after 3 pm");
+});
+
+test("one store's order keeps every line and the whole total; lines without a store go to the station's store", () => {
+  // single store, as before: the policy's order may or may not name its store
+  for (const order of [{ order_id: "o_1" }, { order_id: "o_1", merchant: "corner_market" }]) {
+    const [p, ...rest] = placedOrders(storeOrders({ order }), [BREAD_LINE], { totalCents: 698, lang: "en", fallbackMerchant: "corner_market" });
+    assert.equal(rest.length, 0);
+    assert.deepEqual([p.order_id, p.lines.length, p.totalCents], ["o_1", 1, 698]);
+    assert.equal(localReceipt(p, undefined, undefined).merchant, "Corner Market");
+  }
+  // a line from the fallback items carries no store: it belongs to the store the cart was priced for
+  const plain = { sku: "BAK-002", name: "Kroger Bread", qty: 1, price: 2.99, line_total: 2.99 };
+  const split = placedOrders(
+    [{ order_id: "o_rx", merchant: "parkside_pharmacy" }, { order_id: "o_cm", merchant: "corner_market" }],
+    [RX_LINE, plain],
+    { totalCents: 1099, lang: "en", fallbackMerchant: "corner_market", storeName: (id) => ({ corner_market: "Corner Market" })[id] },
+  );
+  assert.deepEqual(split.map((p) => [p.order_id, p.lines.map((l) => l.sku), p.totalCents]), [
+    ["o_rx", ["RX-001"], 800],
+    ["o_cm", ["BAK-002"], 299],
+  ]);
+  assert.equal(localReceipt(split[1], undefined, undefined).merchant, "Corner Market");
+  // only one of two stores took its order: its receipt has its own lines, not the other store's
+  const partial = placedOrders([{ order_id: "o_rx", merchant: "parkside_pharmacy" }], [RX_LINE, BREAD_LINE], { totalCents: 1498, lang: "en", fallbackMerchant: "corner_market" });
+  assert.deepEqual(partial.map((p) => [p.lines.length, p.totalCents]), [[1, 800]]);
+  assert.deepEqual(storeOrders({ orders: [], order: null }), []);
+  assert.deepEqual(storeOrders(null), []);
+});
+
+test("an approved cart across stores lists every store's order", () => {
+  const a = parseApproval({ approval_id: "a_1", state: "approved", order: { order_id: "o_rx" }, orders: [{ order_id: "o_rx", merchant: "parkside_pharmacy" }, { order_id: "o_cm", merchant: "corner_market" }] });
+  assert.equal(a.order_id, "o_rx");
+  assert.deepEqual(a.orders, [{ order_id: "o_rx", merchant: "parkside_pharmacy" }, { order_id: "o_cm", merchant: "corner_market" }]);
+  assert.equal(parseApproval({ approval_id: "a_2", state: "pending", order: null, orders: [] }).orders, undefined);
+});
+
+test("the rules' hash is kept from the same reply as the rules; an older policy sends none", () => {
+  const hash = "q1Hk3zO6pX0mP5f8Wn2tYb7cVd9eRs4uLa1gJi6oKh0";
+  const read = parseMandateReply({ signed: true, mandate: { per_purchase_cap: 60 }, paused: false, mandate_hash: hash });
+  assert.equal(read.mandate_hash, hash);
+  assert.equal(read.mandate.per_purchase_cap, 60);
+  assert.equal("mandate_hash" in parseMandateReply({ signed: false, mandate: { per_purchase_cap: 60 } }), false);
+  for (const bad of [42, "", "has spaces and = padding=", null]) {
+    assert.equal("mandate_hash" in parseMandateReply({ mandate: {}, mandate_hash: bad }), false, String(bad));
+  }
+  assert.equal(parseMandateReply({ signed: true }), null);
+  assert.equal(parseMandateReply(null), null);
+});
+
+test("every word on the screen exists in English, Spanish and Hindi", () => {
+  const tables = { STATE_WORDS, TOLD, TITLES, NOTHING_YET, THE_STORE, OUTCOME_TITLES, PAGE_WORDS, NOTICE_WORDS, RECEIPT_LABELS };
+  const words = (v) => (typeof v === "function" ? v("$8.00", "0098") : v);
+  for (const [name, table] of Object.entries(tables)) {
+    assert.deepEqual(Object.keys(table).sort(), ["en", "es", "hi"], name);
+    const shape = (v) => (v && typeof v === "object" ? Object.keys(v).sort() : typeof v);
+    for (const lang of ["es", "hi"]) assert.deepEqual(shape(table[lang]), shape(table.en), `${name}.${lang}`);
+    for (const lang of ["en", "es", "hi"]) {
+      const entries = typeof table[lang] === "object" ? Object.entries(table[lang]) : [["", table[lang]]];
+      for (const [key, value] of entries) {
+        const leaves = value && typeof value === "object" ? Object.values(value) : [value];
+        for (const leaf of leaves) {
+          const text = String(words(leaf));
+          assert.ok(text.trim().length > 0 && !/\{\w+\}|undefined/.test(text), `${name}.${lang}.${key}: ${text}`);
+        }
+      }
+    }
+  }
+  // Spanish and Hindi are not English left in place
+  for (const table of [NOTICE_WORDS, OUTCOME_TITLES, PAGE_WORDS]) {
+    for (const key of Object.keys(table.en).filter((k) => k !== "total")) {
+      for (const lang of ["es", "hi"]) assert.notEqual(String(words(table[lang][key])), String(words(table.en[key])), `${lang}.${key}`);
+    }
+  }
+  assert.equal(NOTICE_WORDS.es.back_to_card("0098"), "A su tarjeta que termina en 0098");
+  assert.equal(NOTICE_WORDS.en.back_to_card(), "Back to your card");
+  assert.equal(RECEIPT_LABELS.hi.note.on_screen, "आपकी रसीद स्क्रीन पर है");
 });

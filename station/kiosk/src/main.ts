@@ -38,7 +38,7 @@ function save(key: string, value: string): void {
 
 const startBtn = $<HTMLButtonElement>("start");
 const ptt = $<HTMLButtonElement>("ptt");
-const pttHint = $("ptt-hint");
+const pttHintKey = $("ptt-hint-key");
 const pttKeyEl = $("ptt-key");
 const lastKeyEl = $("last-key");
 const mapBtn = $<HTMLButtonElement>("map-key");
@@ -69,7 +69,7 @@ const ui = createUI((state: AgentState) => {
 
 function showKey(): void {
   pttKeyEl.textContent = pttKey;
-  pttHint.textContent = `hold to talk · key: ${pttKey}`;
+  pttHintKey.textContent = pttKey; // the key is shown in the operator view only
 }
 showKey();
 

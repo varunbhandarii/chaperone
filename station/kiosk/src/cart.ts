@@ -188,10 +188,12 @@ export class Cart {
   version = 0;
 
   add(item: CatalogItem, qty = 1): Result<{ qty: number }> {
-    if (!Number.isInteger(qty) || qty < 1) return { ok: false, error: "qty must be a whole number of at least 1" };
-    if (isBill(item) && (qty !== 1 || this.entries.has(item.sku))) {
-      return { ok: false, error: "a bill is paid once: it is already in the cart, with quantity 1" };
+    if (isBill(item)) {
+      // a bill is paid once: whatever quantity was asked for, it goes in as 1
+      if (this.entries.has(item.sku)) return { ok: false, error: "a bill is paid once: it is already in the cart" };
+      qty = 1;
     }
+    if (!Number.isInteger(qty) || qty < 1) return { ok: false, error: "qty must be a whole number of at least 1" };
     const next = (this.entries.get(item.sku)?.qty ?? 0) + qty;
     if (next > MAX_QTY) return { ok: false, error: `at most ${MAX_QTY} of one item per order` };
     this.entries.set(item.sku, { item, qty: next });

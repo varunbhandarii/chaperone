@@ -5,7 +5,7 @@ import { Capture, MIC_CONSTRAINTS, Player, createAudioContext, type CaptureBlock
 import { Earcon } from "./earcon.ts";
 import { TUNNEL_HOST, VOICE, VOICE_NAME, buildSession, languageHint, realtimeUrl, storeName, voiceFor } from "./config.ts";
 import * as payload from "./events.ts";
-import { localReceipt, sessionUrl, type ApprovalStatus, type PlacedOrder, type Receipt } from "./receipt.ts";
+import { localReceipt, placedOrders, sessionUrl, storeOrders, type ApprovalStatus, type PlacedOrder, type Receipt, type ReceiptNote } from "./receipt.ts";
 import {
   Cart,
   ItemCache,
@@ -15,6 +15,7 @@ import {
   compactItem,
   fromCents,
   hasSay,
+  isBill,
   money,
   newSessionId,
   readBackSay,
@@ -30,6 +31,7 @@ import { ruleIds, type ScreenResult } from "./screen.ts";
 import { collapseShopperTurns } from "./recording.ts";
 import { RefundGate, historySummary, isRepeatRequest, spokenCode, statusWords, type RefundReply, type RefundTarget } from "./postpurchase.ts";
 import { billItem, billSayKey, billerId, scamToolOutput, spokenDate, yesOrNo, type ScamVerdict } from "./guards.ts";
+import { NOTICE_WORDS, THE_STORE } from "./words.ts";
 import {
   Ledger,
   RelayStream,
@@ -57,11 +59,14 @@ import {
   saveCachedSession,
   screenText,
   searchCatalog,
+  type PrintResult,
   type StreamEvent,
 } from "./services.ts";
 
 export type AgentState = "off" | "connecting" | "ready" | "listening" | "thinking" | "checking" | "speaking" | "waiting";
 export type NoteKind = "info" | "tool" | "warn" | "error" | "rule";
+/** a small word after a transcript line, in Ruth's language */
+export type TranscriptMark = "interrupted" | "nothing_heard";
 
 /** The full-screen Protected card: a stopped scam, a scam refusal or a declined swipe. */
 export interface ProtectedView {
@@ -85,7 +90,7 @@ export interface AgentUI {
   /** release -> first sound (the earcon or the first word) */
   firstSound(ms: number, via: string): void;
   status(text: string, kind?: NoteKind): void;
-  transcript(role: "shopper" | "agent", key: string, text: string, final: boolean, lang?: string): void;
+  transcript(role: "shopper" | "agent", key: string, text: string, final: boolean, lang?: string, mark?: TranscriptMark): void;
   note(text: string, kind?: NoteKind): void;
   /** stats covers voice turns answered by the model only; `label` is set for typed or refusal-clip timings. */
   latency(ms: number, stats: { min: number; median: number; count: number } | null, label: string): void;
@@ -99,7 +104,7 @@ export interface AgentUI {
   /** seconds left while waiting for the caregiver, null when not waiting */
   waiting(secondsLeft: number | null): void;
   /** the receipt shown full-screen (always, even when it printed), null to close it */
-  receipt(receipt: Receipt | null, note?: string, files?: { png?: string; pdf?: string }): void;
+  receipt(receipt: Receipt | null, note?: ReceiptNote, files?: { png?: string; pdf?: string }): void;
   replay(on: boolean, lang?: string): void;
   /** a reset: new session id, empty transcript, cart, outcome and banners */
   cleared(sessionId: string): void;
@@ -152,7 +157,12 @@ interface Turn {
   repeated?: boolean;
 }
 
-const DEFAULT_SAY = "I can't help with that purchase on this account.";
+/** When the rule screen's refusal comes without words of its own. */
+const DEFAULT_SAY: Record<Lang, string> = {
+  en: "I can't help with that purchase on this account.",
+  es: "No puedo ayudarle con esa compra en esta cuenta.",
+  hi: "इस खाते से मैं यह खरीदारी नहीं कर सकती।",
+};
 const RECONNECT_DELAYS_MS = [500, 1000, 2000];
 /** Poll the caregiver approval for up to 95 s (the policy expires it at 90 s). */
 const APPROVAL_WAIT_MS = 95_000;
@@ -214,11 +224,11 @@ function cooldownBanner(until: Date, lang: Lang): string {
 }
 
 /** A card terminal's descriptor ("FIVE POINTS DRUG") or a registry id, as Ruth would say the store's name. */
-function displayStore(raw: string): string {
+function displayStore(raw: string, lang: Lang): string {
   const named = storeName(raw);
   if (named) return named;
   if (raw && raw === raw.toUpperCase()) return raw.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-  return raw || "the store";
+  return raw || THE_STORE[lang];
 }
 
 /** The scam check's first useful action, as a short instruction. */
@@ -251,6 +261,18 @@ const MAX_OUTBOX = 1200;
 
 function ts(): string {
   return new Date().toISOString().slice(11, 23);
+}
+
+/** "ready for pickup" -> "Ready for pickup", for a title. */
+function capitalized(text: string): string {
+  return text.charAt(0).toLocaleUpperCase() + text.slice(1);
+}
+
+/** Whether the receipt printed, for the line under it; the time it took, or why not, is for the operator view. */
+function printNote(printed: PrintResult, onPaper: "printed" | "printed_again"): ReceiptNote {
+  if (printed.ok && printed.via === "printer") return { key: onPaper, detail: `printed in ${(printed.ms / 1000).toFixed(1)} s` };
+  if (printed.ok) return { detail: `saved as PDF${printed.reason ? ` (${printed.reason})` : ""}` };
+  return { key: "on_screen", detail: `not printed: ${printed.reason ?? "no print helper"}` };
 }
 
 function safeParse(text: unknown): Record<string, unknown> {
@@ -327,8 +349,8 @@ export class StationAgent {
   private userTurns = 0;
   private waitingForCaregiver = false;
   private sessionLang: Lang | undefined;
-  /** The order the station placed last, for a receipt when the merchant's is unavailable. */
-  private lastOrder: PlacedOrder | null = null;
+  /** Each store's order placed in this session, by order id, for a receipt when the merchant's is unavailable. */
+  private placed = new Map<string, PlacedOrder>();
   private receiptsDone = new Set<string>();
   private lastReceipt: Receipt | null = null;
   private approvalWait: { id: string; totalCents: number; lines: CartLineView[]; decisionId?: string } | null = null;
@@ -358,8 +380,10 @@ export class StationAgent {
   private paused = false;
   /** the cool-down already announced, so cooldown_on is said once per cool-down */
   private cooldownSaid: string | null = null;
-  /** after the station read Ruth her new rules: her next turn answers "Do you agree?" */
-  private cosignPending: { until: number } | null = null;
+  /** after the station read Ruth her new rules: her next turn answers "Do you agree?"; `hash` names the rules she heard */
+  private cosignPending: { until: number; hash?: string } | null = null;
+  /** bumps on every reading of new rules: only the latest reading waits for her answer */
+  private cosignAsk = 0;
   private slowWaitTimer: ReturnType<typeof setTimeout> | null = null;
   /** release (or send) -> first sound, the earcon included; the meter's figure is release -> first word */
   private firstSoundPending = false;
@@ -875,8 +899,14 @@ export class StationAgent {
     if (turn.refusal !== "none") return;
     this.takeTurn(turn, "rule refusal");
     this.logRefusal(turn, result, "out_of_band");
-    this.ui.protect({ tone: "protected", say: result.refusal?.text || DEFAULT_SAY, detail: ruleIds(result).join(", "), lang: turn.lang ?? this.lang });
+    this.protectRefusal(turn, result);
     await this.deliverRefusal(turn, result);
+  }
+
+  /** The full-screen Protected card for a refusal; the rule ids are for the operator view. */
+  private protectRefusal(turn: Turn, result: ScreenResult): void {
+    const lang = turn.lang ?? this.lang;
+    this.ui.protect({ tone: "protected", say: result.refusal?.text || DEFAULT_SAY[lang], detail: ruleIds(result).join(", "), lang });
   }
 
   /** A partial transcript was refused: the whole sentence may be a scam told as a story. Wait briefly for its screen. */
@@ -939,12 +969,13 @@ export class StationAgent {
     this.warn("scam-check", `scam check failed (${reply.kind === "not_ready" ? `HTTP ${reply.status}` : reply.error}); the refusal is spoken instead`);
     this.endChecking();
     this.logRefusal(turn, result, "scam_check_fallback");
+    this.protectRefusal(turn, result);
     await this.deliverRefusal(turn, result);
   }
 
   /** The refusal clip in the session voice if it loads in time, else the refusal text verbatim. */
   private async deliverRefusal(turn: Turn, result: ScreenResult): Promise<void> {
-    const say = result.refusal?.text || DEFAULT_SAY;
+    const say = result.refusal?.text || DEFAULT_SAY[turn.lang ?? this.lang];
 
     let played = false;
     const url = result.refusal?.audio_url;
@@ -1043,7 +1074,7 @@ export class StationAgent {
         if (!turn) break;
         if (!text) {
           this.settleScreen(turn, null);
-          this.ui.transcript("shopper", `voice-${turn.n}`, "(nothing heard)", true);
+          this.ui.transcript("shopper", `voice-${turn.n}`, "", true, undefined, "nothing_heard");
           break;
         }
         turn.text = text;
@@ -1121,7 +1152,7 @@ export class StationAgent {
         const text = String(ev.transcript ?? this.agentText.get(key) ?? "").trim();
         this.agentText.delete(key);
         if (this.cancelled.has(ev.response_id)) {
-          this.ui.transcript("agent", key, text ? `${text} (interrupted)` : "(interrupted)", true);
+          this.ui.transcript("agent", key, text, true, undefined, "interrupted");
           break;
         }
         if (!text) break;
@@ -1157,7 +1188,7 @@ export class StationAgent {
           // No transcript.done arrived (cancelled or cut short): close the live line.
           const partial = this.agentText.get(liveKey) ?? "";
           this.agentText.delete(liveKey);
-          this.ui.transcript("agent", liveKey, `${partial} (interrupted)`.trim(), true);
+          this.ui.transcript("agent", liveKey, partial.trim(), true, undefined, "interrupted");
         }
         const batch = this.toolBatches.get(id);
         if (batch) {
@@ -1249,10 +1280,13 @@ export class StationAgent {
         void this.scamCheckOutOfBand(turn, screen);
         output = { handled_by_station: true, note: "The station is answering Ruth about this call itself. Say nothing." };
       } else if (screen?.action === "refuse") {
-        output = { refused: true, rule_id: screen.refusal?.rule_id ?? ruleIds(screen)[0] ?? "unknown", say: screen.refusal?.text || DEFAULT_SAY };
+        const say = screen.refusal?.text || DEFAULT_SAY[turn?.lang ?? this.lang];
+        output = { refused: true, rule_id: screen.refusal?.rule_id ?? ruleIds(screen)[0] ?? "unknown", say };
         if (turn && turn.refusal === "none") {
           turn.refusal = "tool";
           this.logRefusal(turn, screen, `tool ${name}`);
+          // the model says the refusal, and Ruth gets the same full-screen card as when the station says it
+          this.protectRefusal(turn, screen);
         }
       } else {
         output = await this.dispatchTool(name, args);
@@ -1364,7 +1398,7 @@ export class StationAgent {
     if (!item) return { error: `unknown sku ${sku || "(none)"}; call search_catalog and use a sku from its items` };
     const added = this.cart.add(item, qty);
     if (!added.ok) return { error: added.error };
-    return { ok: true, added: { sku, qty, name: compactItem(item).name }, cart: this.cartChanged() };
+    return { ok: true, added: { sku, qty: isBill(item) ? 1 : qty, name: compactItem(item).name }, cart: this.cartChanged() };
   }
 
   private toolRemove(args: Record<string, unknown>): Record<string, unknown> {
@@ -1434,7 +1468,8 @@ export class StationAgent {
     this.ui.outcome(outcome);
     const lines = this.cart.lines();
     if (outcome.status === "ordered" && outcome.order_id) {
-      this.lastOrder = { order_id: outcome.order_id, decision_id: outcome.decision_id, lines, totalCents, lang: this.lang };
+      const orders = storeOrders(reply);
+      this.remember(orders.length ? orders : [{ order_id: outcome.order_id }], lines, totalCents, this.lang, outcome.decision_id);
       this.sessionOrders.push(...(outcome.order_ids ?? [outcome.order_id]));
       this.cart.clear();
       this.cartChanged();
@@ -1454,6 +1489,12 @@ export class StationAgent {
       }
     }
     return { ...outcome };
+  }
+
+  /** One record per store's order (its own lines, store and subtotal), for a receipt when the merchant's is unavailable. */
+  private remember(orders: Array<{ order_id: string; merchant?: string }>, lines: CartLineView[], totalCents: number, lang: Lang, decisionId?: string): void {
+    const placed = placedOrders(orders, lines, { decision_id: decisionId, totalCents, lang, fallbackMerchant: VOICE.merchant, storeName });
+    for (const order of placed) this.placed.set(order.order_id, order);
   }
 
   /**
@@ -1522,7 +1563,7 @@ export class StationAgent {
     if (!id) return { error: "unknown biller", billers: known.map((k) => VOICE.billers[k].name) };
     const fromMandate = (await getMandateBillers())?.find((b) => b.merchant_id === id)?.account_ref;
     const ref = fromMandate ?? VOICE.billers[id].account_ref;
-    const bill = await getBill(id, ref);
+    const bill = await getBill(id, ref, this.sessionId);
     if (!bill) return { error: "not ready", say: sayFor("store_unavailable", this.lang) };
     const name = VOICE.billers[id].name;
     const item = billItem(id, name, bill);
@@ -1563,11 +1604,12 @@ export class StationAgent {
     const progress = order.status === "partially_refunded" ? order.fulfilment : order.status;
     const say =
       ready && code
-        ? sayFor("order_ready", this.lang, { code, store: order.store ?? "the store" })
+        ? sayFor("order_ready", this.lang, { code, store: order.store ?? THE_STORE[this.lang] })
         : (progress === "paid" || progress === "preparing") && code
           ? sayFor("order_status_pickup", this.lang, { status: statusWords(order.status, this.lang), code })
           : sayFor("order_status", this.lang, { status: statusWords(order.status, this.lang), code });
-    this.ui.notice(statusWords(order.status, "en"), order.pickup_code ? `Pickup code ${order.pickup_code}` : "", "ok", order.order_id);
+    const words = NOTICE_WORDS[this.lang];
+    this.ui.notice(capitalized(statusWords(order.status, this.lang)), order.pickup_code ? words.pickup_code(order.pickup_code) : "", "ok", order.order_id);
     return {
       order_id: order.order_id,
       status: order.status,
@@ -1581,16 +1623,18 @@ export class StationAgent {
     const orderId = this.orderFor(args);
     if (!orderId) return { error: "no_orders", say: sayFor("no_orders", this.lang) };
     const reply = await cancelOrder(orderId, { session_id: this.sessionId, mandate_id: VOICE.mandate_id, lang: this.lastLang });
+    const words = NOTICE_WORDS[this.lang];
     if (reply.kind === "cancelled") {
-      this.ui.notice("Order cancelled", "Nothing was charged", "ok", `${orderId}${reply.link_status ? ` · payment link ${reply.link_status}` : ""}`);
+      this.ui.notice(words.order_cancelled, words.nothing_charged, "ok", `${orderId}${reply.link_status ? ` · payment link ${reply.link_status}` : ""}`);
       return { status: "cancelled", order_id: orderId, ...(reply.link_status ? { link_status: reply.link_status } : {}), say: sayFor("order_cancelled", this.lang) };
     }
     if (reply.kind === "too_late") {
-      this.ui.notice("Not cancelled", "It is already paid; a return is still possible", "warn", orderId);
+      this.ui.notice(words.not_cancelled, words.already_paid, "warn", orderId);
       return { status: "not_cancelled", reason: "already paid", order_id: orderId, say: sayFor("cancel_too_late", this.lang) };
     }
-    this.ui.notice("Cancel failed", reply.error, "bad");
-    return { status: "error", error: reply.error, say: sayFor("store_unavailable", this.lang) };
+    const say = sayFor("store_unavailable", this.lang);
+    this.ui.notice(words.cancel_failed, say, "bad", `${orderId} · ${reply.error}`);
+    return { status: "error", error: reply.error, say };
   }
 
   /**
@@ -1608,18 +1652,14 @@ export class StationAgent {
     const reason = String(args.reason ?? "").slice(0, 200);
     const confirmed = args.confirmed === true;
     const base = { session_id: this.sessionId, mandate_id: VOICE.mandate_id, ...target, reason, lang: this.lastLang };
+    const words = NOTICE_WORDS[this.lang];
 
     if (!confirmed) {
       const reply = await postRefund({ ...base, confirmed: false, transcript: this.shopperTexts.slice(this.requestStart).join(" ") });
       if (reply.kind === "preview") {
         this.refundGate.markPreview(target, this.userTurns, this.shopperTexts.length);
         this.refundPreview = { amount: reply.amount, ...(reply.card_last4 ? { last4: reply.card_last4 } : {}) };
-        this.ui.notice(
-          `Refund ${money(toCents(reply.amount), "en")}?`,
-          `${reply.card_last4 ? `Back to your card ending ${reply.card_last4}` : "Back to your card"} · say yes to confirm`,
-          "warn",
-          orderId,
-        );
+        this.ui.notice(words.refund_ask(money(toCents(reply.amount), "en")), `${words.back_to_card(reply.card_last4)} · ${words.say_yes}`, "warn", orderId);
         const say = sayFor("refund_preview", this.lang, { amount: money(toCents(reply.amount), this.lang), last4: spokenCode(reply.card_last4) });
         return {
           status: "preview",
@@ -1653,8 +1693,8 @@ export class StationAgent {
       const amount = reply.amount ?? preview?.amount ?? 0;
       const last4 = spokenCode(preview?.last4);
       this.ui.notice(
-        `Refund ${money(toCents(amount), "en")}`,
-        `Back to your card${preview?.last4 ? ` ending ${preview.last4}` : ""}`,
+        words.refund_done(money(toCents(amount), "en")),
+        words.back_to_card(preview?.last4),
         "ok",
         `${reply.status} · sandbox processor stub${reply.reconciliation_id ? ` · ${reply.reconciliation_id}` : ""}`,
       );
@@ -1671,16 +1711,19 @@ export class StationAgent {
   /** A refusal (refund_not_allowed_rx, refund_scam, ...), an error, or a reply out of order (treated as an error). */
   private refundNotDone(r: RefundReply): Record<string, unknown> {
     if (r.kind === "preview" || r.kind === "done") r = { kind: "error", error: `unexpected ${r.kind} reply from the refund service` };
+    const words = NOTICE_WORDS[this.lang];
     if (r.kind === "declined") {
       // a purchase line ("I can't buy that") would be wrong here: unknown or generic keys get the refund line
       const key = hasSay(r.say_key) && r.say_key !== "declined" ? r.say_key : "refund_not_possible";
       if (r.rules_failed.length) this.ui.rules(r.rules_failed, "deny");
-      this.ui.notice("Refund not made", sayFor(key, this.lang), "warn", `${r.say_key}${r.rules_failed.length ? ` · ${r.rules_failed.join(", ")}` : ""}`);
       const biller = Object.values(VOICE.billers ?? {})[0]?.name ?? "the biller";
-      return { status: "declined", say_key: r.say_key, say: sayFor(key, this.lang, { biller }) };
+      const say = sayFor(key, this.lang, { biller });
+      this.ui.notice(words.refund_not_made, say, "warn", `${r.say_key}${r.rules_failed.length ? ` · ${r.rules_failed.join(", ")}` : ""}`);
+      return { status: "declined", say_key: r.say_key, say };
     }
-    this.ui.notice("Refund unavailable", r.error, "bad");
-    return { status: "error", error: r.error, say: sayFor("store_unavailable", this.lang) };
+    const say = sayFor("store_unavailable", this.lang);
+    this.ui.notice(words.refund_failed, say, "bad", r.error);
+    return { status: "error", error: r.error, say };
   }
 
   private async toolPurchaseHistory(args: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -1764,12 +1807,21 @@ export class StationAgent {
     const total = money(totalCents, lang);
     console.info(`[${ts()}] caregiver answer: ${status.state}${status.order_id ? ` (order ${status.order_id})` : ""}`);
     if (status.state === "approved" && status.order_id) {
-      this.lastOrder = { order_id: status.order_id, decision_id: decisionId, lines, totalCents, lang };
-      this.sessionOrders.push(status.order_id);
+      const orders = status.orders?.length ? status.orders : [{ order_id: status.order_id }];
+      this.remember(orders, lines, totalCents, lang, decisionId);
+      this.sessionOrders.push(...orders.map((o) => o.order_id));
       this.cart.clear();
       this.cartChanged();
       const say = sayFor("caregiver_approved", lang, { total });
-      this.ui.outcome({ status: "ordered", say_key: "caregiver_approved", say, total: fromCents(totalCents), decision_id: decisionId, order_id: status.order_id });
+      this.ui.outcome({
+        status: "ordered",
+        say_key: "caregiver_approved",
+        say,
+        total: fromCents(totalCents),
+        decision_id: decisionId,
+        order_id: status.order_id,
+        order_ids: orders.map((o) => o.order_id),
+      });
       void this.speakFixed(say);
     } else if (status.state === "approved") {
       const say = sayFor("checkout_unavailable", lang);
@@ -1850,7 +1902,7 @@ export class StationAgent {
         break;
       case "card_hold_released": {
         const say = sayFor("card_allowed_once", this.lang);
-        this.ui.notice("Allowed once", say, "ok", String(ev.hold_id ?? ""));
+        this.ui.notice(NOTICE_WORDS[this.lang].allowed_once, say, "ok", String(ev.hold_id ?? ""));
         void this.speakClipOr("card_allowed_once", say, say);
         break;
       }
@@ -1873,7 +1925,7 @@ export class StationAgent {
   private onCardDeclined(ev: StreamEvent): void {
     const key = CARD_LINES[String(ev.reason_key ?? "")] ?? "card_declined_blocked";
     const amount = Number(ev.amount);
-    const store = displayStore(String(ev.store ?? ""));
+    const store = displayStore(String(ev.store ?? ""), this.lang);
     const say = sayFor(key, this.lang, { amount: Number.isFinite(amount) ? money(toCents(amount), this.lang) : "", store });
     console.info(`[${ts()}] card declined at ${store}: ${ev.reason_key}`);
     this.ui.protect({ tone: "protected", say, detail: `${ev.reason_key ?? ""} · ${ev.reason ?? ""} · card …${ev.card_last4 ?? ""}`, lang: this.lang });
@@ -1904,13 +1956,17 @@ export class StationAgent {
 
   /** Priyank signed new rules: read them to Ruth in plain words and ask if she agrees (her next turn answers). */
   private async askCosign(): Promise<void> {
-    const mandate = await getMandate();
-    if (!mandate) return;
-    const say = sayFor("cosign_ask", this.lang, { rules: rulesInWords(mandate, this.lang) });
-    this.cosignPending = null;
-    this.ui.notice("New rules from Priyank", say, "warn");
-    // her next turn answers the question only once she has heard it, never a read-back or an earlier question
-    if (await this.speakFixed(say)) this.cosignPending = { until: Date.now() + 5 * 60_000 };
+    const ask = ++this.cosignAsk;
+    this.cosignPending = null; // an answer to an earlier reading is not a yes to these rules
+    const read = await getMandate();
+    if (!read || ask !== this.cosignAsk) return;
+    const say = sayFor("cosign_ask", this.lang, { rules: rulesInWords(read.mandate, this.lang) });
+    this.ui.notice(NOTICE_WORDS[this.lang].new_rules, say, "warn");
+    // her next turn answers the question only once she has heard it, never a read-back or an earlier question;
+    // her yes goes with the hash from the same reply as the words she heard (an older policy sends none)
+    if ((await this.speakFixed(say)) && ask === this.cosignAsk) {
+      this.cosignPending = { until: Date.now() + 5 * 60_000, ...(read.mandate_hash ? { hash: read.mandate_hash } : {}) };
+    }
   }
 
   /** Ruth's answer to "Do you agree?": a yes is recorded with her own words; anything else carries on as usual. */
@@ -1930,12 +1986,33 @@ export class StationAgent {
       this.speakVerbatim(sayFor("cosign_not_yet", this.lang));
       return true;
     }
-    void postCosign({ session_id: this.sessionId, said: text, lang: turn.lang ?? this.lang }).then((ok) => {
-      if (!ok) this.warn("cosign", "policy did not record the co-sign (POST /mandate/cosign)");
-      this.ui.notice("Ruth agreed by voice", `“${text}”`, ok ? "ok" : "warn");
-    });
-    this.speakVerbatim(sayFor("cosign_thanks", this.lang));
+    void this.recordCosign(turn, text, pending.hash);
     return true;
+  }
+
+  /** Her yes goes to policy for the rules she heard; the thanks follows policy's answer. */
+  private async recordCosign(turn: Turn, text: string, hash: string | undefined): Promise<void> {
+    const gen = this.generation;
+    this.stationBusy++;
+    this.beginChecking(); // the tick plays while policy records it
+    const result = await postCosign({ session_id: this.sessionId, said: text, lang: turn.lang ?? this.lang, ...(hash ? { mandate_hash: hash } : {}) })
+      .finally(() => this.stationBusy--);
+    if (result === "stale") {
+      // Priyank changed the rules after they were read to Ruth: this yes is not for them, so she hears the new ones
+      const msg = "Co-sign not recorded: the rules changed after they were read to Ruth (policy answered 409); reading her the new rules.";
+      console.warn(`[${ts()}] ${msg}`);
+      this.ui.note(msg, "warn");
+      this.refreshState();
+      void this.askCosign();
+      return;
+    }
+    if (result === "failed") this.warn("cosign", "policy did not record the co-sign (POST /mandate/cosign)");
+    this.ui.notice(NOTICE_WORDS[this.lang].you_agreed, `“${text}”`, result === "ok" ? "ok" : "warn");
+    if (gen !== this.generation) {
+      this.refreshState(); // she pressed again: never talk over her
+      return;
+    }
+    this.speakVerbatim(sayFor("cosign_thanks", this.lang));
   }
 
   // ---------------------------------------------------------------- paid -> receipt, reset (relay stream)
@@ -1961,7 +2038,7 @@ export class StationAgent {
     this.receiptsDone.add(orderId);
     const session = this.sessionId; // a reset during the awaits below starts a new session: drop this receipt
     const stale = () => this.sessionId !== session;
-    const order = this.lastOrder?.order_id === orderId ? this.lastOrder : null;
+    const order = this.placed.get(orderId) ?? null;
     const lang = order?.lang ?? this.lang;
     const url = sessionUrl(TUNNEL_HOST, this.sessionId);
     let receipt = await getReceipt(orderId, lang);
@@ -1974,7 +2051,7 @@ export class StationAgent {
     if (!receipt.session_url && url) receipt = { ...receipt, session_url: url };
     this.lastReceipt = receipt;
     console.info(`[${ts()}] paid ${orderId}: printing the receipt`);
-    this.ui.receipt(receipt, "Preparing your receipt...");
+    this.ui.receipt(receipt, { key: "preparing" });
     const printed = await printReceipt(receipt);
     if (stale()) {
       this.ui.receipt(null);
@@ -1982,16 +2059,12 @@ export class StationAgent {
     }
     const onPaper = printed.ok && printed.via === "printer";
     const files = { png: printed.pngUrl, pdf: printed.pdfUrl };
-    this.ui.receipt(
-      receipt,
-      onPaper ? `Printed in ${(printed.ms / 1000).toFixed(1)} s` : printed.ok ? "" : `Receipt on screen (${printed.reason ?? "no print helper"})`,
-      printed.ok ? files : undefined,
-    );
+    this.ui.receipt(receipt, printNote(printed, "printed"), printed.ok ? files : undefined);
     this.ledger.post("receipt_printed", payload.receiptPrinted(orderId, onPaper ? "printer" : "screen", printed.ok && printed.via === "pdf"));
     const totalText = money(toCents(receipt.total), receipt.lang);
     // {pickup} is the pickup line with its code, empty for a bill (nothing to pick up)
     const pickup = !receipt.bill && receipt.pickup_code ? sayFor("pickup_line", receipt.lang, { code: spokenCode(receipt.pickup_code) }) : "";
-    const store = receipt.merchant || "the store";
+    const store = receipt.merchant || THE_STORE[receipt.lang];
     const parts = [sayFor(onPaper ? "receipt_done" : "receipt_on_screen", receipt.lang, { total: totalText, store, pickup }).replace(/\s{2,}/g, " ")];
     // Only real savings are mentioned; when nothing was saved the line is left out.
     if (receipt.savings) parts.push(sayFor("you_saved", receipt.lang, { saved: money(toCents(receipt.savings), receipt.lang) }));
@@ -2002,11 +2075,10 @@ export class StationAgent {
   /** The on-screen Reprint button. */
   async reprint(): Promise<void> {
     if (!this.lastReceipt) return;
-    this.ui.receipt(this.lastReceipt, "Preparing your receipt...");
+    this.ui.receipt(this.lastReceipt, { key: "preparing" });
     const printed = await printReceipt(this.lastReceipt);
     const onPaper = printed.ok && printed.via === "printer";
-    this.ui.receipt(this.lastReceipt, onPaper ? "Printed again" : printed.ok ? "" : `Receipt on screen (${printed.reason ?? "no print helper"})`,
-      printed.ok ? { png: printed.pngUrl, pdf: printed.pdfUrl } : undefined);
+    this.ui.receipt(this.lastReceipt, printNote(printed, "printed_again"), printed.ok ? { png: printed.pngUrl, pdf: printed.pdfUrl } : undefined);
     if (onPaper) this.ledger.post("receipt_printed", payload.receiptPrinted(this.lastReceipt.order_id, "printer"));
   }
 
@@ -2031,7 +2103,7 @@ export class StationAgent {
     this.turns = [];
     this.shopperTexts = [];
     this.requestStart = 0;
-    this.lastOrder = null;
+    this.placed.clear();
     this.lastReceipt = null;
     this.sessionOrders = [];
     this.refundGate.reset();
@@ -2042,6 +2114,7 @@ export class StationAgent {
     this.waitingForCaregiver = false;
     this.rec = { t0: performance.now(), events: [] };
     this.cosignPending = null;
+    this.cosignAsk++; // a reading still on its way does not wait for an answer in the new session
     this.ui.cleared(this.sessionId);
     // the reset cleared the pause and the cool-down on policy too: drop them here and read them back once it is done
     this.showPaused(false);
@@ -2128,6 +2201,7 @@ export class StationAgent {
     this.ledger.replay = true;
     this.ui.replay(true, lang);
     this.lastLang = lang as Lang;
+    this.ui.language(lang);
     console.info(`[${ts()}] REPLAY ${lang}: ${loaded.events.length} events`);
     const t0 = performance.now();
     let tools: Promise<unknown> = Promise.resolve();
@@ -2163,6 +2237,7 @@ export class StationAgent {
             replayTurn.refusal = "tool";
             this.ui.rules(ruleIds(result), "refuse", result.refusal?.text);
             this.logRefusal(replayTurn, result, "replay");
+            this.protectRefusal(replayTurn, result);
           }
         });
       } else if (ev.kind === "tool" && ev.name) {

@@ -148,6 +148,22 @@ export function billItem(id: string, name: string, bill: BillView): Record<strin
 
 // ---------------------------------------------------------------- Ruth agrees to the rules
 
+export interface MandateRead {
+  mandate: Record<string, unknown>;
+  /** the signed rules' hash (base64url SHA-256); her yes is sent with it, so it counts only for the rules she heard */
+  mandate_hash?: string;
+}
+
+/** GET {policy}/mandate: {signed, mandate, paused, mandate_hash}. An older policy sends no hash: then none is kept. */
+export function parseMandateReply(body: unknown): MandateRead | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  const mandate = b.mandate;
+  if (!mandate || typeof mandate !== "object" || Array.isArray(mandate)) return null;
+  const hash = typeof b.mandate_hash === "string" && /^[A-Za-z0-9_-]{16,128}$/.test(b.mandate_hash) ? b.mandate_hash : undefined;
+  return { mandate: mandate as Record<string, unknown>, ...(hash ? { mandate_hash: hash } : {}) };
+}
+
 const COURTESY = new Set(["please", "thanks", "thank", "you", "por", "favor", "gracias", "ji", "dhanyavaad", "shukriya", "धन्यवाद", "शुक्रिया", "कृपया"]);
 // longest first, so "estoy de acuerdo" goes before "de acuerdo"
 const YES_PHRASES = ["estoy de acuerdo", "claro que si", "of course", "por supuesto", "de acuerdo", "esta bien", "that's fine", "thats fine", "sounds good", "i agree",

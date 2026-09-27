@@ -1,60 +1,19 @@
 // DOM rendering for the station page: state strip, transcripts, cart by store, outcome, the Protected card,
 // banners, receipts (one per store), latency, rule banner, items, meter.
 
-import type { AgentState, AgentUI, NoteKind, ProtectedView } from "./agent.ts";
+import type { AgentState, AgentUI, NoteKind, ProtectedView, TranscriptMark } from "./agent.ts";
 import { renderSVG } from "uqr";
 import type { CartLineView, CatalogItem, CheckoutOutcome } from "./cart.ts";
 import type { Lang } from "./lang.ts";
-import { RECEIPT_LABELS, formatPaidAt, type Receipt } from "./receipt.ts";
+import { RECEIPT_LABELS, formatPaidAt, type Receipt, type ReceiptNote } from "./receipt.ts";
 import { levelFromRms } from "./pcm.ts";
+import { NOTHING_YET, OUTCOME_TITLES, PAGE_WORDS, STATE_WORDS, TITLES, TOLD, type PageWord } from "./words.ts";
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
   if (!el) throw new Error(`missing #${id}`);
   return el;
 }
-
-/** One state at a time, in words, in Ruth's language: the strip and the big button say the same thing. */
-const STATE_WORDS: Record<Lang, Record<AgentState, string>> = {
-  en: {
-    off: "Press Start",
-    connecting: "Getting ready…",
-    ready: "Press and hold to talk",
-    listening: "Listening…",
-    thinking: "Checking…",
-    checking: "Checking…",
-    speaking: "Speaking…",
-    waiting: "Asking Priyank…",
-  },
-  es: {
-    off: "Pulse Start",
-    connecting: "Preparando…",
-    ready: "Mantenga presionado para hablar",
-    listening: "Escuchando…",
-    thinking: "Revisando…",
-    checking: "Revisando…",
-    speaking: "Hablando…",
-    waiting: "Preguntando a Priyank…",
-  },
-  hi: {
-    off: "Start दबाएँ",
-    connecting: "तैयार हो रही हूँ…",
-    ready: "बोलने के लिए दबाकर रखें",
-    listening: "सुन रही हूँ…",
-    thinking: "जाँच रही हूँ…",
-    checking: "जाँच रही हूँ…",
-    speaking: "बोल रही हूँ…",
-    waiting: "प्रियंक से पूछ रही हूँ…",
-  },
-};
-
-const TOLD: Record<Lang, string> = { en: "Priyank has been told", es: "Priyank ya lo sabe", hi: "प्रियंक को बता दिया गया है" };
-const TITLES: Record<Lang, { protected: string; care: string }> = {
-  en: { protected: "Protected", care: "Be careful" },
-  es: { protected: "Protegida", care: "Tenga cuidado" },
-  hi: { protected: "सुरक्षित", care: "सावधान रहें" },
-};
-const NOTHING_YET: Record<Lang, string> = { en: "Nothing yet", es: "Nada todavía", hi: "अभी कुछ नहीं" };
 
 function usd(n: number): string {
   return `$${n.toFixed(2)}`;
@@ -133,6 +92,16 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
     bannerEl.hidden = banners.size === 0;
   }
 
+  /** The page's fixed labels (data-words="<key>") in Ruth's language; a text box gets its placeholder. */
+  function pageWords(): void {
+    for (const el of document.querySelectorAll<HTMLElement>("[data-words]")) {
+      const word = PAGE_WORDS[lang][el.dataset.words as PageWord];
+      if (!word) continue;
+      if (el instanceof HTMLInputElement) el.placeholder = word;
+      else el.textContent = word;
+    }
+  }
+
   function emptyCart(): void {
     cartEl.replaceChildren(Object.assign(document.createElement("li"), { className: "empty", textContent: NOTHING_YET[lang] }));
   }
@@ -166,6 +135,7 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
       pttLabel.textContent = STATE_WORDS[lang][currentState];
       strip.textContent = stripLabel(currentState);
       if (cartEl.querySelector("li.empty")) emptyCart();
+      pageWords();
     },
 
     status(text, kind = "info") {
@@ -173,7 +143,7 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
       statusEl.className = `status ${kind} dev`;
     },
 
-    transcript(role, key, text, final, spokenLang) {
+    transcript(role, key, text, final, spokenLang, mark?: TranscriptMark) {
       let li = lines.get(`${role}:${key}`);
       if (!li) {
         li = addLine(role, (el) => {
@@ -186,10 +156,10 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
         lines.set(`${role}:${key}`, li);
       }
       const who = li.querySelector(".who")!;
-      who.replaceChildren(document.createTextNode(role === "shopper" ? "You" : "Chaperone"));
+      who.replaceChildren(document.createTextNode(role === "shopper" ? PAGE_WORDS[lang].you : "Chaperone"));
       if (role === "shopper" && spokenLang) who.append(devSpan(` (${spokenLang})`));
       who.append(document.createTextNode(":"));
-      li.querySelector(".text")!.textContent = text;
+      li.querySelector(".text")!.textContent = mark ? `${text} ${PAGE_WORDS[lang][mark]}`.trim() : text;
       li.classList.toggle("live", !final);
       scroll();
     },
@@ -235,7 +205,7 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
           const li = document.createElement("li");
           const name = document.createElement("span");
           name.textContent = `${item.name}${item.brand ? ` · ${item.brand}` : ""}${item.size ? ` · ${item.size}` : ""}`;
-          if (item.usual) name.append(Object.assign(document.createElement("span"), { className: "usual", textContent: "usual" }));
+          if (item.usual) name.append(Object.assign(document.createElement("span"), { className: "usual", textContent: PAGE_WORDS[lang].usual }));
           if (typeof item.store === "string" && item.store) {
             name.append(Object.assign(document.createElement("span"), { className: "store-name", textContent: item.store }));
           }
@@ -246,7 +216,7 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
           return li;
         }),
       );
-      if (!items.length) itemsEl.append(Object.assign(document.createElement("li"), { textContent: "No matches" }));
+      if (!items.length) itemsEl.append(Object.assign(document.createElement("li"), { textContent: PAGE_WORDS[lang].no_matches }));
     },
 
     decision(result) {
@@ -289,12 +259,7 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
     outcome(outcome: CheckoutOutcome) {
       outcomeEl.hidden = false;
       outcomeEl.className = `outcome ${outcome.status}`;
-      const title = {
-        ordered: "Ordered",
-        waiting_for_caregiver: "Asking Priyank",
-        declined: "Not ordered",
-        error: "Order not placed",
-      }[outcome.status];
+      const title = OUTCOME_TITLES[lang][outcome.status];
       outcomeEl.textContent = `${title}${outcome.total !== undefined ? ` · ${usd(outcome.total)}` : ""}`;
       const small = document.createElement("small");
       small.append(document.createTextNode(outcome.say ?? ""));
@@ -341,7 +306,7 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
       if (currentState === "waiting") strip.textContent = stripLabel(currentState);
     },
 
-    receipt(receipt: Receipt | null, note?: string, files?: { png?: string; pdf?: string }) {
+    receipt(receipt: Receipt | null, note?: ReceiptNote, files?: { png?: string; pdf?: string }) {
       if (!receipt) {
         receiptOverlay.hidden = true;
         receiptsEl.replaceChildren();
@@ -355,12 +320,13 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
       if (files?.png) {
         q<HTMLImageElement>(".slip-img").src = `${files.png}?v=${Date.now()}`;
         slip.hidden = false;
-      } else if (files !== undefined || !note?.startsWith("Preparing")) {
+      } else if (files !== undefined || note?.key !== "preparing") {
         slip.hidden = true;
       }
-      pdfLink.hidden = !files?.pdf;
-      if (files?.pdf) pdfLink.href = files.pdf;
       const L = RECEIPT_LABELS[receipt.lang] ?? RECEIPT_LABELS.en;
+      pdfLink.hidden = !files?.pdf;
+      pdfLink.textContent = L.pdf;
+      if (files?.pdf) pdfLink.href = files.pdf;
       q(".receipt-store").textContent = receipt.merchant;
       q(".receipt-title").textContent = L.title;
       q(".receipt-items").replaceChildren(
@@ -397,7 +363,11 @@ export function createUI(onStateChange: (state: AgentState) => void): AgentUI & 
         .filter(Boolean)
         .join(" · ");
       q(".receipt-sandbox").textContent = L.sandbox;
-      q(".receipt-note").textContent = note ?? "";
+      // Ruth reads whether it printed; the time it took, or why it did not, is for the operator
+      const noteEl = q(".receipt-note");
+      const said = note?.key ? L.note[note.key] : "";
+      noteEl.textContent = said;
+      if (note?.detail) noteEl.append(devSpan(said ? ` · ${note.detail}` : note.detail));
       receiptOverlay.hidden = false;
     },
 

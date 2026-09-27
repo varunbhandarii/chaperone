@@ -32,6 +32,22 @@ function proxyTo(name: "relay" | "policy" | "merchant" | "catalog" | "printer", 
   };
 }
 
+/** The station laptop itself: the dev server listens on the LAN (for the tablet), but some routes are for it alone. */
+function fromThisLaptop(req: IncomingMessage): boolean {
+  const from = req.socket.remoteAddress ?? "";
+  return from === "127.0.0.1" || from === "::1" || from === "::ffff:127.0.0.1";
+}
+
+/** Ruth's co-sign, as policy will route the path: percent-decoded, dot segments resolved, repeated slashes collapsed. */
+function isCosign(url: string | undefined): boolean {
+  try {
+    const path = decodeURIComponent(new URL(url ?? "/", "http://station.invalid").pathname).replace(/\/{2,}/g, "/");
+    return /\/mandate\/cosign(\/|$)/i.test(path);
+  } catch {
+    return true; // a path that cannot be read is not let through from the LAN
+  }
+}
+
 export default defineConfig(({ mode }) => {
   // Only the services host is exposed to the page; nothing else from .env reaches the browser.
   const env = loadEnv(mode, repoRoot, "");
@@ -40,7 +56,17 @@ export default defineConfig(({ mode }) => {
   const tunnelHost = env.TUNNEL_HOST || "";
   const proxy = {
     "/svc/relay": proxyTo("relay", servicesHost),
-    "/svc/policy": proxyTo("policy", servicesHost),
+    // Ruth says yes to Priyank's rules at the station: only this laptop may post her co-sign. Every other policy
+    // route stays open to the LAN.
+    "/svc/policy": {
+      ...proxyTo("policy", servicesHost),
+      bypass: (req: IncomingMessage, res: ServerResponse) => {
+        if (fromThisLaptop(req) || !isCosign(req.url)) return undefined;
+        res.statusCode = 403;
+        res.end("the co-sign is posted from the station laptop only");
+        return false;
+      },
+    },
     "/svc/merchant": proxyTo("merchant", servicesHost),
     "/svc/catalog": proxyTo("catalog", servicesHost),
     // The print helper runs on the station laptop itself, next to the printer. The dev server listens on the
@@ -48,8 +74,7 @@ export default defineConfig(({ mode }) => {
     "/svc/printer": {
       ...proxyTo("printer", "127.0.0.1"),
       bypass: (req: IncomingMessage, res: ServerResponse) => {
-        const from = req.socket.remoteAddress ?? "";
-        if (from === "127.0.0.1" || from === "::1" || from === "::ffff:127.0.0.1") return undefined;
+        if (fromThisLaptop(req)) return undefined;
         res.statusCode = 403;
         res.end("printer is local to the station laptop");
         return false;

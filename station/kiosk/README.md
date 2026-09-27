@@ -25,6 +25,7 @@ Session settings (model, voice, instructions, tools, audio format) live in
 | `src/postpurchase.ts` | the refund confirm gate, "repeat that" detection, order status words, and parsers for the order, cancel, refund and history replies |
 | `src/services.ts` | HTTP calls to relay, catalog (`/resolve`, `/search`), policy (`/screen`, `/checkout`, `/budget`, `/orders/{id}/cancel`, `/refunds`, `/history`), merchant (`/orders/{id}`, receipt); reachability probe; each degrades with a warning |
 | `src/ui.ts`, `src/main.ts`, `index.html` | large-type page and companion screen (state strip, cart, outcome, refusal banner), key mapping, device pickers |
+| `src/words.ts` | the words Ruth reads on the screen (state strip, page labels, outcome titles, notices) in es/hi/en |
 | `ws_probe.mjs` | CLI check of the realtime protocol and the tool round trip |
 | `voice_samples.mjs` | renders one read-back line in several voices (xAI TTS) to choose the station voice by ear |
 | `tests/` | relay tests, a local mock of the realtime API and services, probe integration test |
@@ -56,6 +57,10 @@ down answers the proxy's marked 502, which the page treats as "down" at once. `?
 `?relay=`, `?policy=`, `?catalog=` (full URLs) call services directly instead, which needs CORS on them. The voice follows the shopper's language (`voice_by_lang` in `voice.json`: Spanish
 `carina`, English and Hindi `ara`); `?voice=<name>` forces one voice for the whole session. The page opens as Ruth's kiosk
 (shopper view); `?operator` or **Ctrl+Shift+O** shows the operator panels.
+
+The dev server listens on the LAN for the companion tablet. Only the station laptop itself (127.0.0.1 or ::1)
+may reach the print helper through it or post Ruth's co-sign (`/svc/policy/mandate/cosign`); any other client
+gets 403. Every other policy route works from the LAN.
 
 For direct calls, the relay answers browsers only from `STATION_ORIGINS` (default
 `http://localhost:5173,http://127.0.0.1:5173`), so another page on the LAN cannot mint voice tokens.
@@ -107,7 +112,8 @@ Microphone and speaker pickers are in the same panel (the speaker picker needs a
   the receipt was printed, and without a printer the station says `receipt_on_screen`.)
 - **Paid.** The page follows the relay's event stream (`/events/stream?types=paid,reset`, same-origin through
   the proxy; the backlog replayed on connect is skipped). On `paid` for its session it fetches
-  `GET {merchant}/orders/{id}/receipt` (or builds the receipt from its own order record), shows it full-screen,
+  `GET {merchant}/orders/{id}/receipt` (or builds it from its own record of that store's order: its lines, its
+  store's name and its subtotal), shows it full-screen,
   posts it to the receipt helper (`POST /svc/printer/print`, `station/printer.py` on 127.0.0.1:8004), posts
   `receipt_printed {order_id, via: "printer" | "screen"}` and says `receipt_done` or `receipt_on_screen`.
   Without a printer the helper saves the receipt as a PDF: the page shows the rendered 58 mm slip beside the
@@ -191,8 +197,10 @@ After-payment lines use the slots `{status}`, `{code}`, `{amount}`, `{last4}`, `
 
 ## Ruth's kiosk (shopper view)
 
-The page opens in shopper view. The operator panels, status line, rule ids, order and decision ids, sandbox notes and
-fallback markers are marked `.dev`, and show only with `?operator` or **Ctrl+Shift+O**.
+The page opens in shopper view. The operator panels, status line, rule ids, order and decision ids, sandbox notes,
+fallback markers, the push-to-talk key, print times and raw errors are marked `.dev`, and show only with `?operator`
+or **Ctrl+Shift+O**. Everything Ruth reads follows her language: the page's labels, the order outcome and the notices
+after payment (`src/words.ts`), and the receipt's labels and print note (`RECEIPT_LABELS`).
 
 - **One state, in words, in Ruth's language:** "Press and hold to talk", "Listening…", "Checking…", "Speaking…" and
   "Asking Priyank…". The big button and the strip say the same thing.
@@ -201,11 +209,13 @@ fallback markers are marked `.dev`, and show only with `?operator` or **Ctrl+Shi
   calm.
 - **The Protected card** is a full-screen shield with one sentence in her language, the one action, and "Priyank has
   been told". It shows for a scam refusal, a `scam_check` verdict of `scam` (green) or `unsure` (amber, "Be careful"),
-  and a declined card swipe. The next button press or Escape dismisses it.
+  and a declined card swipe. A refusal shows it whether the station says it or the model does (a tool call that
+  waited for the rule screen). The next button press or Escape dismisses it.
 - **The cart by store:** lines are grouped under each store's name, and the read-back names the stores ("From
   Parkside Pharmacy: … From Peachtree Power: your bill, … Total …"). Checkout sends each line's `merchant`, so policy
   places one signed order per store, and each store's receipt stacks on screen as its `paid` arrives. A bill prints
-  "Paid to Peachtree Power · account …0098" and has no pickup. A bill is paid once, never with a quantity.
+  "Paid to Peachtree Power · account …0098" and has no pickup. A bill is paid once: any quantity asked for goes in
+  as 1, and a second one is refused because it is already in the cart.
 - **Card events** come from the relay's stream:
   - A declined swipe (`card_decision`) shows the Protected card with the whole `card_declined_*` line (store and
     amount). Ruth hears the recorded clip (`line.card_declined_blocked` or `_cooldown`, whose words leave out the
@@ -215,8 +225,11 @@ fallback markers are marked `.dev`, and show only with `?operator` or **Ctrl+Shi
   - `risk_changed` shows "Extra care on your card until 9:05 PM tomorrow" and says `cooldown_on` once.
   - `mandate_paused` shows "Priyank has paused shopping", and checkout is not offered until `mandate_resumed`.
 - **Ruth agrees by voice:** on `mandate_signed`, the station reads the rules in plain words and asks "Do you agree?".
-  A yes (in any of her languages) posts `POST {policy}/mandate/cosign {session_id, said, lang}` with her own words. A
-  no changes nothing.
+  A yes (in any of her languages) posts `POST {policy}/mandate/cosign {session_id, said, lang, mandate_hash}` with her
+  own words and the `mandate_hash` from the same `GET /mandate` reply as the rules she heard (an older policy sends no
+  hash, and none is sent). She hears the thanks once policy has it. A 409 means Priyank changed the rules after they
+  were read: the operator view says so, "You agreed" is not shown, and the station reads her the new rules. A no
+  changes nothing.
 
 ## Session resumption
 
