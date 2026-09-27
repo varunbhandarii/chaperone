@@ -92,12 +92,17 @@ def decide(session, event: dict) -> dict:
             "error": None if r.status_code < 300 else f"HTTP {r.status_code}"}
 
 
-def handle(event: dict, post, session_factory=vtc_probe.session) -> None:
+def handle(event: dict, post, session_factory=None) -> None:
     """Worker-thread body: mirror rules or ask VTC about a swipe, then post the answer. Never raises."""
     try:
-        session = session_factory()
+        session = (session_factory or vtc_probe.session)()  # looked up per call, so tests can swap it
         if event["type"] == "mandate_signed" or _state["rules"] is None:
-            mirror(session, _policy_card())
+            try:
+                mirror(session, _policy_card())
+            except Exception as e:  # noqa: BLE001 - a failed rules sync still lets Visa answer the swipe
+                if event["type"] != "card_decision":
+                    raise
+                print(f"[vtc] rules sync: {type(e).__name__}: {e}", flush=True)
         if event["type"] == "card_decision":
             post({"type": "vtc_decision", "session_id": event.get("session_id") or "none",
                   "mandate_id": event.get("mandate_id") or "none", "t": int(time.time() * 1000), "source": "relay",
@@ -121,6 +126,9 @@ def after_event(event: dict, post) -> None:
     except RuntimeError:
         threading.Thread(target=handle, args=(event, post), daemon=True).start()
         return
-    task = loop.create_task(asyncio.to_thread(handle, event, post))
+    def post_on_loop(payload: dict) -> None:  # the ledger's subscriber queues belong to the event loop
+        loop.call_soon_threadsafe(post, payload)
+
+    task = loop.create_task(asyncio.to_thread(handle, event, post_on_loop))
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)

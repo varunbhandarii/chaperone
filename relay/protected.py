@@ -10,7 +10,9 @@ Counted from the live ledger (it is truncated by /reset):
 scams_stopped counts scam verdicts and refusals. Every stop is counted once, and its dollars once, by its
 decision_id (a scam check's decision_id also rides on its caregiver_alert, and a check may be posted again once
 its sources arrive). card_declines counts every declined swipe. Declines for being over a cap are not
-"protected": the money was Ruth's own choice.
+"protected": the money was Ruth's own choice. A cool-down decline after a scam check is usually the same money
+tried again at a store ($480 asked for, then $480 at the drugstore): it adds only what goes beyond the amount the
+scam check already counted.
 """
 
 from __future__ import annotations
@@ -37,12 +39,18 @@ def compute(events: list[dict]) -> dict:
     anonymous_refusal_sessions: set[str] = set()
     screen_alert_sessions: set[str] = set()
     card_declines = 0
+    already_asked = 0.0  # the latest scam check's amount not yet matched by a cool-down decline
     for event in events:
         kind = event.get("type")
         if kind == "card_decision" and event.get("result") == "declined":
             card_declines += 1
             if event.get("reason_key") in PROTECTING_CARD_REASONS:
-                rows.append({"guard": "card", "amount": _money(event.get("amount")), "store": event.get("store"),
+                amount = _money(event.get("amount"))
+                if event.get("reason_key") == "card_cooldown":
+                    covered = min(amount, already_asked)
+                    already_asked = round(already_asked - covered, 2)
+                    amount = round(amount - covered, 2)
+                rows.append({"guard": "card", "amount": amount, "store": event.get("store"),
                              "reason_key": event.get("reason_key"), "seq": event.get("seq")})
         elif kind == "policy_decision" and event.get("decision") == "deny" and _protecting_refusal(event):
             decision_id = event.get("decision_id") or f"seq{event.get('seq')}"
@@ -66,6 +74,7 @@ def compute(events: list[dict]) -> dict:
             refusals.add(decision_id)
             if decision_id not in counted:
                 counted.add(decision_id)
+                already_asked = _money(event.get("amount"))
                 rows.append({"guard": "ask", "amount": _money(event.get("amount")), "pattern": event.get("pattern"),
                              "check_id": event.get("check_id"), "decision_id": event.get("decision_id"),
                              "seq": event.get("seq")})

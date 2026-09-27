@@ -169,7 +169,7 @@ function describe(e) {
     case "caution": return { lane: "ask", tone: "caut", what: e.action === "judge" ? "Taking a closer look" : "Slowing down", detail: `heard “${[].concat(e.words || []).slice(0, 3).join("”, “")}”` };
     case "judge_scored": return { lane: "ask", tone: e.action === "allow" ? "ok" : "caut", what: `Grok judged the request${pct(e.scam_score)}`, detail: (e.patterns || []).join(", ").replace(/_/g, " ") || "no scam pattern" };
     case "refusal": return { lane: "ask", tone: "prot", what: "Refused out loud", detail: `because of ${[].concat(e.rule_ids && e.rule_ids.length ? e.rule_ids : [e.rule_id]).map(ruleText).join(" and ")}` };
-    case "line_call": return { lane: "ask", tone: "", what: e.phase === "ended" ? "Phone call ended" : "Ruth called the Chaperone Line", detail: `from •••${e.from_last4 || ""}${e.seconds ? " · " + Math.round(e.seconds) + " s" : ""}` };
+    case "line_call": return { lane: "ask", tone: "", what: e.phase === "ended" ? "Phone call ended" : "Ruth called the Chaperone Line", detail: [e.from_last4 ? "from •••" + e.from_last4 : "", e.seconds ? Math.round(e.seconds) + " s" : ""].filter(Boolean).join(" · ") };
     case "risk_changed": return { lane: "card", tone: e.cooldown_until ? "caut" : "ok", what: e.cooldown_until ? "Card cool-down on" : "Card cool-down cleared", detail: e.cooldown_until ? `until ${clock(epochMs(e.cooldown_until))} · ${e.reason || ""}` : e.reason || "" };
     // Card
     case "card_decision": {
@@ -241,8 +241,8 @@ function addRow(e) {
   if (d.sources && d.sources.length) {
     body.append(el("span", { class: "detail src" }, ...d.sources.slice(0, 3).map((s, i) => {
       const title = typeof s === "string" ? s : s.title || s.url || "source";
-      const url = typeof s === "object" && s.url ? s.url : null;
-      return el("span", {}, i ? " · " : "Sources: ", url ? el("a", { href: url, target: "_blank", rel: "noopener" }, title) : title);
+      const url = typeof s === "object" && /^https?:\/\//i.test(s.url || "") ? s.url : null;
+      return el("span", {}, i ? " · " : "Sources: ", url ? el("a", { href: url, target: "_blank", rel: "noopener noreferrer" }, title) : title);
     })));
   }
   const row = el("li", { class: "new" }, el("details", {},

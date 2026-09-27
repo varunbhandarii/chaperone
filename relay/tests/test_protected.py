@@ -57,3 +57,15 @@ def test_a_scam_check_counts_once_however_many_events_name_it():
 def test_amount_may_be_missing_or_null():
     out = protected.compute([ev("scam_checked", verdict="scam", check_id="sc1", decision_id="d1", amount=None)])
     assert out == {**out, "dollars": "0.00", "scams_stopped": 1}
+
+
+def test_a_cool_down_decline_after_the_scam_check_is_the_same_money_once():
+    events = [
+        ev("scam_checked", verdict="scam", check_id="sc1", decision_id="d_sc1", amount=480),
+        ev("card_decision", result="declined", reason_key="card_cooldown", amount=480, store="Five Points Drug"),
+        ev("card_decision", result="declined", reason_key="card_cooldown", amount=45, store="Five Points Drug"),
+        ev("card_decision", result="declined", reason_key="card_blocked_category", amount=50),
+    ]
+    out = protected.compute(events)
+    assert out["dollars"] == "575.00"   # 480 once, then the 45 beyond it, and the gift-card kiosk
+    assert out["card_declines"] == 3

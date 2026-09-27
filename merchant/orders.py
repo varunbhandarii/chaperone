@@ -342,7 +342,7 @@ def receipt(order_id: str, lang: str | None = None):
         "pickup_code": order["pickup_code"],
         "savings": order["savings"],
         "loyalty_points": order["loyalty_points"] if order["paid_at"] else None,
-        "loyalty_program": aftercare.LOYALTY_PROGRAM,
+        "loyalty_program": aftercare.LOYALTY_PROGRAM if order["loyalty_points"] is not None else None,
         "card_last4": order["card_last4"],
         "timeline": order["timeline"],
         "refunds": [{k: r[k] for k in ("refund_id", "sku", "name", "qty", "amount", "status", "label")}
