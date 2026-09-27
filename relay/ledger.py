@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import datetime
+import hashlib
 import json
 import os
 import re
@@ -248,19 +250,62 @@ async def session_record(session_id: str):
         "Content-Disposition": f'attachment; filename="chaperone-{session_id}.json"'})
 
 
-CARD_TYPES = {"card_decision", "vtc_decision", "card_hold_released", "risk_changed"}
-CARD_WINDOW_MS = (5 * 60 * 1000, 60 * 60 * 1000)  # swipes from 5 minutes before the session to an hour after
+CARD_TYPES = {"card_decision", "vtc_decision", "card_hold_released"}
+STORY_CARD_REASONS = {"card_cooldown", "card_atm_cap"}  # the declines a scam check's cool-down causes
+COOLDOWN_MS = 24 * 60 * 60 * 1000
+_card_cache: dict = {"key": None, "events": []}
+
+
+def _ms(event: dict) -> int:
+    return int(event.get("rt") or event.get("t") or 0)
+
+
+def _live_card_events() -> list[dict]:
+    """Card events from the live ledger, parsed again only when the file changed (the page refreshes itself)."""
+    try:
+        stat = LEDGER.live_path.stat()
+        key = (stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        return []
+    if _card_cache["key"] != key:
+        _card_cache["events"] = [e for e in LEDGER.read_live() if e.get("type") in CARD_TYPES]
+        _card_cache["key"] = key
+    return _card_cache["events"]
+
+
+def _mask_ids(event: dict) -> dict:
+    """The page is public: Lithic's transaction tokens become short stable ids (still matching across events)."""
+    out = dict(event)
+    for key, prefix in (("token", "tx_"), ("hold_id", "h_"), ("consumed_pass", "h_")):
+        if out.get(key):
+            out[key] = prefix + hashlib.sha256(str(out[key]).encode()).hexdigest()[:10]
+    return out
 
 
 def _card_events_near(events: list[dict]) -> list[dict]:
-    """Card events carry no shopper session; the ones on the live ledger around this session's time belong to
-    its story (the scam call, then the drugstore)."""
-    times = [int(e.get("rt") or e.get("t") or 0) for e in events if e.get("rt") or e.get("t")]
-    if not times:
+    """Card swipes carry no shopper session. The ones that belong to this session's story are the declines its own
+    scam check caused (during the cool-down it started), with Visa's answer and Priyank's allow-once for those swipes.
+    Ruth's other swipes, before or after, are not this session's business."""
+    windows = []
+    for e in events:
+        if e.get("type") == "scam_checked" and e.get("verdict") == "scam":
+            windows.append((_ms(e), _ms(e) + COOLDOWN_MS))
+        elif e.get("type") == "risk_changed" and e.get("cooldown_until"):
+            try:
+                end = int(datetime.datetime.fromisoformat(str(e["cooldown_until"])).timestamp() * 1000)
+            except ValueError:
+                end = _ms(e) + COOLDOWN_MS
+            windows.append((_ms(e), end))
+    if not windows:
         return []
-    start, end = min(times) - CARD_WINDOW_MS[0], max(times) + CARD_WINDOW_MS[1]
-    return [e for e in LEDGER.read_live() if e.get("type") in CARD_TYPES and e.get("session_id") == "none"
-            and start <= int(e.get("rt") or e.get("t") or 0) <= end]
+    card = _live_card_events()
+    picked = [e for e in card if e.get("type") == "card_decision" and e.get("reason_key") in STORY_CARD_REASONS
+              and any(start <= _ms(e) <= end for start, end in windows)]
+    tokens = {e["token"] for e in picked if e.get("token")}
+    holds = {e["hold_id"] for e in picked if e.get("hold_id")}
+    linked = [e for e in card if (e.get("type") == "vtc_decision" and e.get("token") in tokens)
+              or (e.get("type") == "card_hold_released" and e.get("hold_id") in holds)]
+    return [_mask_ids(e) for e in sorted(picked + linked, key=_ms)]
 
 
 async def _orders_for(session_id: str) -> list[dict]:
@@ -285,8 +330,9 @@ async def _mandate() -> dict | None:
         return None
     from policy.mandate import mandate_hash
 
+    digest = data.get("mandate_hash")  # the hash of the file Priyank's passkey signed, as policy holds it
     try:
-        digest = base64.urlsafe_b64encode(mandate_hash(data["mandate"])).rstrip(b"=").decode()
+        digest = digest or base64.urlsafe_b64encode(mandate_hash(data["mandate"])).rstrip(b"=").decode()
     except Exception:  # noqa: BLE001 - a mandate that cannot be canonicalized still shows, without a hash
         digest = None
     return {"mandate_id": data["mandate"].get("mandate_id"), "signed": bool(data.get("signed")),

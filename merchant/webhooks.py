@@ -11,8 +11,9 @@ that variant is accepted too. Whatever the variant, only the part the signature 
 Keys: CYBS_WEBHOOK_KEY_ID / CYBS_WEBHOOK_KEY (base64), from Cybersource's key service when the webhook is
 registered, or any local key for merchant.simulate_payment; it can pay any store's order. Each store's own
 account may add <prefix>WEBHOOK_KEY_ID / <prefix>WEBHOOK_KEY (its cybs_env prefix in contracts/merchants.json,
-e.g. CYBS_PARKSIDE_WEBHOOK_KEY); the keyId picks the key, and a store's key only pays that store's orders
-(Verified.merchant).
+e.g. CYBS_PARKSIDE_WEBHOOK_KEY); the keyId picks the key, and an account's key only pays the orders of the stores
+that account serves (Verified.stores): its own store, and any store that falls back to it for lack of its own
+credentials (the main account, VISA_ACCEPTANCE_, serves every such store).
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ class Verified:
     duplicate: bool
     signed: dict  # the part the signature covers: the whole body, or {"payload": body["payload"]}
     merchant: str | None = None  # the store whose own key signed it; None for the shared key
+    stores: tuple[str, ...] | None = None  # the stores that key's account serves; None for the shared key
 
 
 def parse_signature_header(value: str) -> tuple[int, str, str]:
@@ -76,19 +78,28 @@ def configured_key() -> tuple[str, str]:
     return key_id, key
 
 
-def configured_keys() -> dict[str, tuple[str, str | None]]:
-    """keyId -> (key, the store it belongs to or None for the shared key)."""
+def _account_prefix(entry: dict) -> str:
+    """The env prefix of the Cybersource account a store's links are made on (its own, or the main one)."""
     from common import merchants
 
-    keys: dict[str, tuple[str, str | None]] = {}
+    return entry.get("cybs_env") if merchants.credentials(entry)[3] else merchants.MAIN_PREFIX
+
+
+def configured_keys() -> dict[str, tuple[str, str | None, tuple[str, ...] | None]]:
+    """keyId -> (key, the store it belongs to, the stores its account serves); (key, None, None) for the shared key."""
+    from common import merchants
+
+    keys: dict[str, tuple[str, str | None, tuple[str, ...] | None]] = {}
     shared_id, shared = os.environ.get("CYBS_WEBHOOK_KEY_ID", ""), os.environ.get("CYBS_WEBHOOK_KEY", "")
     if shared_id and shared:
-        keys[shared_id] = (shared, None)
-    for entry in merchants.storefronts():
+        keys[shared_id] = (shared, None, None)
+    fronts = merchants.storefronts()
+    for entry in fronts:
         prefix = entry.get("cybs_env")
         key_id, key = os.environ.get(f"{prefix}WEBHOOK_KEY_ID", ""), os.environ.get(f"{prefix}WEBHOOK_KEY", "")
         if prefix and key_id and key:
-            keys[key_id] = (key, entry["id"])
+            served = [entry["id"]] + [e["id"] for e in fronts if e["id"] != entry["id"] and _account_prefix(e) == prefix]
+            keys[key_id] = (key, entry["id"], tuple(served))
     if not keys:
         raise WebhookError("webhook key not configured (CYBS_WEBHOOK_KEY_ID, CYBS_WEBHOOK_KEY)")
     return keys
@@ -103,7 +114,7 @@ def verify(raw_body: bytes, header: str | None, now_ms: int | None = None) -> Ve
     match = next((kid for kid in keys if hmac.compare_digest(got_key_id.encode(), kid.encode())), None)
     if match is None:
         raise WebhookError("unknown keyId")
-    key, store = keys[match]
+    key, store, served = keys[match]
     now_ms = now_ms if now_ms is not None else int(time.time() * 1000)
     if abs(now_ms - t) > TOLERANCE_MS:
         raise WebhookError("stale timestamp")
@@ -128,7 +139,7 @@ def verify(raw_body: bytes, header: str | None, now_ms: int | None = None) -> Ve
             duplicate = sig in _seen_signatures
             _seen_signatures[sig] = t
             return Verified(body=body, t=t, key_id=got_key_id, variant=variant, duplicate=duplicate, signed=signed,
-                            merchant=store)
+                            merchant=store, stores=served)
     raise WebhookError("signature mismatch")
 
 

@@ -200,3 +200,16 @@ def test_each_stores_own_key_pays_only_that_stores_orders(client, monkeypatch):
     assert r.json()["status"] == "paid"
     body = json.dumps(envelope(corner))  # the shared key still pays any store
     assert notify(client, body, webhooks.headers_for(body, KEY_ID, KEY)).json()["status"] == "paid"
+
+
+def test_the_main_accounts_key_pays_a_store_that_falls_back_to_it(client, monkeypatch):
+    main_id, main_key = "main-key-1", base64.b64encode(secrets.token_bytes(32)).decode()
+    monkeypatch.setenv("VISA_ACCEPTANCE_WEBHOOK_KEY_ID", main_id)
+    monkeypatch.setenv("VISA_ACCEPTANCE_WEBHOOK_KEY", main_key)
+    for var in ("MERCHANT_ID", "API_KEY_ID", "SECRET_KEY"):  # Parkside has no account of its own here
+        monkeypatch.delenv(f"CYBS_PARKSIDE_{var}", raising=False)
+    parkside = client.post("/orders", json={**DEMO, "decision_id": "d_" + secrets.token_hex(6),
+                                            "cart": {"merchant": "parkside_pharmacy",
+                                                     "items": [{"sku": "RX-001", "qty": 1}]}}).json()
+    body = json.dumps(envelope(parkside))
+    assert notify(client, body, webhooks.headers_for(body, main_id, main_key)).json()["status"] == "paid"

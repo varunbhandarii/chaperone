@@ -177,7 +177,9 @@ function show(r, roundTrip) {
   $("rLine").textContent = approved
     ? `${money(cents)} at ${r.store || store.name}`
     : (r.reason || "The card was declined.");
-  $("rSmall").textContent = `${r.store || store.name} · ${money(cents)} · card •••• ${r.card_last4 || ""} · decided in ${r.ms ?? roundTrip} ms`;
+  // Chaperone's own decision time, then the whole swipe through the card network's sandbox
+  const decided = Number.isFinite(r.decided_ms) ? `Chaperone decided in ${r.decided_ms} ms · ` : "";
+  $("rSmall").textContent = `${r.store || store.name} · ${money(cents)} · card •••• ${r.card_last4 || ""} · ${decided}swipe took ${r.ms ?? roundTrip} ms`;
   $("rVtc").classList.toggle("show", !!(lastToken && vtcByToken[lastToken]));
 }
 $("rDone").onclick = () => { $("result").className = ""; };

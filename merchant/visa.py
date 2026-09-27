@@ -419,6 +419,6 @@ class StorefrontLinks:
 
     def describe(self) -> list[dict]:
         """For the wall and the docs: which account each store's links are made on."""
-        return [{"merchant": mid, "store": s["name"], "backend": s["backend"].backend, "account": s["account"],
-                 "separate_account": s["separate"], "purchase_prefix": s["prefix"],
-                 "visa_last_error": getattr(s["backend"], "last_error", None)} for mid, s in self.stores.items()]
+        return [{"merchant": mid, "store": s["name"], "backend": s["backend"].backend,
+                 "account": merchants.mask_account(s["account"]), "separate_account": s["separate"],
+                 "purchase_prefix": s["prefix"], "visa_last_error": getattr(s["backend"], "last_error", None)} for mid, s in self.stores.items()]

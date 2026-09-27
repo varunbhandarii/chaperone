@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import secrets
 import time
@@ -237,12 +238,22 @@ def test_session_page_and_record_carry_card_swipes_and_scam_checks(client, merch
               {"type": "scam_checked", "session_id": "s9", "check_id": "sc9", "verdict": "scam", "pattern": "utility",
                "sources": [{"title": "FTC", "url": "https://ftc.gov"}], "source": "policy"},
               {"type": "card_decision", "session_id": "none", "token": "tok9", "store": "Five Points Drug", "mcc": "5912",
-               "amount": 480, "result": "declined", "reason_key": "card_cooldown", "reason": "cool-down", "source": "policy"},
+               "amount": 480, "result": "declined", "reason_key": "card_cooldown", "reason": "cool-down", "hold_id": "h_tok9",
+               "source": "policy"},
               {"type": "vtc_decision", "session_id": "none", "token": "tok9", "store": "Five Points Drug", "mcc": "5912",
-               "amount": 480, "should_decline": True, "rule": "PCT_GLOBAL", "source": "relay"}):
+               "amount": 480, "should_decline": True, "rule": "PCT_GLOBAL", "source": "relay"},
+              {"type": "card_hold_released", "session_id": "none", "hold_id": "h_tok9", "store": "Five Points Drug",
+               "max_amount": 480, "allowed_until": "2026-09-27T12:00:00+00:00", "source": "policy"},
+              # Ruth's other swipes are not this session's story
+              {"type": "card_decision", "session_id": "none", "token": "tok_milk", "store": "Corner Market", "mcc": "5411",
+               "amount": 12, "result": "approved", "source": "policy"},
+              {"type": "card_decision", "session_id": "none", "token": "tok_gift", "store": "GiftCard Kiosk", "mcc": "6540",
+               "amount": 50, "result": "declined", "reason_key": "card_blocked_category", "reason": "blocked", "source": "policy"}):
         assert client.post("/events", json={**base, **e}).status_code == 202
     page = client.get("/sessions/s9", params={"format": "html"}).text
     assert "Scam check" in page and "Declined $480.00" in page and "Visa VTC: decline" in page
+    assert "Priyank allowed it once" in page and "Corner Market" not in page and "GiftCard Kiosk" not in page
     record = client.get("/sessions/s9/record.json").json()
     assert record["scam_checks"][0]["verdict"] == "scam"
-    assert [c["type"] for c in record["card_decisions"]] == ["card_decision", "vtc_decision"]
+    assert [c["type"] for c in record["card_decisions"]] == ["card_decision", "vtc_decision", "card_hold_released"]
+    assert "tok9" not in json.dumps(record)  # Lithic's tokens stay off the public record

@@ -318,6 +318,11 @@ def render(session_id: str, events: list[dict], receipts: list[dict] | dict | No
         f' <span class="d">{escape(str(e.get("store", "")))}{" · " + escape(str(e.get("reason"))) if e.get("reason") and e.get("result") != "approved" else ""}'
         f'{" · Visa VTC: " + ("decline" if vtc.get("should_decline") else "approve") if (vtc := _vtc_for(card_events, e)) else ""}</span></li>'
         for e in card_events or [] if e.get("type") == "card_decision")
+    swipes += "".join(
+        f'<li><span class="t">{_time(e.get("rt") or e.get("t"))}</span><b class="ok">Priyank allowed it once</b>'
+        f' <span class="d">up to {_money(e.get("max_amount"))}{" at " + escape(str(e.get("store"))) if e.get("store") else ""}'
+        f', for 10 minutes</span></li>'
+        for e in card_events or [] if e.get("type") == "card_hold_released")
     card_html = f'<section><h2>Card</h2><ul>{swipes}</ul></section>' if swipes else ""
     receipt_html = "".join(_receipt(r) for r in receipts or [] if r)
     orders_html = "".join(_timeline(o) for o in reversed(orders_ or []))  # oldest first

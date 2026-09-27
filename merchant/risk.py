@@ -59,4 +59,4 @@ async def score(order: dict) -> dict:
         out = read_answer(r.status_code, body)
     except Exception as e:  # noqa: BLE001 - a timeout or network error is recorded, never raised into the order
         out = {"status": None, "score": None, "id": None, "error": f"{type(e).__name__}: {e}"[:200]}
-    return {**out, "ms": round((time.perf_counter() - started) * 1000), "account": merchant_id}
+    return {**out, "ms": round((time.perf_counter() - started) * 1000), "account": merchants.mask_account(merchant_id)}

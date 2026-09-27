@@ -46,6 +46,13 @@ def _creds(prefix: str) -> tuple[str, str, str]:
     return tuple(os.environ.get(prefix + v, "").strip() for v in ("MERCHANT_ID", "API_KEY_ID", "SECRET_KEY"))
 
 
+def mask_account(merchant_id: str | None) -> str | None:
+    """A Cybersource account id as pages and APIs show it: enough to tell accounts apart, not the whole id."""
+    if not merchant_id or len(merchant_id) <= 8:
+        return merchant_id
+    return f"{merchant_id[:4]}…{merchant_id[-4:]}"
+
+
 def credentials(entry: dict) -> tuple[str, str, str, bool]:
     prefix = entry.get("cybs_env")
     if prefix and prefix != MAIN_PREFIX:

@@ -43,7 +43,7 @@ def test_score_uses_the_stores_own_account(monkeypatch):
         return Reply(201, {"id": "790", "status": "ACCEPTED", "riskInformation": {"score": {"result": "32"}}})
     monkeypatch.setattr(risk, "signed_request", fake)
     out = asyncio.run(risk.score(ORDER))
-    assert out["status"] == "ACCEPTED" and out["score"] == "32" and out["account"] == "pk_MERCHANT_ID"
+    assert out["status"] == "ACCEPTED" and out["score"] == "32" and out["account"] == "pk_M…T_ID"
     assert seen == {"merchant": "pk_MERCHANT_ID", "path": "/risk/v1/decisions", "timeout": risk.RISK_BUDGET_S}
 
 

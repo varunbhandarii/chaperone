@@ -576,7 +576,7 @@ async def bill_account(biller_id: str, account_ref: str, lang: str = "en", sessi
 @app.get("/panel")
 def panel():
     return {
-        "merchant": "Corner Market",
+        "merchant": merchants.name(merchants.DEFAULT),
         "storefronts": storefront_links.describe(),
         "backend": payment_links.backend,
         "visa_last_error": getattr(payment_links, "last_error", None),
@@ -605,7 +605,8 @@ async def cybersource_webhook(request: Request):
     if len(order_ids) > 1:
         return {"ok": True, "matched": False, "ignored": "names more than one order"}
     order_id = order_ids.pop()
-    if note.merchant and ORDERS[order_id].get("merchant") != note.merchant:  # one store's key pays only its orders
+    # an account's key pays only the orders of the stores that account serves
+    if note.stores is not None and ORDERS[order_id].get("merchant") not in note.stores:
         return {"ok": True, "matched": False, "ignored": f"signed by {note.merchant}'s key"}
     paid, what = webhooks.is_payment(note.signed)
     if not paid:
