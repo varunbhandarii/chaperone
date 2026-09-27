@@ -4,6 +4,8 @@
 // call a service directly instead (tests and debugging).
 
 import voiceJson from "../../../station/config/voice.json";
+import merchantsJson from "../../../contracts/merchants.json";
+import type { StoreRegistry } from "./receipt.ts";
 
 export interface VoiceConfig {
   model: string;
@@ -122,3 +124,28 @@ export function buildSession(
 }
 
 export const TOOL_NAMES = VOICE.session.tools.map((t) => t.name);
+
+// ---------- stores: one registry for every name (contracts/merchants.json) ----------
+
+interface MerchantEntry {
+  id: string;
+  name: string;
+  kind: "store" | "biller" | "blocked";
+  mcc: string;
+  categories: string[];
+}
+
+export const MERCHANTS: MerchantEntry[] = (merchantsJson as { merchants: MerchantEntry[] }).merchants;
+
+/** A store's name for Ruth ("Parkside Pharmacy"); a card terminal's name for a swipe from a store we don't sell at. */
+export function storeName(id: string | undefined): string | undefined {
+  if (!id) return undefined;
+  return MERCHANTS.find((m) => m.id === id)?.name ?? (merchantsJson as { card_terminal_stores?: Array<{ acceptor_id: string; name: string }> })
+    .card_terminal_stores?.find((s) => s.acceptor_id === id)?.name;
+}
+
+export const STORES: StoreRegistry = {
+  name: storeName,
+  isBiller: (id) => MERCHANTS.some((m) => m.id === id && m.kind === "biller"),
+  account: (id) => VOICE.billers?.[id]?.account_ref,
+};

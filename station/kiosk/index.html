@@ -3,23 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Chaperone station</title>
-    <link rel="stylesheet" href="/src/style.css" />
+    <title>Chaperone</title>
     <link rel="stylesheet" href="/svc/relay/design/tokens.css" />
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
-  <body>
+  <body class="shopper">
     <header class="top">
-      <h1>Chaperone</h1>
-      <span id="state" class="pill state-off">Off</span>
-      <button id="view-toggle" class="view-toggle" type="button" aria-pressed="false">Shopper view</button>
+      <h1><img src="/svc/relay/design/logo.svg" alt="" onerror="this.remove()" /> Chaperone</h1>
+      <span id="state" class="pill state-off dev">Off</span>
+      <button id="view-toggle" class="view-toggle dev" type="button" aria-pressed="false">Shopper view</button>
       <button id="start" class="start" type="button">Start</button>
     </header>
 
-    <p id="status" class="status" role="status" aria-live="polite">
+    <p id="status" class="status dev" role="status" aria-live="polite">
       Press Start, then hold the big button (or the Space key) while you speak.
     </p>
 
     <div id="strip" class="strip state-off" role="status" aria-live="polite">Press Start</div>
+    <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
 
     <section class="metric dev" aria-label="Release to first audio">
       <div class="metric-label">Release to first audio</div>
@@ -28,7 +29,7 @@
       <div id="first-sound" class="metric-stats">first sound &ndash;</div>
     </section>
 
-    <div id="rules" class="rules" role="alert" hidden></div>
+    <div id="rules" class="rules dev" role="alert" hidden></div>
 
     <button id="ptt" class="ptt state-off" type="button" disabled>
       <span id="ptt-label">Press Start first</span>
@@ -49,14 +50,14 @@
     </section>
 
     <section id="items-panel" class="panel" hidden>
-      <h2>Found <span id="items-source" class="tag"></span></h2>
+      <h2>Found <span id="items-source" class="tag dev"></span></h2>
       <ul id="items" class="items"></ul>
     </section>
 
     <form id="typed" class="typed panel" autocomplete="off">
       <label for="typed-input">Type instead of speaking</label>
       <div class="typed-row">
-        <input id="typed-input" type="text" placeholder="Necesito pan" />
+        <input id="typed-input" type="text" placeholder="Type here" />
         <button type="submit">Send</button>
       </div>
     </form>
@@ -85,6 +86,22 @@
       </div>
     </details>
 
+    <!-- The Protected moment: a stopped scam, a scam refusal or a declined card swipe. -->
+    <div id="protected" class="protected-overlay" role="alertdialog" aria-live="assertive" aria-labelledby="protected-title" hidden>
+      <div id="protected-card" class="protected-card">
+        <svg class="protected-shield" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 4 8 13v17c0 15 10.2 26.7 24 30 13.8-3.3 24-15 24-30V13L32 4z" fill="currentColor" opacity="0.15" />
+          <path d="M32 4 8 13v17c0 15 10.2 26.7 24 30 13.8-3.3 24-15 24-30V13L32 4z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
+          <path d="m21 32 8 8 15-16" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <div id="protected-title" class="protected-title">Protected</div>
+        <p id="protected-say" class="protected-say"></p>
+        <p id="protected-action" class="protected-action"></p>
+        <p class="protected-told"><span aria-hidden="true">&#10003;</span> <span id="protected-told">Priyank has been told</span></p>
+        <p id="protected-detail" class="protected-detail dev"></p>
+      </div>
+    </div>
+
     <div id="replay-banner" class="replay-banner" role="status" hidden></div>
 
     <div id="replay-chooser" class="overlay" role="dialog" aria-label="Replay a cached session" hidden>
@@ -99,32 +116,37 @@
       </div>
     </div>
 
-    <div id="receipt-overlay" class="overlay" role="dialog" aria-label="Receipt" hidden>
-      <div class="receipt-wrap">
-      <div class="receipt">
-        <div id="receipt-store" class="receipt-store">Corner Market</div>
-        <div id="receipt-title" class="receipt-title">Receipt</div>
-        <ul id="receipt-items" class="receipt-items"></ul>
-        <div class="receipt-total"><span id="receipt-total-label">Total</span><span id="receipt-total"></span></div>
-        <div id="receipt-pickup" class="receipt-pickup"></div>
-        <div id="receipt-code" class="receipt-code" hidden></div>
-        <div id="receipt-rewards" class="receipt-rewards" hidden></div>
-        <div id="receipt-qr" class="receipt-qr"></div>
-        <div id="receipt-scan" class="receipt-small"></div>
-        <div id="receipt-ids" class="receipt-small"></div>
-        <div id="receipt-sandbox" class="receipt-small"></div>
-        <div id="receipt-note" class="receipt-note"></div>
+    <!-- One receipt per store's order, stacked. -->
+    <div id="receipt-overlay" class="overlay" role="dialog" aria-label="Receipts" hidden>
+      <div class="receipts">
+        <div id="receipts" class="receipts"></div>
         <div class="receipt-actions">
-          <a id="receipt-pdf" class="button" href="#" target="_blank" rel="noopener" hidden>Open PDF</a>
           <button type="button" id="receipt-reprint">Reprint</button>
           <button type="button" id="receipt-close">Close</button>
         </div>
       </div>
-      <div id="receipt-slip" class="slip" hidden>
-        <img id="receipt-slip-img" alt="The receipt as printed on 58 mm paper" />
-      </div>
-      </div>
     </div>
+
+    <template id="receipt-template">
+      <div class="receipt-wrap">
+        <div class="receipt">
+          <div class="receipt-store"></div>
+          <div class="receipt-title">Receipt</div>
+          <ul class="receipt-items"></ul>
+          <div class="receipt-total"><span class="receipt-total-label">Total</span><span class="receipt-total-value"></span></div>
+          <div class="receipt-pickup"></div>
+          <div class="receipt-code" hidden></div>
+          <div class="receipt-rewards" hidden></div>
+          <div class="receipt-qr"></div>
+          <div class="receipt-scan receipt-small"></div>
+          <div class="receipt-ids receipt-small dev"></div>
+          <div class="receipt-sandbox receipt-small dev"></div>
+          <div class="receipt-note"></div>
+          <div class="receipt-actions"><a class="receipt-pdf button" href="#" target="_blank" rel="noopener" hidden>Open PDF</a></div>
+        </div>
+        <div class="slip" hidden><img class="slip-img" alt="The receipt as printed on 58 mm paper" /></div>
+      </div>
+    </template>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

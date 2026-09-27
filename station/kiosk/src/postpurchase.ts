@@ -124,6 +124,8 @@ export interface OrderView {
   fulfilment?: string;
   pickup_code?: string;
   total?: number;
+  /** the store's name ("Parkside Pharmacy"), when the merchant gives it */
+  store?: string;
   timeline: Array<{ status: string; at: string | number }>;
 }
 
@@ -149,6 +151,7 @@ export function parseOrder(body: unknown): OrderView | null {
     order_id: b.order_id,
     status: b.status,
     ...(typeof b.fulfilment === "string" ? { fulfilment: b.fulfilment } : {}),
+    ...(typeof b.store === "string" && b.store ? { store: b.store } : {}),
     ...(typeof code === "string" || typeof code === "number" ? { pickup_code: String(code) } : {}),
     ...(total !== undefined ? { total } : {}),
     timeline,

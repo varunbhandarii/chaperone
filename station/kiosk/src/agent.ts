@@ -3,7 +3,7 @@
 
 import { Capture, MIC_CONSTRAINTS, Player, createAudioContext, type CaptureBlock } from "./audio.ts";
 import { Earcon } from "./earcon.ts";
-import { TUNNEL_HOST, VOICE, VOICE_NAME, buildSession, languageHint, realtimeUrl, voiceFor } from "./config.ts";
+import { TUNNEL_HOST, VOICE, VOICE_NAME, buildSession, languageHint, realtimeUrl, storeName, voiceFor } from "./config.ts";
 import * as payload from "./events.ts";
 import { localReceipt, sessionUrl, type ApprovalStatus, type PlacedOrder, type Receipt } from "./receipt.ts";
 import {
@@ -29,7 +29,7 @@ import { ChunkAccumulator, PcmRing, base64ToPcm16, median, pcm16ToBase64 } from 
 import { ruleIds, type ScreenResult } from "./screen.ts";
 import { collapseShopperTurns } from "./recording.ts";
 import { RefundGate, historySummary, isRepeatRequest, spokenCode, statusWords, type RefundReply, type RefundTarget } from "./postpurchase.ts";
-import { billItem, billSayKey, billerId, scamToolOutput, spokenDate } from "./guards.ts";
+import { billItem, billSayKey, billerId, scamToolOutput, spokenDate, yesOrNo, type ScamVerdict } from "./guards.ts";
 import {
   Ledger,
   RelayStream,
@@ -39,6 +39,8 @@ import {
   getApproval,
   getBill,
   getBudget,
+  getGuardState,
+  getMandate,
   getHistory,
   getMandateBillers,
   getOrder,
@@ -47,6 +49,7 @@ import {
   loadCachedSession,
   loadClip,
   postCheckout,
+  postCosign,
   postRefund,
   printReceipt,
   requestReset,
@@ -60,8 +63,25 @@ import {
 export type AgentState = "off" | "connecting" | "ready" | "listening" | "thinking" | "checking" | "speaking" | "waiting";
 export type NoteKind = "info" | "tool" | "warn" | "error" | "rule";
 
+/** The full-screen Protected card: a stopped scam, a scam refusal or a declined swipe. */
+export interface ProtectedView {
+  tone: "protected" | "care";
+  say: string;
+  action?: string;
+  title?: string;
+  /** operator view only (reason keys, rule ids) */
+  detail?: string;
+  lang?: Lang;
+}
+
 export interface AgentUI {
   state(state: AgentState): void;
+  /** Ruth's language: the state words and labels follow it */
+  language(lang: Lang): void;
+  /** the full-screen Protected card, null to dismiss it */
+  protect(view: ProtectedView | null): void;
+  /** a calm banner under the strip (the card's cool-down, a pause), null to remove it */
+  banner(key: string, text: string | null): void;
   /** release -> first sound (the earcon or the first word) */
   firstSound(ms: number, via: string): void;
   status(text: string, kind?: NoteKind): void;
@@ -75,7 +95,7 @@ export interface AgentUI {
   cart(lines: CartLineView[], total: number): void;
   outcome(outcome: CheckoutOutcome): void;
   /** after payment: a cancel or refund result in the outcome banner */
-  notice(title: string, detail: string, tone: "ok" | "warn" | "bad"): void;
+  notice(title: string, detail: string, tone: "ok" | "warn" | "bad", devDetail?: string): void;
   /** seconds left while waiting for the caregiver, null when not waiting */
   waiting(secondsLeft: number | null): void;
   /** the receipt shown full-screen (always, even when it printed), null to close it */
@@ -116,6 +136,8 @@ interface Turn {
   refusal: "none" | "tool" | "out_of_band";
   /** /scam-check already ran for this turn (the station's own, or the model's scam_check tool): never twice. */
   scamChecked?: boolean;
+  /** the final (partial: false) screen of this turn's transcript */
+  finalScreen?: Deferred<ScreenResult | null>;
   partialInFlight: boolean;
   partialQueued?: string;
   lastPartialScreened?: string;
@@ -161,6 +183,69 @@ interface CachedSession {
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Every event the station follows on the relay's stream. */
+const STREAM_TYPES = ["paid", "reset", "replay_armed", "card_decision", "card_hold_released", "risk_changed", "mandate_paused", "mandate_resumed", "mandate_signed"];
+const GUARD_EVENTS = new Set(["card_decision", "card_hold_released", "risk_changed", "mandate_paused", "mandate_resumed", "mandate_signed"]);
+
+/** A declined swipe's reason -> the line Ruth hears. */
+const CARD_LINES: Record<string, string> = {
+  card_blocked_category: "card_declined_blocked",
+  card_cooldown: "card_declined_cooldown",
+  card_over_cap: "card_declined_over_cap",
+  card_unusual_amount: "card_declined_unusual",
+  card_atm_cap: "card_declined_atm",
+};
+
+const PAUSED_BANNER: Record<Lang, string> = {
+  en: "Priyank has paused shopping for now",
+  es: "Priyank pausó las compras por ahora",
+  hi: "प्रियंक ने अभी खरीदारी रोक रखी है",
+};
+
+/** "Extra care on your card until 9:05 PM tomorrow", in Ruth's language. */
+function cooldownBanner(until: Date, lang: Lang): string {
+  const locale = { en: "en-US", es: "es-MX", hi: "hi-IN" }[lang];
+  const time = new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(until);
+  const tomorrow = until.toDateString() !== new Date().toDateString();
+  if (lang === "es") return `Cuidado extra con su tarjeta hasta las ${time}${tomorrow ? " de mañana" : ""}`;
+  if (lang === "hi") return `${tomorrow ? "कल " : ""}${time} तक आपके कार्ड का ख़ास ध्यान`;
+  return `Extra care on your card until ${time}${tomorrow ? " tomorrow" : ""}`;
+}
+
+/** A card terminal's descriptor ("FIVE POINTS DRUG") or a registry id, as Ruth would say the store's name. */
+function displayStore(raw: string): string {
+  const named = storeName(raw);
+  if (named) return named;
+  if (raw && raw === raw.toUpperCase()) return raw.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  return raw || "the store";
+}
+
+/** The scam check's first useful action, as a short instruction. */
+function actionWords(actions: string[], lang: Lang): string {
+  for (const a of actions) {
+    if (a === "hang_up") return { en: "Please hang up.", es: "Por favor cuelgue.", hi: "कृपया फ़ोन रख दीजिए।" }[lang];
+    if (a === "do_not_pay") return { en: "Don't pay anyone.", es: "No le pague a nadie.", hi: "किसी को पैसे न दें।" }[lang];
+    if (a.startsWith("call_trusted")) {
+      const who = a.split(":")[1] || "Priyank";
+      return { en: `Call ${who} on the number you know.`, es: `Llame a ${who} al número de siempre.`, hi: `${who} को उनके पुराने नंबर पर फ़ोन कीजिए।` }[lang];
+    }
+    if (a === "call_priya") return { en: "Call Priyank.", es: "Llame a Priyank.", hi: "प्रियंक को फ़ोन कीजिए।" }[lang];
+  }
+  return "";
+}
+
+/** The signed rules in plain words, for Ruth: "up to $60 a trip at your 4 stores, $300 a month, …". */
+function rulesInWords(m: Record<string, unknown>, lang: Lang): string {
+  const n = (v: unknown) => (typeof v === "number" ? v : Number(v));
+  const cap = money(toCents(n(m.per_purchase_cap)), lang);
+  const month = money(toCents(n(m.monthly_cap)), lang);
+  const ask = money(toCents(n(m.approval_threshold)), lang);
+  const stores = Array.isArray(m.allowed_merchants) ? m.allowed_merchants.length : 1;
+  if (lang === "es") return `hasta ${cap} por compra en sus ${stores} tiendas, ${month} al mes, y le pregunto a Priyank arriba de ${ask}; nunca tarjetas de regalo, giros ni cripto`;
+  if (lang === "hi") return `आपकी ${stores} दुकानों पर एक बार में ${cap} तक, महीने में ${month}, ${ask} से ऊपर प्रियंक से पूछूँगी; गिफ्ट कार्ड, वायर या क्रिप्टो कभी नहीं`;
+  return `up to ${cap} a trip at your ${stores} stores, ${month} a month, and I ask Priyank above ${ask}; never gift cards, wires or crypto`;
+}
 const SHORT_AUDIO_MS = 100;
 const MAX_OUTBOX = 1200;
 
@@ -269,6 +354,12 @@ export class StationAgent {
   private toolsRunning = 0;
   /** station work with no model reply running (the scam check it asks for itself) keeps the tick going */
   private stationBusy = 0;
+  /** Priyank paused shopping (policy declines every checkout with agent_paused) */
+  private paused = false;
+  /** the cool-down already announced, so cooldown_on is said once per cool-down */
+  private cooldownSaid: string | null = null;
+  /** after the station read Ruth her new rules: her next turn answers "Do you agree?" */
+  private cosignPending: { until: number } | null = null;
   private slowWaitTimer: ReturnType<typeof setTimeout> | null = null;
   /** release (or send) -> first sound, the earcon included; the meter's figure is release -> first word */
   private firstSoundPending = false;
@@ -305,9 +396,10 @@ export class StationAgent {
     this.rateReady = this.setupCapture(ctx, micDeviceId);
     void health.start();
     if (!this.stream) {
-      this.stream = new RelayStream(["paid", "reset", "replay_armed"], (ev) => this.onStreamEvent(ev), (m) => this.warn("stream", m));
+      this.stream = new RelayStream(STREAM_TYPES, (ev) => this.onStreamEvent(ev), (m) => this.warn("stream", m));
       void this.stream.open();
     }
+    void this.loadGuardState();
     const tokenPromise = fetchToken();
 
     let token;
@@ -482,6 +574,7 @@ export class StationAgent {
       return;
     }
     if (!this.started || this.pressed) return;
+    this.ui.protect(null); // the next press dismisses the Protected card
     this.pressed = true;
     this.pressStart = performance.now();
     this.appendedSamples = 0;
@@ -547,7 +640,7 @@ export class StationAgent {
       void this.scamCheckOutOfBand(turn, turn.screenResult);
     } else if (turn && turn.screenResult?.action === "refuse") {
       this.deferredRefusal = null;
-      void this.refuseOutOfBand(turn, turn.screenResult);
+      void this.refuseAfterFinal(turn, turn.screenResult);
     } else if (!this.deliverDeferredRefusal()) {
       this.send({ type: "response.create" });
       if (turn) turn.responseRequested = true;
@@ -612,11 +705,13 @@ export class StationAgent {
     // "repeat that" replays the last line in its own language; it does not switch the session's language
     const repeat = isRepeatRequest(text);
     if (turn.lang && !repeat) this.lastLang = turn.lang;
+    if (this.lastLang) this.ui.language(this.lastLang);
     this.recordShopper(turn, text, `text-${turn.n}`, "guess");
     if (repeat) {
       this.repeatLast(turn);
       return;
     }
+    if (this.answerCosign(turn, text)) return;
     this.send({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } });
     if (turn.lang) this.applyLanguage(turn.lang);
     this.tRelease = performance.now();
@@ -624,7 +719,8 @@ export class StationAgent {
     this.awaitingFirstAudio = true;
     this.armSlowWait();
 
-    const result = await screenText(this.sessionId, text, turn.lang, (m) => this.warn("screen", m));
+    this.stationBusy++; // the tick plays while the rule screen reads a typed line too
+    const result = await screenText(this.sessionId, text, turn.lang, (m) => this.warn("screen", m)).finally(() => this.stationBusy--);
     this.settleScreen(turn, result);
     if (result?.action === "refuse" || result?.action === "scam_check") return; // settleScreen answered it
     this.send({ type: "response.create" });
@@ -645,6 +741,7 @@ export class StationAgent {
       responseRequested: false,
       pendingToolCalls: 0,
       refusal: "none",
+      finalScreen: deferred<ScreenResult | null>(),
       partialInFlight: false,
     };
     this.turns.push(turn);
@@ -778,7 +875,17 @@ export class StationAgent {
     if (turn.refusal !== "none") return;
     this.takeTurn(turn, "rule refusal");
     this.logRefusal(turn, result, "out_of_band");
+    this.ui.protect({ tone: "protected", say: result.refusal?.text || DEFAULT_SAY, detail: ruleIds(result).join(", "), lang: turn.lang ?? this.lang });
     await this.deliverRefusal(turn, result);
+  }
+
+  /** A partial transcript was refused: the whole sentence may be a scam told as a story. Wait briefly for its screen. */
+  private async refuseAfterFinal(turn: Turn, partial: ScreenResult): Promise<void> {
+    this.stationBusy++;
+    this.beginChecking();
+    const final = await Promise.race([turn.finalScreen?.promise ?? Promise.resolve(null), sleep(1500).then(() => null)]).finally(() => this.stationBusy--);
+    if (final?.action === "scam_check") await this.scamCheckOutOfBand(turn, final);
+    else await this.refuseOutOfBand(turn, partial);
   }
 
   /** The station answers this turn itself: cancel what the model is saying or about to say. */
@@ -819,12 +926,14 @@ export class StationAgent {
     if (gen !== this.generation) return; // the shopper pressed again: they are talking now
     if (reply.kind === "ok") {
       const v = reply.verdict;
-      const pattern = (v.pattern ?? "").replace(/_/g, " ");
-      if (v.verdict !== "ok") {
-        this.ui.notice(v.verdict === "scam" ? "Protected: this looks like a scam" : "Be careful", `${pattern || "a known scam"} · Priyank has been told${v.sources.length ? ` · ${v.sources.length} source(s)` : ""}`, "warn");
-      }
+      if (v.verdict !== "ok") this.protectFromScam(v, turn.lang ?? this.lang);
       console.info(`[${ts()}] scam check (screen): ${v.verdict} ${v.pattern ?? ""} in ${v.ms ?? "?"} ms${v.from_cache ? " (cache)" : ""}`);
-      this.speakVerbatim(v.say); // the tick stops when this audio starts
+      // policy's fixed scam line has a recorded clip; any other answer is spoken verbatim (the tick stops on audio)
+      if (v.say === sayFor("scam_check_scam", turn.lang ?? this.lang) && (await this.playLineClip("scam_check_scam", v.say))) {
+        this.send({ type: "conversation.item.create", item: { type: "message", role: "assistant", content: [{ type: "text", text: v.say }] } });
+      } else {
+        this.speakVerbatim(v.say);
+      }
       return;
     }
     this.warn("scam-check", `scam check failed (${reply.kind === "not_ready" ? `HTTP ${reply.status}` : reply.error}); the refusal is spoken instead`);
@@ -942,6 +1051,7 @@ export class StationAgent {
         turn.lang = detected.lang ?? this.lastLang;
         const repeat = isRepeatRequest(text); // replays the last line; the session's language stays as it was
         if (turn.lang && !repeat) this.lastLang = turn.lang;
+        if (this.lastLang) this.ui.language(this.lastLang);
         if (turn.lang && detected.source !== "none" && !repeat) this.applyLanguage(turn.lang);
         if (ev.language) console.info(`[${ts()}] detected language (api): ${ev.language}`);
         this.recordShopper(turn, text, `voice-${turn.n}`, detected.source);
@@ -953,16 +1063,20 @@ export class StationAgent {
           }
           break;
         }
+        if (this.answerCosign(turn, text)) break;
         // Grok may complete a turn several times with a longer transcript each time ("मेरे..." then the whole
         // sentence), so screen every new version; a later refusal overrides an earlier proceed.
         if (turn.finalScreened !== text && turn.screenResult?.action !== "refuse") {
           turn.finalScreened = text;
-          void screenText(this.sessionId, text, turn.lang, (m) => this.warn("screen", m)).then((r) => this.settleScreen(turn, r));
+          void screenText(this.sessionId, text, turn.lang, (m) => this.warn("screen", m)).then((r) => {
+            this.settleScreen(turn, r);
+            turn.finalScreen?.resolve(r);
+          });
         } else if (turn.screenResult?.action === "refuse" && !turn.finalAfterRefusal) {
-          // Refused on a partial: the policy's repeat-attempt memory counts only final (partial: false)
-          // transcripts, so send this one once and ignore the answer.
+          // Refused on a partial: the final screen counts once in policy's repeat-attempt memory, and it may show
+          // the whole sentence was a scam told as a story, which gets the scam check instead (refuseAfterFinal).
           turn.finalAfterRefusal = true;
-          void screenText(this.sessionId, text, turn.lang, (m) => this.warn("screen", m));
+          void screenText(this.sessionId, text, turn.lang, (m) => this.warn("screen", m)).then((r) => turn.finalScreen?.resolve(r));
         }
         break;
       }
@@ -1278,6 +1392,7 @@ export class StationAgent {
 
   /** Checks out the cart that was read back; the model cannot pass its own list. */
   private async toolCheckout(): Promise<Record<string, unknown>> {
+    if (this.paused) return { status: "declined", say_key: "agent_paused", say: sayFor("agent_paused", this.lang) };
     if (this.cart.isEmpty) return { error: "cart_empty", say: sayFor("cart_empty", this.lang) };
     const gate = this.gate.check(this.cart.version, this.userTurns);
     if (!gate.ok) {
@@ -1334,7 +1449,7 @@ export class StationAgent {
       } else if (outcome.approval_id) {
         this.waitForApproval(outcome.approval_id, totalCents, lines, outcome.decision_id);
       }
-      if (await this.playLineClip("asking_priya", outcome.say)) {
+      if (await this.playLineClip(outcome.say_key, outcome.say)) {
         return { ...outcome, already_said: true, instruction: "The shopper has heard this. Say nothing until they speak again." };
       }
     }
@@ -1394,12 +1509,8 @@ export class StationAgent {
       return { error: "not ready", say: sayFor("scam_check_unavailable", this.lang) };
     }
     const v = reply.verdict;
-    const pattern = (v.pattern ?? "").replace(/_/g, " "); // "grandparent_emergency" -> "grandparent emergency"
-    if (v.verdict === "scam") {
-      this.ui.notice("Protected: this looks like a scam", `${pattern || "a known scam"} · Priyank has been told${v.sources.length ? ` · ${v.sources.length} source(s)` : ""}`, "warn");
-    } else if (v.verdict === "unsure") {
-      this.ui.notice("Be careful", `${pattern || "not sure yet"} · checked ${v.facts_checked.length} fact(s)`, "warn");
-    }
+    this.requestStart = this.shopperTexts.length; // the story never rides along into a later checkout
+    if (v.verdict !== "ok") this.protectFromScam(v, this.lang);
     console.info(`[${ts()}] scam check: ${v.verdict} ${v.pattern ?? ""} in ${v.ms ?? "?"} ms${v.from_cache ? " (cache)" : ""}`);
     return scamToolOutput(v);
   }
@@ -1452,11 +1563,11 @@ export class StationAgent {
     const progress = order.status === "partially_refunded" ? order.fulfilment : order.status;
     const say =
       ready && code
-        ? sayFor("order_ready", this.lang, { code })
+        ? sayFor("order_ready", this.lang, { code, store: order.store ?? "the store" })
         : (progress === "paid" || progress === "preparing") && code
           ? sayFor("order_status_pickup", this.lang, { status: statusWords(order.status, this.lang), code })
           : sayFor("order_status", this.lang, { status: statusWords(order.status, this.lang), code });
-    this.ui.notice(statusWords(order.status, "en"), `${order.order_id}${order.pickup_code ? ` · pickup code ${order.pickup_code}` : ""}`, "ok");
+    this.ui.notice(statusWords(order.status, "en"), order.pickup_code ? `Pickup code ${order.pickup_code}` : "", "ok", order.order_id);
     return {
       order_id: order.order_id,
       status: order.status,
@@ -1471,11 +1582,11 @@ export class StationAgent {
     if (!orderId) return { error: "no_orders", say: sayFor("no_orders", this.lang) };
     const reply = await cancelOrder(orderId, { session_id: this.sessionId, mandate_id: VOICE.mandate_id, lang: this.lastLang });
     if (reply.kind === "cancelled") {
-      this.ui.notice("Order cancelled", `${orderId}${reply.link_status ? ` · payment link ${reply.link_status}` : ""} · nothing was charged`, "ok");
+      this.ui.notice("Order cancelled", "Nothing was charged", "ok", `${orderId}${reply.link_status ? ` · payment link ${reply.link_status}` : ""}`);
       return { status: "cancelled", order_id: orderId, ...(reply.link_status ? { link_status: reply.link_status } : {}), say: sayFor("order_cancelled", this.lang) };
     }
     if (reply.kind === "too_late") {
-      this.ui.notice("Not cancelled", `${orderId} is already paid · a return is still possible`, "warn");
+      this.ui.notice("Not cancelled", "It is already paid; a return is still possible", "warn", orderId);
       return { status: "not_cancelled", reason: "already paid", order_id: orderId, say: sayFor("cancel_too_late", this.lang) };
     }
     this.ui.notice("Cancel failed", reply.error, "bad");
@@ -1504,9 +1615,10 @@ export class StationAgent {
         this.refundGate.markPreview(target, this.userTurns, this.shopperTexts.length);
         this.refundPreview = { amount: reply.amount, ...(reply.card_last4 ? { last4: reply.card_last4 } : {}) };
         this.ui.notice(
-          `Refund preview ${money(toCents(reply.amount), "en")}`,
-          `${orderId}${reply.card_last4 ? ` · to the card ending ${reply.card_last4}` : ""} · waiting for the shopper's yes`,
+          `Refund ${money(toCents(reply.amount), "en")}?`,
+          `${reply.card_last4 ? `Back to your card ending ${reply.card_last4}` : "Back to your card"} · say yes to confirm`,
           "warn",
+          orderId,
         );
         const say = sayFor("refund_preview", this.lang, { amount: money(toCents(reply.amount), this.lang), last4: spokenCode(reply.card_last4) });
         return {
@@ -1541,9 +1653,10 @@ export class StationAgent {
       const amount = reply.amount ?? preview?.amount ?? 0;
       const last4 = spokenCode(preview?.last4);
       this.ui.notice(
-        `Refund ${money(toCents(amount), "en")} · ${reply.status}`,
-        `to the original card${preview?.last4 ? ` ending ${preview.last4}` : ""} · sandbox processor stub${reply.reconciliation_id ? ` · ${reply.reconciliation_id}` : ""}`,
+        `Refund ${money(toCents(amount), "en")}`,
+        `Back to your card${preview?.last4 ? ` ending ${preview.last4}` : ""}`,
         "ok",
+        `${reply.status} · sandbox processor stub${reply.reconciliation_id ? ` · ${reply.reconciliation_id}` : ""}`,
       );
       return {
         status: reply.status,
@@ -1562,8 +1675,9 @@ export class StationAgent {
       // a purchase line ("I can't buy that") would be wrong here: unknown or generic keys get the refund line
       const key = hasSay(r.say_key) && r.say_key !== "declined" ? r.say_key : "refund_not_possible";
       if (r.rules_failed.length) this.ui.rules(r.rules_failed, "deny");
-      this.ui.notice("Refund not made", `${r.say_key}${r.rules_failed.length ? ` · ${r.rules_failed.join(", ")}` : ""}`, "warn");
-      return { status: "declined", say_key: r.say_key, say: sayFor(key, this.lang) };
+      this.ui.notice("Refund not made", sayFor(key, this.lang), "warn", `${r.say_key}${r.rules_failed.length ? ` · ${r.rules_failed.join(", ")}` : ""}`);
+      const biller = Object.values(VOICE.billers ?? {})[0]?.name ?? "the biller";
+      return { status: "declined", say_key: r.say_key, say: sayFor(key, this.lang, { biller }) };
     }
     this.ui.notice("Refund unavailable", r.error, "bad");
     return { status: "error", error: r.error, say: sayFor("store_unavailable", this.lang) };
@@ -1676,6 +1790,23 @@ export class StationAgent {
     this.refreshState();
   }
 
+  /**
+   * A line with a recorded clip (in the session voice): once the shopper and the model are quiet, play the
+   * clip if it loads in time, else speak `full` verbatim. The model's history gets what Ruth actually heard.
+   */
+  private async speakClipOr(key: string | null, clipText: string, full: string): Promise<void> {
+    if (this.replaying) return;
+    const t0 = performance.now();
+    while ((this.pressed || this.responseActive || this.player?.active) && performance.now() - t0 < 8000) await sleep(150);
+    if (!this.started || this.pressed || !this.configured) return; // the screen still shows it
+    if (key && (await this.playLineClip(key, clipText))) {
+      this.send({ type: "conversation.item.create", item: { type: "message", role: "assistant", content: [{ type: "text", text: clipText }] } });
+      return;
+    }
+    this.lastSpoken = full;
+    this.speakVerbatim(full);
+  }
+
   /** A fixed line, spoken verbatim (force_message) once the shopper and the model are quiet; never over them. */
   private async speakFixed(text: string): Promise<void> {
     if (this.replaying) return; // the recording carries its own audio
@@ -1686,6 +1817,124 @@ export class StationAgent {
     this.speakVerbatim(text);
   }
 
+  // ---------------------------------------------------------------- the guards at the station
+
+  /** A scam verdict (unsure or scam): the full-screen card with the words she heard and one action. */
+  private protectFromScam(v: ScamVerdict, lang: Lang): void {
+    const words = actionWords(v.actions, lang);
+    // the answer usually already says it ("…Por favor cuelgue."): then the card does not repeat it
+    const action = words && !v.say.toLowerCase().includes(words.toLowerCase().replace(/[.।]$/, "")) ? words : "";
+    this.ui.protect({
+      tone: v.verdict === "scam" ? "protected" : "care",
+      say: v.say,
+      ...(action ? { action } : {}),
+      detail: `${v.pattern ?? ""}${v.sources.length ? ` · ${v.sources.map((s) => s.title).join(" · ")}` : ""}`,
+      lang,
+    });
+  }
+
+  /** The cool-down and pause as they stand now, for a station that starts after they began. */
+  private async loadGuardState(): Promise<void> {
+    const state = await getGuardState();
+    if (!state) return;
+    this.showCooldown(state.cooldown_until ?? null, false);
+    this.showPaused(state.paused === true);
+  }
+
+  private onGuardEvent(ev: StreamEvent): void {
+    switch (ev.type) {
+      case "card_decision":
+        if (ev.result === "declined") this.onCardDeclined(ev);
+        break;
+      case "card_hold_released": {
+        const say = sayFor("card_allowed_once", this.lang);
+        this.ui.notice("Allowed once", say, "ok", String(ev.hold_id ?? ""));
+        void this.speakClipOr("card_allowed_once", say, say);
+        break;
+      }
+      case "risk_changed":
+        this.showCooldown(typeof ev.cooldown_until === "string" || typeof ev.cooldown_until === "number" ? ev.cooldown_until : null, true);
+        break;
+      case "mandate_paused":
+        this.showPaused(true);
+        break;
+      case "mandate_resumed":
+        this.showPaused(false);
+        break;
+      case "mandate_signed":
+        void this.askCosign();
+        break;
+    }
+  }
+
+  /** A declined swipe at a real store: say why in Ruth's language, never through the model, and show the card. */
+  private onCardDeclined(ev: StreamEvent): void {
+    const key = CARD_LINES[String(ev.reason_key ?? "")] ?? "card_declined_blocked";
+    const amount = Number(ev.amount);
+    const store = displayStore(String(ev.store ?? ""));
+    const say = sayFor(key, this.lang, { amount: Number.isFinite(amount) ? money(toCents(amount), this.lang) : "", store });
+    console.info(`[${ts()}] card declined at ${store}: ${ev.reason_key}`);
+    this.ui.protect({ tone: "protected", say, detail: `${ev.reason_key ?? ""} · ${ev.reason ?? ""} · card …${ev.card_last4 ?? ""}`, lang: this.lang });
+    // The recorded clip leaves out the amount and store (the card shows them); without the clip, the whole line is spoken
+    const clipKey = key === "card_declined_blocked" || key === "card_declined_cooldown" ? key : null;
+    void this.speakClipOr(clipKey, clipKey ? sayFor(`${clipKey}_clip`, this.lang) : say, say);
+  }
+
+  private showCooldown(until: string | number | null, announce: boolean): void {
+    const when = until === null ? null : new Date(typeof until === "number" ? (until < 1e12 ? until * 1000 : until) : until);
+    if (!when || Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+      this.ui.banner("cooldown", null);
+      this.cooldownSaid = null;
+      return;
+    }
+    this.ui.banner("cooldown", cooldownBanner(when, this.lang));
+    const key = when.toISOString();
+    if (announce && this.cooldownSaid !== key) {
+      this.cooldownSaid = key;
+      void this.speakFixed(sayFor("cooldown_on", this.lang));
+    }
+  }
+
+  private showPaused(on: boolean): void {
+    this.paused = on;
+    this.ui.banner("paused", on ? PAUSED_BANNER[this.lang] : null);
+  }
+
+  /** Priyank signed new rules: read them to Ruth in plain words and ask if she agrees (her next turn answers). */
+  private async askCosign(): Promise<void> {
+    const mandate = await getMandate();
+    if (!mandate) return;
+    const say = sayFor("cosign_ask", this.lang, { rules: rulesInWords(mandate, this.lang) });
+    this.cosignPending = { until: Date.now() + 5 * 60_000 };
+    this.ui.notice("New rules from Priyank", say, "warn");
+    void this.speakFixed(say);
+  }
+
+  /** Ruth's answer to "Do you agree?": a yes is recorded with her own words; anything else carries on as usual. */
+  private answerCosign(turn: Turn, text: string): boolean {
+    const pending = this.cosignPending;
+    if (!pending) return false;
+    this.cosignPending = null;
+    if (Date.now() > pending.until) return false;
+    const answer = yesOrNo(text);
+    if (!answer) return false;
+    turn.refusal = "out_of_band"; // the station answers this turn; the model does not
+    turn.screen.resolve(null);
+    turn.screenSettled = true;
+    if (this.responsePending) this.cancelWhenCreated = true;
+    this.bargeIn("co-sign answer");
+    if (answer === "no") {
+      this.speakVerbatim(sayFor("cosign_not_yet", this.lang));
+      return true;
+    }
+    void postCosign({ session_id: this.sessionId, said: text, lang: turn.lang ?? this.lang }).then((ok) => {
+      if (!ok) this.warn("cosign", "policy did not record the co-sign (POST /mandate/cosign)");
+      this.ui.notice("Ruth agreed by voice", `“${text}”`, ok ? "ok" : "warn");
+    });
+    this.speakVerbatim(sayFor("cosign_thanks", this.lang));
+    return true;
+  }
+
   // ---------------------------------------------------------------- paid -> receipt, reset (relay stream)
 
   private onStreamEvent(ev: StreamEvent): void {
@@ -1694,6 +1943,8 @@ export class StationAgent {
     } else if (ev.type === "reset") {
       if (performance.now() - this.lastLocalReset < RESET_ECHO_MS) return; // our own reset coming back
       void this.resetSession("reset from the relay", false);
+    } else if (GUARD_EVENTS.has(ev.type)) {
+      this.onGuardEvent(ev);
     } else if (ev.type === "replay_armed") {
       // The Host's "Arm replay": the next button press plays the recorded session instead of talking live.
       this.replayArmed = true;
@@ -1735,7 +1986,10 @@ export class StationAgent {
     );
     this.ledger.post("receipt_printed", payload.receiptPrinted(orderId, onPaper ? "printer" : "screen", printed.ok && printed.via === "pdf"));
     const totalText = money(toCents(receipt.total), receipt.lang);
-    const parts = [sayFor(onPaper ? "receipt_done" : "receipt_on_screen", receipt.lang, { total: totalText })];
+    // {pickup} is the pickup line with its code, empty for a bill (nothing to pick up)
+    const pickup = !receipt.bill && receipt.pickup_code ? sayFor("pickup_line", receipt.lang, { code: spokenCode(receipt.pickup_code) }) : "";
+    const store = receipt.merchant || "the store";
+    const parts = [sayFor(onPaper ? "receipt_done" : "receipt_on_screen", receipt.lang, { total: totalText, store, pickup }).replace(/\s{2,}/g, " ")];
     // Only real savings are mentioned; when nothing was saved the line is left out.
     if (receipt.savings) parts.push(sayFor("you_saved", receipt.lang, { saved: money(toCents(receipt.savings), receipt.lang) }));
     if (receipt.loyalty_points) parts.push(sayFor("loyalty_points", receipt.lang, { points: String(receipt.loyalty_points) }));
@@ -1859,7 +2113,7 @@ export class StationAgent {
     this.bargeIn("replay");
     if (!this.stream) {
       // Started without Start (no voice session): still follow paid and reset for this session.
-      this.stream = new RelayStream(["paid", "reset", "replay_armed"], (ev) => this.onStreamEvent(ev), (m) => this.warn("stream", m));
+      this.stream = new RelayStream(STREAM_TYPES, (ev) => this.onStreamEvent(ev), (m) => this.warn("stream", m));
       void this.stream.open();
     }
     const run = { gen: ++this.replayGen };

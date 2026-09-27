@@ -78,13 +78,13 @@ def new_order(session_id: str, cart: dict, decision_id: str, lang: str | None) -
     return {"order_id": order_id, "payment_link": f"http://127.0.0.1:8002/pay/{order_id}", "status": "link_created"}
 
 BREAD = [
-    {"sku": "BAK-002", "name": "Kroger Whole Wheat Bread", "brand": "Kroger", "category": "bakery", "mandate_category": "grocery", "price": 2.99, "size": "20 oz", "usual": False},
-    {"sku": "BAK-003", "name": "Kroger Low Sodium Whole Wheat Bread", "brand": "Kroger", "category": "bakery", "mandate_category": "grocery", "price": 3.19, "size": "16 oz", "usual": False},
-    {"sku": "BAK-001", "name": "Nature's Own Honey Wheat Bread", "brand": "Nature's Own", "category": "bakery", "mandate_category": "grocery", "price": 3.49, "size": "20 oz", "usual": True},
+    {"sku": "BAK-002", "name": "Kroger Whole Wheat Bread", "brand": "Kroger", "category": "bakery", "mandate_category": "grocery", "price": 2.99, "size": "20 oz", "merchant": "corner_market", "store": "Corner Market", "usual": False},
+    {"sku": "BAK-003", "name": "Kroger Low Sodium Whole Wheat Bread", "brand": "Kroger", "category": "bakery", "mandate_category": "grocery", "price": 3.19, "size": "16 oz", "merchant": "corner_market", "store": "Corner Market", "usual": False},
+    {"sku": "BAK-001", "name": "Nature's Own Honey Wheat Bread", "brand": "Nature's Own", "category": "bakery", "mandate_category": "grocery", "price": 3.49, "size": "20 oz", "merchant": "corner_market", "store": "Corner Market", "usual": True},
 ]
-RX = {"sku": "RX-001", "name": "Lisinopril 10 mg, 30 tablets (pharmacy pickup)", "brand": "Corner Market Pharmacy", "category": "pharmacy_pickup", "mandate_category": "pharmacy", "price": 8.0, "size": "30 tablets", "usual": True}
-ENSURE = {"sku": "NUT-002", "name": "Ensure Original Vanilla Nutrition Shake, Case", "brand": "Ensure", "category": "nutrition", "mandate_category": "grocery", "price": 52.0, "size": "24 x 8 fl oz", "usual": False}
-GIFT = {"sku": "GFT-002", "name": "Apple Gift Card", "brand": "Apple", "category": "gift_card", "mandate_category": "gift_card", "price": 200.0, "size": "$200", "usual": False}
+RX = {"sku": "RX-001", "name": "Lisinopril 10 mg, 30 tablets (pharmacy pickup)", "brand": "Corner Market Pharmacy", "category": "pharmacy_pickup", "mandate_category": "pharmacy", "price": 8.0, "size": "30 tablets", "merchant": "parkside_pharmacy", "store": "Parkside Pharmacy", "usual": True}
+ENSURE = {"sku": "NUT-002", "name": "Ensure Original Vanilla Nutrition Shake, Case", "brand": "Ensure", "category": "nutrition", "mandate_category": "grocery", "price": 52.0, "size": "24 x 8 fl oz", "merchant": "corner_market", "store": "Corner Market", "usual": False}
+GIFT = {"sku": "GFT-002", "name": "Apple Gift Card", "brand": "Apple", "category": "gift_card", "mandate_category": "gift_card", "price": 200.0, "size": "$200", "merchant": "quickgift_cards", "store": "QuickGift Cards", "usual": False}
 PROFILE = [
     (RX, "blood pressure medicine", "Pharmacy pickup, $8.00 copay", ("blood pressure", "presion", "presión", "mi medicina", "dawai", "दवाई")),
     (BREAD[2], "bread", "Usual brand", ("bread", "pan", "ब्रेड")),
@@ -391,6 +391,48 @@ async def biller_account(biller_id: str, account_ref: str) -> dict:
             "past_due": False, "autopay": False, "last_payment": {"amount": "91.12", "at": "2026-09-12"}, "disconnect_notice": False}
 
 
+MANDATE = {"mandate_id": "m_ruth_2026_09", "per_purchase_cap": 60, "monthly_cap": 300, "approval_threshold": 40,
+           "allowed_merchants": ["corner_market", "parkside_pharmacy", "main_street_home", "peachtree_power"],
+           "billers": [{"merchant_id": "peachtree_power", "account_ref": "PP-2231-0098", "monthly_cap": 200}]}
+GUARD = {"cooldown_until": None, "paused": False, "cosign": None}
+
+
+@app.get("/mandate")
+async def get_mandate() -> dict:
+    return {"signed": True, "mandate": MANDATE, "paused": GUARD["paused"], **({"cosign": GUARD["cosign"]} if GUARD["cosign"] else {})}
+
+
+@app.post("/mandate/cosign")
+async def cosign(request: Request) -> dict:
+    """Policy's co-sign: Ruth agreed by voice (stored apart from the signed mandate)."""
+    body = await request.json()
+    record("http", path="/mandate/cosign", body=body)
+    GUARD["cosign"] = {"by": "ruth", "method": "voice", "said": body.get("said"), "lang": body.get("lang"), "at": iso(time.time())}
+    emit({"type": "cosigned", "session_id": body.get("session_id") or "none", "mandate_id": MANDATE["mandate_id"], "t": int(time.time() * 1000),
+          "source": "policy", **GUARD["cosign"]})
+    return {"ok": True, "cosign": GUARD["cosign"]}
+
+
+@app.get("/risk")
+async def risk(mandate_id: str = "") -> dict:
+    return {"cooldown_until": GUARD["cooldown_until"], "reason": "scam check" if GUARD["cooldown_until"] else None, "source_event": None}
+
+
+@app.post("/mock/emit")
+async def mock_emit(request: Request) -> dict:
+    """Puts any event on the relay stream (a card decision, a cool-down, a signed mandate), as the other services would."""
+    event = await request.json()
+    event.setdefault("session_id", "none")
+    event.setdefault("mandate_id", MANDATE["mandate_id"])
+    event.setdefault("t", int(time.time() * 1000))
+    event.setdefault("source", "policy")
+    if event.get("type") == "risk_changed":
+        GUARD["cooldown_until"] = event.get("cooldown_until")
+    if event.get("type") in ("mandate_paused", "mandate_resumed"):
+        GUARD["paused"] = event["type"] == "mandate_paused"
+    return emit(event)
+
+
 @app.post("/mock/pay/{order_id}")
 async def mock_pay(order_id: str) -> dict:
     """The merchant's paid event, as after the hosted page or the sandbox callback."""
@@ -526,6 +568,7 @@ async def mock_reset(request: Request) -> dict:
         MOCK["print_ok"] = bool(body.get("print_ok", False))
         MOCK["eager_refund"] = bool(body.get("eager_refund", False))
         MOCK["scam_ready"] = bool(body.get("scam_ready", True))
+        GUARD.update({"cooldown_until": None, "paused": False, "cosign": None})
     return {"ok": True}
 
 

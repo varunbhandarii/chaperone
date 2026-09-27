@@ -145,3 +145,15 @@ export function billItem(id: string, name: string, bill: BillView): Record<strin
     store: name,
   };
 }
+
+// ---------------------------------------------------------------- Ruth agrees to the rules
+
+/** A short yes or no in any of Ruth's languages; anything longer or unclear is neither. */
+export function yesOrNo(text: string): "yes" | "no" | null {
+  const t = text.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[¿?¡!.,।]/g, " ").trim();
+  if (!t || t.split(/\s+/).length > 7) return null;
+  // (?=\s|$), not \b: \b does not see word edges next to Devanagari letters
+  if (/^(no|nope|not yet|todavia no|aun no|nahi|nahin|नहीं|अभी नहीं)(?=\s|$)/.test(t)) return "no";
+  if (/^(yes|yeah|yep|sure|ok|okay|i agree|agreed|si|claro|de acuerdo|estoy de acuerdo|esta bien|haan|han ji|haan ji|ji haan|theek hai|हाँ|हां|जी|ठीक है|सहमत)(?=\s|$)/.test(t)) return "yes";
+  return null;
+}
