@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Card Terminal</title>
+<link rel="stylesheet" href="/design/tokens.css">
+<style>
+  :root {
+    --reader: #20242b; --reader-2: #2c323b; --screen: #0f1a14; --screen-text: #d9f2e3;
+    --key: #3a414c; --key-text: #f3f4f6; --muted: #9aa3ad;
+    --approved: var(--ok, #1f7a4d); --declined: var(--declined, #6b4c3b);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--ch-bg, #f6f1e7); color: var(--ch-text, #1b2a4a);
+    font: 20px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; justify-content: center; align-items: flex-start; padding: 16px;
+    -webkit-user-select: none; user-select: none; touch-action: manipulation;
+  }
+  .reader {
+    width: 100%; max-width: 560px; background: var(--reader); color: var(--key-text);
+    border-radius: 28px; padding: 20px; box-shadow: 0 18px 40px #0005;
+  }
+  .brand { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 15px; }
+  .brand b { color: var(--key-text); letter-spacing: 0.08em; }
+  .screen {
+    margin-top: 12px; background: var(--screen); color: var(--screen-text); border-radius: 14px; padding: 16px 18px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; min-height: 132px;
+  }
+  .screen .store { font-size: 20px; letter-spacing: 0.04em; }
+  .screen .meta { color: #8fb9a0; font-size: 14px; }
+  .screen .amount { font-size: 52px; font-weight: 700; text-align: right; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .stores { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .stores button { text-align: left; font-size: 16px; line-height: 1.2; padding: 10px 12px; }
+  .stores button small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .stores button[aria-pressed="true"] { outline: 3px solid #7dcea0; background: var(--reader-2); }
+  .presets { display: flex; gap: 8px; margin-top: 12px; }
+  .presets button { flex: 1; }
+  .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  button {
+    font: inherit; color: var(--key-text); background: var(--key); border: 0; border-radius: 12px;
+    padding: 14px 0; cursor: pointer; min-height: 52px;
+  }
+  button:active { transform: translateY(1px); filter: brightness(1.15); }
+  .keys button { font-size: 26px; font-weight: 600; }
+  .tap {
+    width: 100%; margin-top: 14px; font-size: 26px; font-weight: 700; padding: 20px 0;
+    background: #e8edf2; color: #111; display: flex; justify-content: center; align-items: center; gap: 12px;
+  }
+  .tap svg { width: 34px; height: 34px; }
+  .tap:disabled { opacity: 0.55; cursor: progress; }
+  .recent { margin-top: 16px; font-size: 15px; }
+  .recent h2 { font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+  .recent ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .recent li { display: flex; justify-content: space-between; gap: 8px; background: var(--reader-2); border-radius: 8px; padding: 6px 10px; }
+  .recent .res.ok { color: #7dcea0; } .recent .res.no { color: #e3b8a0; }
+  .badge { display: inline-block; font-size: 12px; padding: 1px 7px; border-radius: 99px; background: #1a1f71; color: #fff; margin-left: 6px; }
+  .muted { color: var(--muted); }
+  #result {
+    position: fixed; inset: 0; display: none; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center; padding: 28px; color: #fff; z-index: 5;
+  }
+  #result.show { display: flex; }
+  #result.approved { background: var(--approved); }
+  #result.declined { background: #2b2f36; }
+  #result .word { font-size: clamp(56px, 14vw, 120px); font-weight: 800; letter-spacing: 0.04em; }
+  #result .line { font-size: 26px; margin-top: 10px; max-width: 700px; }
+  #result .small { font-size: 18px; opacity: 0.8; margin-top: 14px; }
+  #result .vtc { margin-top: 18px; font-size: 20px; padding: 8px 16px; border-radius: 99px; background: #1a1f71; display: none; }
+  #result .vtc.show { display: inline-block; }
+  #result button { margin-top: 28px; background: #fff3; padding: 14px 36px; }
+  #error { color: #f4c7b6; font-size: 16px; margin-top: 10px; min-height: 20px; }
+</style>
+</head>
+<body>
+<main class="reader" aria-label="Store card terminal">
+  <div class="brand"><b>CARD READER</b><span>Visa sandbox · Lithic</span></div>
+  <div class="screen" aria-live="polite">
+    <div class="store" id="storeName">Five Points Drug</div>
+    <div class="meta" id="storeMeta">MCC 5912 · ATLANTA GA</div>
+    <div class="amount" id="amount">$0.00</div>
+  </div>
+
+  <div class="stores" id="stores" role="group" aria-label="Store"></div>
+  <div class="presets" role="group" aria-label="Preset amounts">
+    <button data-cents="2000">$20</button><button data-cents="4500">$45</button><button data-cents="48000">$480</button>
+  </div>
+  <div class="keys" id="keys" role="group" aria-label="Amount keypad"></div>
+  <button class="tap" id="tap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M8.5 8.5a5 5 0 0 1 0 7M12 6a8.5 8.5 0 0 1 0 12M15.5 3.5a12 12 0 0 1 0 17"/></svg>
+    Tap card
+  </button>
+  <div id="error" role="alert"></div>
+
+  <section class="recent"><h2>Last swipes</h2><ol id="recent"><li class="muted">none yet</li></ol></section>
+</main>
+
+<div id="result" role="dialog" aria-live="assertive">
+  <div class="word" id="rWord"></div>
+  <div class="line" id="rLine"></div>
+  <div class="small" id="rSmall"></div>
+  <div class="vtc" id="rVtc">Visa VTC: decline</div>
+  <button id="rDone">Done</button>
+</div>
+
+<script>
+const STORES = __STORES__;
+const $ = (id) => document.getElementById(id);
+let store = STORES.find((s) => s.mcc === "5912") || STORES[0];
+let cents = 0;
+let lastToken = null;
+const vtcByToken = {};
+
+const money = (c) => "$" + (c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dollars = (d) => "$" + Number(d || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function render() {
+  $("storeName").textContent = store.name;
+  $("storeMeta").textContent = `MCC ${store.mcc} · ${store.city || ""} ${store.state || ""}`.trim();
+  $("amount").textContent = money(cents);
+  for (const b of $("stores").children) b.setAttribute("aria-pressed", String(b.dataset.id === store.acceptor_id));
+}
+
+for (const s of STORES) {
+  const b = document.createElement("button");
+  b.dataset.id = s.acceptor_id;
+  b.innerHTML = `${s.name}<small>MCC ${s.mcc}</small>`;
+  b.onclick = () => { store = s; render(); };
+  $("stores").append(b);
+}
+for (const k of ["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"]) {
+  const b = document.createElement("button");
+  b.textContent = k;
+  b.setAttribute("aria-label", k === "⌫" ? "Delete" : k === "C" ? "Clear" : k);
+  b.onclick = () => {
+    if (k === "C") cents = 0;
+    else if (k === "⌫") cents = Math.floor(cents / 10);
+    else if (cents < 1000000) cents = cents * 10 + Number(k);
+    render();
+  };
+  $("keys").append(b);
+}
+for (const b of document.querySelectorAll(".presets button")) b.onclick = () => { cents = Number(b.dataset.cents); render(); };
+
+async function swipe() {
+  if (!cents) { $("error").textContent = "Enter an amount first."; return; }
+  $("error").textContent = "";
+  $("tap").disabled = true;
+  $("tap").lastChild.textContent = " Processing…";
+  const started = performance.now();
+  try {
+    const r = await fetch("/host/api/swipe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Chaperone-Host": "1" },
+      body: JSON.stringify({ acceptor_id: store.acceptor_id, amount_cents: cents }),
+    });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(typeof body.detail === "string" ? body.detail : `HTTP ${r.status}`);
+    show(body, Math.round(performance.now() - started));
+  } catch (err) {
+    $("error").textContent = `Card network: ${err.message}`;
+  } finally {
+    $("tap").disabled = false;
+    $("tap").lastChild.textContent = " Tap card";
+  }
+}
+$("tap").onclick = swipe;
+
+function show(r, roundTrip) {
+  const approved = r.result === "APPROVED";
+  lastToken = r.token || null;
+  $("result").className = "show " + (approved ? "approved" : "declined");
+  $("rWord").textContent = approved ? "APPROVED" : "DECLINED";
+  $("rLine").textContent = approved
+    ? `${money(cents)} at ${r.store || store.name}`
+    : (r.reason || "The card was declined.");
+  $("rSmall").textContent = `${r.store || store.name} · ${money(cents)} · card •••• ${r.card_last4 || ""} · decided in ${r.ms ?? roundTrip} ms`;
+  $("rVtc").classList.toggle("show", !!(lastToken && vtcByToken[lastToken]));
+}
+$("rDone").onclick = () => { $("result").className = ""; };
+
+const recent = [];
+function addRecent(e) {
+  recent.unshift(e);
+  recent.splice(5);
+  drawRecent();
+}
+function drawRecent() {
+  const list = $("recent");
+  list.replaceChildren(...recent.map((d) => {
+    const li = document.createElement("li");
+    const ok = d.result === "approved";
+    const vtc = d.token && vtcByToken[d.token] ? '<span class="badge">Visa VTC: decline</span>' : "";
+    li.innerHTML = `<span>${escapeHtml(d.store || "")} · ${dollars(d.amount)}</span>` +
+      `<span class="res ${ok ? "ok" : "no"}">${ok ? "approved" : "declined"}${vtc}</span>`;
+    return li;
+  }));
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
+
+// Card decisions and Visa VTC's answer arrive on the ledger stream (the VTC check runs after the swipe).
+const stream = new EventSource("/events/stream?types=card_decision,vtc_decision");
+stream.onmessage = (m) => {
+  let e; try { e = JSON.parse(m.data); } catch { return; }
+  if (e.type === "vtc_decision") {
+    if (!e.should_decline || !e.token) return;
+    vtcByToken[e.token] = true;
+    if (e.token === lastToken) $("rVtc").classList.add("show");
+    drawRecent();
+  } else if (e.type === "card_decision") {
+    addRecent(e);
+  }
+};
+render();
+</script>
+</body>
+</html>

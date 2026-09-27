@@ -153,6 +153,9 @@ async def post_event(request: Request):
     if errors:
         raise HTTPException(422, [f"{'/'.join(map(str, e.path)) or '(root)'}: {e.message}" for e in errors])
     stored = LEDGER.append(event)
+    from relay import vtc
+
+    vtc.after_event(stored, LEDGER.append)  # Visa VTC's answer for a swipe, off the swipe's path
     return {"seq": stored["seq"], "rt": stored["rt"]}
 
 
@@ -221,8 +224,9 @@ async def session_events(session_id: str, format: str = "json"):
     if not path.exists():
         raise HTTPException(404, "unknown session")
     receipts, orders, mandate = await asyncio.gather(_receipts_for(events), _orders_for(session_id), _mandate())
-    record = session_view.dispute_record(session_id, events, orders, mandate)
-    return HTMLResponse(session_view.render(session_id, events, receipts, orders, record),
+    cards = _card_events_near(events)
+    record = session_view.dispute_record(session_id, events, orders, mandate, cards)
+    return HTMLResponse(session_view.render(session_id, events, receipts, orders, record, cards),
                         headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
 
 
@@ -239,9 +243,24 @@ async def session_record(session_id: str):
         raise HTTPException(404, "unknown session")
     events = _read_jsonl(path)
     orders, mandate = await asyncio.gather(_orders_for(session_id), _mandate())
-    return JSONResponse(session_view.dispute_record(session_id, events, orders, mandate), headers={
+    return JSONResponse(session_view.dispute_record(session_id, events, orders, mandate, _card_events_near(events)), headers={
         "Cache-Control": "no-store", "X-Robots-Tag": "noindex",
         "Content-Disposition": f'attachment; filename="chaperone-{session_id}.json"'})
+
+
+CARD_TYPES = {"card_decision", "vtc_decision", "card_hold_released", "risk_changed"}
+CARD_WINDOW_MS = (5 * 60 * 1000, 60 * 60 * 1000)  # swipes from 5 minutes before the session to an hour after
+
+
+def _card_events_near(events: list[dict]) -> list[dict]:
+    """Card events carry no shopper session; the ones on the live ledger around this session's time belong to
+    its story (the scam call, then the drugstore)."""
+    times = [int(e.get("rt") or e.get("t") or 0) for e in events if e.get("rt") or e.get("t")]
+    if not times:
+        return []
+    start, end = min(times) - CARD_WINDOW_MS[0], max(times) + CARD_WINDOW_MS[1]
+    return [e for e in LEDGER.read_live() if e.get("type") in CARD_TYPES and e.get("session_id") == "none"
+            and start <= int(e.get("rt") or e.get("t") or 0) <= end]
 
 
 async def _orders_for(session_id: str) -> list[dict]:
@@ -326,7 +345,27 @@ WALL_SOURCES = {
     "panel": lambda: f"{_service('MERCHANT_URL', 'http://127.0.0.1:8002')}/panel",
     "mandate": lambda: f"{_service('POLICY_URL', 'http://127.0.0.1:8001')}/mandate",
     "budget": lambda: f"{_service('POLICY_URL', 'http://127.0.0.1:8001')}/budget?mandate_id={MANDATE_ID}",
+    "visa_mandate": lambda: f"{_service('POLICY_URL', 'http://127.0.0.1:8001')}/mandate/visa",
+    "card": lambda: f"{_service('POLICY_URL', 'http://127.0.0.1:8001')}/card/state",
 }
+
+
+@router.get("/wall/data/stores")
+def wall_stores():
+    """Store names for the wall and session page, from contracts/merchants.json (never hard-coded)."""
+    from common import merchants
+
+    return JSONResponse({"merchants": merchants.all_merchants(),
+                         "card_terminal_stores": merchants.registry().get("card_terminal_stores") or []},
+                        headers={"Cache-Control": "no-store"})
+
+
+@router.get("/wall/data/protected")
+def wall_protected():
+    """Protected dollars since the last reset, from the live ledger."""
+    from relay import protected
+
+    return JSONResponse(protected.compute(LEDGER.read_live()), headers={"Cache-Control": "no-store"})
 
 
 @router.get("/wall/data/{source}")
@@ -381,8 +420,10 @@ async def reset(request: Request):
 
 
 from relay.host import router as host_router  # noqa: E402 - host.py uses this module's LEDGER and reset
+from relay.host import terminal_router  # noqa: E402
 
 router.include_router(host_router)
+router.include_router(terminal_router)
 
 app = FastAPI(title="Chaperone ledger (standalone)")
 app.include_router(router)

@@ -135,8 +135,10 @@ class Catalog:
         if not store:
             return None
         wanted = normalize(store).replace(" ", "_")
-        for m in merchants.all_merchants():  # "parkside", "Parkside Pharmacy" and "parkside_pharmacy" all work
-            if any(name.startswith(wanted) for name in (m["id"], normalize(m["name"]).replace(" ", "_"))):
+        # "parkside", "Parkside Pharmacy", "parkside_pharmacy" and any one word of the name ("home", "power") work
+        for m in merchants.all_merchants():
+            names = (m["id"], normalize(m["name"]).replace(" ", "_"))
+            if any(name.startswith(wanted) for name in names) or wanted in normalize(m["name"]).split():
                 return m["id"]
         return wanted
 

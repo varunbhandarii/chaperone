@@ -90,3 +90,10 @@ def test_sku_merchant_knows_bills_and_catalog_items():
     assert orders.sku_merchant("BAK-001") == "corner_market"
     assert orders.sku_merchant("BILL-peachtree_power") == "peachtree_power"
     assert orders.sku_merchant("NOPE") is None
+
+
+def test_gift_cards_belong_to_the_blocked_shop_so_its_403_is_real():
+    assert orders.sku_merchant("GFT-001") == "quickgift_cards"
+    with TestClient(app, headers=HOST) as client:
+        r = client.post("/orders", json=order("quickgift_cards", [{"sku": "GFT-001", "qty": 1}]))
+        assert r.status_code == 403

@@ -12,6 +12,9 @@ POST /host/api/reset               the relay's /reset fan-out
 POST /host/api/arm-replay          posts replay_armed; the station plays its cached session on the next press
 GET  /host/api/approval-code       the current approval's six-digit fallback code, from policy's LAN-only
                                    GET /approvals/{id}/host_code. Never logged, never on the stream.
+POST /host/api/swipe               {acceptor_id, amount_cents}: the card terminal's Tap card -> policy
+                                   /card/simulate (Lithic simulates the swipe; our /card/asa decides it)
+GET  /terminal                     the card terminal tablet page (a store's card reader), LAN only
 
 Requests that came through a proxy or tunnel, or from outside a private network, get 403. Every POST here,
 and the relay's POST /reset, also needs the header X-Chaperone-Host: 1: a cross-site form or fetch cannot set
@@ -33,11 +36,15 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from common import host_header, tls
 
 HOST_HTML = Path(__file__).with_name("host.html")
+TERMINAL_HTML = Path(__file__).with_name("terminal.html")
+SWIPE_TIMEOUT_S = 12.0  # Lithic's simulate answers after our /card/asa decided; its own record lags ~1 s
+MAX_SWIPE_CENTS = 1_000_000
 PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-real-ip", "forwarded", "ngrok-trace-id", "x-original-url")
 NO_STORE = {"Cache-Control": "no-store"}
 HOST_HEADER = "x-chaperone-host"
 
 router = APIRouter(prefix="/host")
+terminal_router = APIRouter()
 
 
 class _Ledger:
@@ -214,3 +221,48 @@ async def approval_code(request: Request):
     data = r.json()
     return JSONResponse({"approval_id": approval_id, "code": data.get("code"), "expires_at": data.get("expires_at")},
                         headers=NO_STORE)
+
+
+def terminal_stores() -> list[dict]:
+    from common import merchants
+
+    return merchants.registry().get("card_terminal_stores") or []
+
+
+@terminal_router.get("/terminal", response_class=HTMLResponse)
+def terminal_page(request: Request):
+    lan_only(request)
+    stores = json.dumps(terminal_stores()).replace("</", "<\\/")
+    return HTMLResponse(TERMINAL_HTML.read_text(encoding="utf-8").replace("__STORES__", stores), headers=NO_STORE)
+
+
+@router.post("/api/swipe")
+async def swipe(request: Request):
+    """The terminal's Tap card. Policy asks Lithic to simulate the swipe; the answer is our own /card/asa's."""
+    host_action(request)
+    try:
+        body = await request.json()
+        acceptor_id, amount_cents = str(body["acceptor_id"]), int(body["amount_cents"])
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(422, "send {acceptor_id, amount_cents}") from exc
+    store = next((s for s in terminal_stores() if s.get("acceptor_id") == acceptor_id), None)
+    if store is None:
+        raise HTTPException(404, "unknown store")
+    if not 1 <= amount_cents <= MAX_SWIPE_CENTS:
+        raise HTTPException(422, "amount out of range")
+    started = time.perf_counter()
+    async with httpx.AsyncClient(verify=tls.context(), timeout=SWIPE_TIMEOUT_S) as client:
+        try:
+            r = await client.post(f"{_policy()}/card/simulate", headers=host_header.HEADERS,
+                                  json={"acceptor_id": acceptor_id, "amount_cents": amount_cents})
+        except httpx.HTTPError as exc:
+            raise HTTPException(502, f"policy unreachable ({type(exc).__name__})") from exc
+    try:
+        answer = r.json()
+    except ValueError:
+        answer = {}
+    if not r.is_success:
+        detail = answer.get("detail") if isinstance(answer, dict) else None
+        raise HTTPException(r.status_code if r.status_code in (404, 503) else 502, detail or f"policy answered {r.status_code}")
+    return {**answer, "store": answer.get("store") or store["name"], "mcc": store["mcc"],
+            "round_trip_ms": round((time.perf_counter() - started) * 1000)}

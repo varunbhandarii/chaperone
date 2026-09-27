@@ -136,7 +136,8 @@ def test_items_belong_to_their_store():
     assert catalog.items["OTC-001"]["merchant"] == "parkside_pharmacy"
     assert catalog.items["BAK-001"]["merchant"] == "corner_market"
     assert catalog.items["HOM-005"]["merchant"] == "main_street_home"
-    assert catalog.items["GFT-001"]["merchant"] == "corner_market"  # stocked so R1 refuses it, never sold
+    assert catalog.items["GFT-001"]["merchant"] == "quickgift_cards"  # only the blocked shop sells them
+    assert catalog.items["PPD-001"]["merchant"] == "quickgift_cards"
     parkside_grocery = [it for it in catalog.items.values()
                         if it["merchant"] == "parkside_pharmacy" and it["mandate_category"] == "grocery"]
     assert 15 <= len(parkside_grocery) <= 25
@@ -164,6 +165,10 @@ def test_store_filter_by_id_or_name():
         assert found and all(it["merchant"] == "parkside_pharmacy" for it in found)
         assert found[0]["usual"]  # her usual bread, at Parkside's price
     assert catalog.search("bread", 10, "main_street_home") == []
+    for alias in ("home", "Main Street", "main street home"):
+        assert catalog.store_id(alias) == "main_street_home"
+    assert catalog.store_id("power") == "peachtree_power" and catalog.store_id("market") == "corner_market"
+    assert catalog.search("paper towels", 3, "home")
 
 
 def test_household_items_are_found_in_three_languages():

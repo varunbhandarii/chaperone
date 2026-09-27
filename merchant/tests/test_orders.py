@@ -156,3 +156,11 @@ def test_reset_and_paid_need_the_host_header():
     assert bare.post("/reset").status_code == 403
     assert bare.post(f"/orders/{order_id}/paid").status_code == 403
     assert bare.get(f"/orders/{order_id}").json()["status"] == "awaiting_payment"
+
+
+def test_tests_run_on_the_mock_whatever_the_env_file_says():
+    """Root conftest.py pins MOCK_VISA=1, so no test makes a real Visa link even when .env has MOCK_VISA=0."""
+    from merchant import orders
+
+    assert os.environ["MOCK_VISA"] == "1"
+    assert {s["backend"] for s in orders.storefront_links.describe()} == {"mock"}

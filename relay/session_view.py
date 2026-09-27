@@ -2,8 +2,9 @@
 dispute-ready record, GET /sessions/{id}/record.json.
 
 The caregiver app serves it publicly at https://<tunnel-host>/s/<id>, so the page is self-contained: no
-scripts, no links back into the relay, and every value is escaped. It reads only that session's ledger
-file plus the merchant's receipt for the paid order.
+scripts, no links back into the relay, and every value is escaped. It reads that session's ledger file, the
+merchant's receipts and orders, and the card swipes posted around the session's time (card events carry no
+session). It reloads every 30 s (REFRESH_S), slow enough not to disturb reading or a screen reader.
 """
 
 from __future__ import annotations
@@ -11,7 +12,16 @@ from __future__ import annotations
 import datetime
 from html import escape
 
+REFRESH_S = 30
 TITLES = {
+    "scam_checked": "Scam check",
+    "caution": "Took a closer look",
+    "risk_changed": "Card cool-down",
+    "line_call": "Phone call",
+    "bill_checked": "Checked the bill",
+    "risk_scored": "Visa risk score",
+    "cosigned": "Ruth agreed",
+    "mandate_signed": "Rules signed",
     "refusal": "Refused",
     "caregiver_alerted": "Priyank alerted",
     "policy_decision": "Policy decision",
@@ -98,6 +108,27 @@ def _step_detail(e: dict) -> str:
         return f"{e.get('qty', 1)} × {e.get('sku', '')} · {_money(e.get('amount'))}"
     if kind == "refund_result":
         return f"{_money(e.get('amount'))} {e.get('status', '')} · card ending {e.get('card_last4', '')} · sandbox processor stub"
+    if kind == "scam_checked":
+        sources = len(e.get("sources") or [])
+        return (f"{str(e.get('verdict', '')).replace('_', ' ')} · {str(e.get('pattern', '')).replace('_', ' ')}"
+                f"{' · ' + str(sources) + ' sources' if sources else ''}")
+    if kind == "caution":
+        return ", ".join(str(w) for w in ([e.get("words")] if isinstance(e.get("words"), str) else e.get("words") or [])[:3])
+    if kind == "risk_changed":
+        return f"until {_clock(e.get('cooldown_until'))} · {e.get('reason', '')}" if e.get("cooldown_until") else "cleared"
+    if kind == "line_call":
+        return f"{e.get('phase', '')}{' · ' + str(round(float(e['seconds']))) + ' s' if e.get('seconds') else ''}"
+    if kind == "bill_checked":
+        return f"{e.get('biller', '')} {_money(e.get('balance_due'))} due {e.get('due_date', '')}{' · past due' if e.get('past_due') else ''}"
+    if kind == "risk_scored":
+        return f"{e.get('store') or e.get('merchant', '')} · {e.get('status') or e.get('error') or ''} · score {e.get('score', '')}"
+    if kind == "cosigned":
+        return f"by {e.get('method', 'voice')}{' · ' + chr(8220) + str(e.get('said')) + chr(8221) if e.get('said') else ''}"
+    if kind == "mandate_signed":
+        return "Priyank's passkey"
+    if kind in ("payment_link_created", "paid") and e.get("store"):
+        base = _step_detail({**e, "store": None})
+        return f"{e['store']} · {base}"
     return ""
 
 
@@ -109,7 +140,8 @@ def orders(events: list[dict]) -> list[dict]:
         if not order_id or e.get("type") not in ("payment_link_created", "paid", "order_cancelled"):
             continue
         order = found.setdefault(str(order_id), {"order_id": str(order_id), "amount": None, "paid": False, "via": None,
-                                                 "cancelled": False})
+                                                 "cancelled": False, "store": None})
+        order["store"] = order["store"] or e.get("store")
         if e["type"] == "payment_link_created":
             order["amount"] = e.get("amount")
         elif e["type"] == "order_cancelled":
@@ -128,7 +160,8 @@ def _receipt(receipt: dict) -> str:
     return (
         f'<section><h2>Receipt</h2><table>{items}<tr class="total"><td>Total</td>'
         f'<td>{_money(receipt.get("total"))}</td></tr></table>'
-        f'<p>{escape(str(receipt.get("merchant", "")))} · pickup {escape(str(receipt.get("pickup", "")))}</p>'
+        f'<p>{escape(str(receipt.get("store") or receipt.get("merchant", "")))}'
+        f'{" · pickup " + escape(str(receipt["pickup"])) if receipt.get("pickup") else ""}</p>'
         f'<p class="mono small">order {escape(str(receipt.get("order_id", "")))} · decision '
         f'{escape(str(receipt.get("decision_id", "")))}</p></section>')
 
@@ -140,7 +173,9 @@ def _timeline(order: dict) -> str:
         f'<li class="refund">Refund {_money(r.get("amount"))} · {escape(str(r.get("qty", 1)))} × {escape(str(r.get("name", "")))}'
         f' · {escape(str(r.get("status", "")))} · card ending {escape(str(r.get("card_last4") or ""))}'
         f' <span class="d">sandbox processor stub</span></li>' for r in order.get("refunds") or [])
-    return (f'<section><h2>Order {escape(str(order.get("order_id", "")))} · {_money(order.get("amount"))}</h2>'
+    where = escape(str(order.get("store") or ""))
+    return (f'<section><h2>{where + " · " if where else ""}{_money(order.get("amount"))}'
+            f' <span class="mono small">{escape(str(order.get("order_id", "")))}</span></h2>'
             f'<ol class="steps">{steps}</ol>{"<ul>" + refunds + "</ul>" if refunds else ""}</section>')
 
 
@@ -151,9 +186,20 @@ def _clock(at) -> str:
         return ""
 
 
-def dispute_record(session_id: str, events: list[dict], orders_: list[dict], mandate: dict | None) -> dict:
+def _vtc_for(card_events: list[dict] | None, swipe: dict) -> dict | None:
+    token = swipe.get("token")
+    return next((e for e in card_events or [] if e.get("type") == "vtc_decision" and token and e.get("token") == token
+                 and e.get("should_decline") is not None), None)
+
+
+def dispute_record(session_id: str, events: list[dict], orders_: list[dict], mandate: dict | None,
+                   card_events: list[dict] | None = None) -> dict:
     """Everything an issuer needs to settle a dispute: the shopper's words, the signed mandate, each policy
-    decision, the RFC 9421 signature and the merchant's checks, the payment and any refund."""
+    decision, the scam checks, the RFC 9421 signature and the merchant's checks, the Visa risk score, the
+    payment and any refund, and the card swipes around the session with Visa VTC's answer."""
+    card_events = card_events or []
+    stores = sorted({str(o.get("store")) for o in orders_ if o.get("store")}
+                    | {str(e.get("store")) for e in events if e.get("type") == "payment_link_created" and e.get("store")})
     def pick(e: dict, *keys) -> dict:
         return {"at_ms": e.get("rt") or e.get("t"), **{k: e.get(k) for k in keys if e.get(k) is not None}}
 
@@ -161,7 +207,8 @@ def dispute_record(session_id: str, events: list[dict], orders_: list[dict], man
         "kind": "chaperone.dispute_record.v1",
         "session_id": session_id,
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "merchant": "Corner Market (Visa sandbox, no real money)",
+        "merchant": f"{', '.join(stores) or 'no store'} (Visa sandbox, no real money)",
+        "stores": stores,
         "shopper_words": [pick(e, "text", "lang") for e in transcript(events)
                           if e.get("role") not in ("agent", "assistant")],
         # the credential id is shortened: it identifies the caregiver's passkey, and the record is downloadable
@@ -170,6 +217,13 @@ def dispute_record(session_id: str, events: list[dict], orders_: list[dict], man
                       for e in events if e.get("type") == "policy_decision"],
         "refusals": [pick(e, "rule_id", "rule_ids", "spoken_key", "lang")
                      for e in events if e.get("type") == "refusal"],
+        "scam_checks": [pick(e, "check_id", "verdict", "pattern", "sources", "amount", "channel", "ms")
+                        for e in events if e.get("type") == "scam_checked"],
+        "risk_scores": [pick(e, "order_id", "merchant", "store", "status", "score", "risk_id")
+                        for e in events if e.get("type") == "risk_scored"],
+        "card_decisions": [pick(e, "type", "token", "store", "mcc", "amount", "result", "reason_key", "hold_id",
+                                "should_decline", "rule", "max_amount", "allowed_until") for e in card_events],
+        "cosign": [pick(e, "by", "method", "said", "lang", "mandate_hash") for e in events if e.get("type") == "cosigned"],
         "approvals": [pick(e, "type", "approval_id", "amount", "rule", "approved", "method")
                       for e in events if e.get("type") in ("approval_requested", "approval_result")],
         "signatures": [pick(e, "type", "action", "keyid", "nonce", "created", "expires", "decision_id", "order_id", "checks")
@@ -199,6 +253,12 @@ def _record_section(record: dict, session_id: str) -> str:
                                  for s in signed) or "none"),
         ("Payments", ", ".join(f'{escape(str(p.get("order_id")))} {_money(p.get("total"))}' for p in record["payments"]) or "none"),
         ("Refunds", ", ".join(f'{_money(r.get("amount"))} {escape(str(r.get("status", "")))}' for r in record["refunds"]) or "none"),
+        ("Scam checks", ", ".join(f'{escape(str(c.get("verdict", "")))} ({escape(str(c.get("pattern", "")))})'
+                                  for c in record.get("scam_checks") or []) or "none"),
+        ("Card swipes", ", ".join(f'{escape(str(c.get("store", "")))} {_money(c.get("amount"))} {escape(str(c.get("result", "")))}'
+                                  for c in record.get("card_decisions") or [] if c.get("type") == "card_decision") or "none"),
+        ("Visa risk", ", ".join(f'{escape(str(r.get("store") or r.get("merchant", "")))} {escape(str(r.get("score", "")))}'
+                                for r in record.get("risk_scores") or []) or "none"),
     ]
     body = "".join(f'<dt>{k}</dt><dd>{v}</dd>' for k, v in rows)  # every value is escaped where it is built
     return (f'<section><h2>Dispute-ready record</h2><p class="d">What an issuer needs to settle a dispute quickly, '
@@ -207,7 +267,7 @@ def _record_section(record: dict, session_id: str) -> str:
 
 
 def render(session_id: str, events: list[dict], receipts: list[dict] | dict | None = None,
-           orders_: list[dict] | None = None, record: dict | None = None) -> str:
+           orders_: list[dict] | None = None, record: dict | None = None, card_events: list[dict] | None = None) -> str:
     if isinstance(receipts, dict):
         receipts = [receipts]
     turns = "".join(
@@ -243,7 +303,7 @@ def render(session_id: str, events: list[dict], receipts: list[dict] | dict | No
     status = "".join(
         f'<p class="status {"ok" if o["paid"] else "muted" if o.get("cancelled") else "warn"}">'
         f'{"Paid" if o["paid"] else "Cancelled, nothing charged" if o.get("cancelled") else "Waiting for payment"}'
-        f' {_money(o["amount"])}'
+        f' {_money(o["amount"])}{" at " + escape(str(o["store"])) if o.get("store") else ""}'
         f' <span class="mono small">{escape(o["order_id"])}</span></p>'
         for o in orders(events)
     )
@@ -251,13 +311,21 @@ def render(session_id: str, events: list[dict], receipts: list[dict] | dict | No
         status = '<p class="status bad">A request was refused and Priyank was told</p>' + status
     status = status or '<p class="status muted">No order in this session</p>'
 
+    swipes = "".join(
+        f'<li><span class="t">{_time(e.get("rt") or e.get("t"))}</span>'
+        f'<b class="{"ok" if e.get("result") == "approved" else "bad"}">'
+        f'{"Approved" if e.get("result") == "approved" else "Declined"} {_money(e.get("amount"))}</b>'
+        f' <span class="d">{escape(str(e.get("store", "")))}{" · " + escape(str(e.get("reason"))) if e.get("reason") and e.get("result") != "approved" else ""}'
+        f'{" · Visa VTC: " + ("decline" if vtc.get("should_decline") else "approve") if (vtc := _vtc_for(card_events, e)) else ""}</span></li>'
+        for e in card_events or [] if e.get("type") == "card_decision")
+    card_html = f'<section><h2>Card</h2><ul>{swipes}</ul></section>' if swipes else ""
     receipt_html = "".join(_receipt(r) for r in receipts or [] if r)
     orders_html = "".join(_timeline(o) for o in reversed(orders_ or []))  # oldest first
     record_html = _record_section(record, session_id) if record else ""
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="5">
+<meta http-equiv="refresh" content="{REFRESH_S}">
 <link rel="stylesheet" href="/design/tokens.css">
 <meta name="robots" content="noindex">
 <title>Chaperone session</title><style>
@@ -281,8 +349,8 @@ ol.steps{{display:flex;flex-wrap:wrap;gap:6px;list-style:none;margin:0;padding:0
 .refund{{color:var(--ok)}}dl{{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:8px 0}}dt{{color:var(--muted)}}dd{{margin:0;overflow-wrap:anywhere}}
 a{{color:inherit}}
 </style></head><body><main>
-<header><h1>Ruth's shopping session</h1><p class="mono small">{escape(session_id)} · Corner Market · Visa sandbox, no real money</p>{status}</header>
+<header><h1>Ruth's session</h1><p class="mono small">{escape(session_id)} · Visa sandbox, no real money</p>{status}</header>
 <section><h2>What was said</h2><ul class="turns">{turns}</ul></section>
 <section><h2>What was checked</h2><ul>{steps}</ul></section>
-{orders_html}{checks}{receipt_html}{record_html}
+{orders_html}{card_html}{checks}{receipt_html}{record_html}
 </main></body></html>"""

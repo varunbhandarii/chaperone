@@ -21,8 +21,9 @@ HERE = Path(__file__).parent
 RAW = HERE / "raw"
 OUT = HERE / "catalog.json"
 MERCHANT = "corner_market"
+# Gift and prepaid cards are only sold by the blocked shop, so the merchant's 403 for it is real as well as R1.
 STORE_BY_CATEGORY = {"otc_medicine": "parkside_pharmacy", "pharmacy_pickup": "parkside_pharmacy",
-                     "household": "main_street_home"}
+                     "household": "main_street_home", "gift_card": "quickgift_cards", "prepaid_card": "quickgift_cards"}
 # Name-brand grocery basics a drugstore stocks. Its own prices: groceries cost more there, nutrition shakes less.
 PARKSIDE_BASICS = ["BAK-001", "BAK-004", "BAK-005", "DAI-003", "DAI-004", "EGG-002", "PRO-001", "SOU-001",
                    "SOU-002", "SOU-003", "PAN-001", "PAN-002", "BEV-001", "BEV-002", "BEV-003", "NUT-001",

@@ -296,4 +296,4 @@ def test_points_shrink_with_a_refund(client):
 def test_wall_shows_points_only_once_paid():
     from pathlib import Path
     wall = (Path(__file__).resolve().parents[2] / "relay" / "wall.html").read_text(encoding="utf-8")
-    assert "paid && order.loyalty_points > 0" in wall
+    assert "o.loyalty_points > 0 && o.paid_at" in wall  # points get their own row, only after payment

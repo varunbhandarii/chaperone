@@ -18,7 +18,7 @@ class BillError(Exception):
 def _account(ref: str, fetch) -> dict:
     if fetch is not None:
         return fetch(ref)
-    url = f"{merchant_public_url()}/billers/peachtree_power/accounts/{ref}"
+    url = f"{merchant_public_url()}/billers/peachtree_power/accounts/{ref}?purpose=price"
     try:
         response = httpx.get(url, timeout=2)
     except httpx.HTTPError as exc:

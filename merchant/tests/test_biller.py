@@ -79,3 +79,34 @@ def test_bill_only_at_its_biller_and_once(client, merchant, qty):
 
 def test_masked_account_is_ascii():
     assert biller.masked("PP-2231-0098") == "PP-...0098"
+
+
+def test_price_lookups_post_no_bill_checked(client):
+    client.get(ACCOUNT + "?purpose=price")
+    assert not [e for e in client.get("/panel").json()["events"] if e["type"] == "bill_checked"]
+    client.get(ACCOUNT + "?session_id=s1")
+    checked = [e for e in client.get("/panel").json()["events"] if e["type"] == "bill_checked"]
+    assert len(checked) == 1 and checked[0]["session_id"] == "s1"
+
+
+def test_bill_uses_the_mandates_account(client, monkeypatch):
+    biller.BILLERS["peachtree_power"]["accounts"]["PP-7777-0001"] = {
+        "balance_due": "42.10", "due_date": "2026-10-20", "past_due": False, "autopay": False,
+        "last_payment": None, "disconnect_notice": False}
+    from merchant import orders
+
+    async def mandate_ref(biller_id, mandate_id):
+        return "PP-7777-0001"
+    monkeypatch.setattr(orders, "_mandate_account_ref", mandate_ref)
+    order = client.post("/orders", json=bill_order()).json()
+    assert order["amount"] == "42.10" and order["lines"][0]["name"] == "Peachtree Power bill PP-...0001"
+    named = bill_order()
+    named["cart"]["items"][0]["account_ref"] = "PP-2231-0098"  # a line that names its account wins
+    assert client.post("/orders", json=named).json()["amount"] == "86.40"
+
+
+def test_receipt_names_the_store_and_a_bill_has_no_pickup(client):
+    order = client.post("/orders", json=bill_order()).json()
+    receipt = client.get(f"/orders/{order['order_id']}/receipt").json()
+    assert receipt["store"] == "Peachtree Power" and receipt["kind"] == "biller"
+    assert receipt["pickup"] is None and receipt["pickup_code"] is None
