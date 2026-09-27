@@ -519,6 +519,20 @@
           },
           "channel": {
             "type": "string"
+          },
+          "decision_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amount": {
+            "type": [
+              "string",
+              "number",
+              "null"
+            ],
+            "description": "dollars the story asked for; the protected-dollars counter adds it once per decision_id"
           }
         }
       },

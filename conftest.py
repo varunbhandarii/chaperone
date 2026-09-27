@@ -1,10 +1,13 @@
-"""Tests never reach live services: no ledger forwarding to a running relay, no Visa VTC calls.
+"""Tests never reach live services: no ledger forwarding to a running relay, no Visa VTC calls, and the mock
+payment links, whatever the team .env says (MOCK_VISA=0 with real Cybersource keys would make real links when a
+test module imports the merchant before setting MOCK_VISA itself, e.g. policy/tests/test_postpurchase.py).
 
-The team .env sets RELAY_URL and holds the VTC keys; common.config loads it with setdefault, so values set here
-win. A test that needs either sets it itself (monkeypatch).
+common.config loads .env with setdefault and the services' load_dotenv doesn't override, so values set here
+win. A test that needs one of them sets it itself (monkeypatch).
 """
 
 import os
 
 os.environ["RELAY_URL"] = ""
 os.environ["VTC_MIRROR"] = "0"
+os.environ["MOCK_VISA"] = "1"

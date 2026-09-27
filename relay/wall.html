@@ -155,14 +155,14 @@ const RULE = {
   R5: "over the monthly limit", R6: "above the ask-Priyank amount", R7: "the scam check", S_screen: "scam words in the request",
 };
 const ruleText = (id) => { const key = Object.keys(RULE).find((k) => String(id || "").startsWith(k)); return key ? RULE[key] : String(id || "").replace(/_/g, " "); };
-const VERDICT = { scam: "Scam", likely_scam: "Likely scam", suspicious: "Suspicious", unclear: "Unclear", likely_safe: "Looks safe", safe: "Looks safe" };
+const VERDICT = { scam: "Scam", unsure: "Not sure: be careful", ok: "Looks fine", likely_scam: "Likely scam", suspicious: "Suspicious", unclear: "Unclear", likely_safe: "Looks safe", safe: "Looks safe" };
 
 // Every event type in contracts/events.schema.json -> {lane, what, detail, tone}. null = not shown as a row.
 function describe(e) {
   const pct = (v) => v === undefined || v === null ? "" : ` · score ${v}`;
   switch (e.type) {
     // Ask
-    case "scam_checked": return { lane: "ask", tone: e.verdict === "scam" || e.verdict === "likely_scam" ? "prot" : e.verdict === "likely_safe" ? "ok" : "caut",
+    case "scam_checked": return { lane: "ask", tone: e.verdict === "scam" || e.verdict === "likely_scam" ? "prot" : ["ok", "likely_safe", "safe"].includes(e.verdict) ? "ok" : "caut",
       what: `${VERDICT[e.verdict] || e.verdict || "Checked"}: ${String(e.pattern || "a story").replace(/_/g, " ")}`,
       detail: `${e.channel === "line" ? "on the phone line" : "at home"}${e.amount ? " · " + money(e.amount) + " asked for" : ""}${(e.sources || []).length ? " · " + e.sources.length + " sources" : ""}${e.ms ? " · " + (e.ms / 1000).toFixed(1) + " s" : ""}`,
       sources: e.sources };
@@ -210,7 +210,7 @@ function describe(e) {
     // Family
     case "approval_requested": return { lane: "family", tone: "caut", what: `Priyank asked to approve ${money(e.amount)}`, detail: e.reason || ruleText(e.rule) };
     case "approval_result": return { lane: "family", tone: e.approved ? "ok" : "prot", what: e.approved ? "Priyank approved" : e.method === "timeout" ? "No answer from Priyank: nothing bought" : "Priyank said no", detail: e.method ? `by ${e.method}` : "" };
-    case "caregiver_alerted": return { lane: "family", tone: "", what: "Priyank was told", detail: e.kind === "screen_refusal" ? "a refused request, with a Why?" : e.kind === "refund" ? "a return" : "with a Why?" };
+    case "caregiver_alerted": return { lane: "family", tone: "", what: "Priyank was told", detail: e.kind === "screen_refusal" ? "a refused request, with a Why?" : e.kind === "scam_check" ? `a scam call${e.amount ? " asking for " + money(e.amount) : ""}, with sources and a Why?` : e.kind === "refund" ? "a return" : "with a Why?" };
     case "mandate_signed": return { lane: "family", tone: "ok", what: "Priyank signed the rules", detail: "with his passkey" };
     case "cosigned": return { lane: "family", tone: "ok", what: "Ruth agreed by voice", detail: e.said ? `“${e.said}”` : "" };
     case "mandate_paused": return { lane: "family", tone: "caut", what: "Priyank paused the agent", detail: "nothing can be bought" };

@@ -7,8 +7,10 @@ Counted from the live ledger (it is truncated by /reset):
   * a refused checkout (policy_decision deny) whose failed rules came from the screen, the judge or a blocked
     category, at its cart total;
   * a scam_checked with verdict scam, at the amount the scam check extracts from the story (0 when none).
-scams_stopped counts scam verdicts and refusals (each decision once, whoever posted it); card_declines counts
-every declined swipe. Declines for being over a cap are not "protected": the money was Ruth's own choice.
+scams_stopped counts scam verdicts and refusals. Every stop is counted once, and its dollars once, by its
+decision_id (a scam check's decision_id also rides on its caregiver_alert, and a check may be posted again once
+its sources arrive). card_declines counts every declined swipe. Declines for being over a cap are not
+"protected": the money was Ruth's own choice.
 """
 
 from __future__ import annotations
@@ -30,10 +32,11 @@ def _protecting_refusal(event: dict) -> bool:
 
 def compute(events: list[dict]) -> dict:
     rows: list[dict] = []
-    refusals: set[str] = set()
+    refusals: set[str] = set()   # decision ids of refusals and scam verdicts: each one stop
+    counted: set[str] = set()    # decision ids whose dollars are already in rows
     anonymous_refusal_sessions: set[str] = set()
     screen_alert_sessions: set[str] = set()
-    scams = card_declines = 0
+    card_declines = 0
     for event in events:
         kind = event.get("type")
         if kind == "card_decision" and event.get("result") == "declined":
@@ -43,8 +46,9 @@ def compute(events: list[dict]) -> dict:
                              "reason_key": event.get("reason_key"), "seq": event.get("seq")})
         elif kind == "policy_decision" and event.get("decision") == "deny" and _protecting_refusal(event):
             decision_id = event.get("decision_id") or f"seq{event.get('seq')}"
-            if decision_id not in refusals:
-                refusals.add(decision_id)
+            refusals.add(decision_id)
+            if decision_id not in counted:
+                counted.add(decision_id)
                 rows.append({"guard": "agent", "amount": _money(event.get("total")),
                              "rules": event.get("rules_failed"), "decision_id": event.get("decision_id"),
                              "seq": event.get("seq")})
@@ -58,11 +62,15 @@ def compute(events: list[dict]) -> dict:
                 refusals.add(event["decision_id"])
             screen_alert_sessions.add(event.get("session_id") or "none")
         elif kind == "scam_checked" and event.get("verdict") == "scam":
-            scams += 1
-            rows.append({"guard": "ask", "amount": _money(event.get("amount")), "pattern": event.get("pattern"),
-                         "check_id": event.get("check_id"), "seq": event.get("seq")})
+            decision_id = event.get("decision_id") or event.get("check_id") or f"seq{event.get('seq')}"
+            refusals.add(decision_id)
+            if decision_id not in counted:
+                counted.add(decision_id)
+                rows.append({"guard": "ask", "amount": _money(event.get("amount")), "pattern": event.get("pattern"),
+                             "check_id": event.get("check_id"), "decision_id": event.get("decision_id"),
+                             "seq": event.get("seq")})
     # A station refusal with no decision id is the same stop as the screen's alert in that session.
     refused = len(refusals) + len(anonymous_refusal_sessions - screen_alert_sessions)
     dollars = round(sum(row["amount"] for row in rows), 2)
-    return {"dollars": f"{dollars:.2f}", "scams_stopped": scams + refused, "card_declines": card_declines,
+    return {"dollars": f"{dollars:.2f}", "scams_stopped": refused, "card_declines": card_declines,
             "rows": rows}

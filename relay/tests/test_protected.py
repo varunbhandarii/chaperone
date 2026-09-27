@@ -39,3 +39,21 @@ def test_route_reads_the_live_ledger(tmp_path, monkeypatch):
                                    store="Five Points Drug", card_last4="1111", mcc="5912"))
     r = client.get("/wall/data/protected")
     assert r.status_code == 200 and r.json()["dollars"] == "480.00" and r.json()["card_declines"] == 1
+
+
+def test_a_scam_check_counts_once_however_many_events_name_it():
+    events = [
+        ev("scam_checked", verdict="scam", check_id="sc1", decision_id="d_sc1", amount=480),
+        ev("caregiver_alerted", kind="scam_check", check_id="sc1", decision_id="d_sc1", amount=480),
+        ev("scam_checked", verdict="scam", check_id="sc1", decision_id="d_sc1", amount=480,
+           sources=[{"title": "FTC"}]),  # re-posted once the sources arrive
+        ev("scam_checked", verdict="unsure", check_id="sc2", decision_id="d_sc2", amount=100),
+        ev("scam_checked", verdict="ok", check_id="sc3", decision_id="d_sc3"),
+    ]
+    out = protected.compute(events)
+    assert out["dollars"] == "480.00" and out["scams_stopped"] == 1
+
+
+def test_amount_may_be_missing_or_null():
+    out = protected.compute([ev("scam_checked", verdict="scam", check_id="sc1", decision_id="d1", amount=None)])
+    assert out == {**out, "dollars": "0.00", "scams_stopped": 1}
