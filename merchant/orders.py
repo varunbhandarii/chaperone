@@ -40,7 +40,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from catalog.search import Catalog  # noqa: E402
 from common import host_header, merchants, tls  # noqa: E402
-from merchant import aftercare, biller, card_auth, events, webhooks  # noqa: E402
+from merchant import aftercare, biller, card_auth, events, risk, webhooks  # noqa: E402
 from merchant.verify import verify_request  # noqa: E402
 from merchant.visa import LineItem, StorefrontLinks, money  # noqa: E402
 
@@ -262,6 +262,9 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict, entry: 
         "card_last4": None,
         "savings": None,
         "loyalty_points": aftercare.loyalty_points(amount) if merchant == merchants.DEFAULT else None,
+        # Visa risk score (Decision Manager) on the store's own account: pending until it answers; None when
+        # the link is a mock (no Visa account in play)
+        "risk": {"status": "pending"} if link.backend == "visa" else None,
     }
     saved = aftercare.savings_cents(lines)
     order["savings"] = money(saved / 100) if saved else None  # never shown when nothing was saved
@@ -272,7 +275,20 @@ async def _place_order(order_req: OrderRequest, verification, ids: dict, entry: 
     PURCHASE_TO_ORDER[link.purchase_number] = order_id
     await events.emit("payment_link_created", order_id=order_id, amount=amount, link_id=link.id, url=link.url,
                       backend=link.backend, merchant=merchant, store=store, purchase_number=link.purchase_number, **ids)
+    if order["risk"] is not None:
+        _start(order_id, _risk_score(order_id), "risk")
     return order
+
+
+async def _risk_score(order_id: str) -> None:
+    order = ORDERS.get(order_id)
+    if order is None:
+        return
+    answer = await risk.score(order)
+    order["risk"] = answer
+    await events.emit("risk_scored", order_id=order_id, merchant=order["merchant"], store=order["store"],
+                      status=answer["status"], score=answer["score"], ms=answer["ms"], error=answer["error"],
+                      risk_id=answer["id"], **_ids(order))
 
 
 @app.get("/orders")
