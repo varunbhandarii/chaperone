@@ -27,7 +27,7 @@ A phone call has no station screen, so safety lives in the tools:
 - **PIN.** `checkout`, `cancel_order`, `request_refund` and adding a bill need `verify_pin` first (`LINE_PIN` in `.env`,
   4 digits). A correct PIN lasts 10 minutes. A wrong one says how many tries are left. After 3 wrong tries, Ruth hears that
   the PIN is paused for 2 minutes to keep her account safe, and that she can simply say it again after that. Each
-  further pause doubles (4, then 8 minutes), which keeps guessing slow. The PIN is never kept as
+  further pause doubles (4, then 8 minutes), which keeps guessing slow. The pause belongs to the line, so hanging up and calling again does not reset it. The PIN is never kept as
   Ruth's words. Read-only tools (search, budget, bill, status, history, `scam_check`) never need it.
 - Checkout needs a new utterance from Ruth (her yes, as `ruth_said`) after `read_cart`.
 - The words that go to checkout start after the last scam check or order, so an earlier scam story never refuses a
@@ -84,7 +84,7 @@ Tests use a real MCP client against the station's mock services:
    ```
 
    Paste it as the URL, leave the authorization fields empty, and use the name `chaperone-tools`. Add the header
-   `ngrok-skip-browser-warning: 1` if the form has a field for it. It should list 12 tools. Treat this URL like a
+   `ngrok-skip-browser-warning: 1` if the form has a field for it. It should list 13 tools. Treat this URL like a
    password.
 3. Open the connector and make sure all 13 tools are enabled. The Builder turns off the ones that change things
    (`add_to_cart`, `remove_from_cart`, `request_refund`, `cancel_order`) by default, and the agent then can't add to

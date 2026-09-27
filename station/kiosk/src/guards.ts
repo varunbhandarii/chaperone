@@ -148,12 +148,29 @@ export function billItem(id: string, name: string, bill: BillView): Record<strin
 
 // ---------------------------------------------------------------- Ruth agrees to the rules
 
+const COURTESY = new Set(["please", "thanks", "thank", "you", "por", "favor", "gracias", "ji", "dhanyavaad", "shukriya", "धन्यवाद", "शुक्रिया", "कृपया"]);
+// longest first, so "estoy de acuerdo" goes before "de acuerdo"
+const YES_PHRASES = ["estoy de acuerdo", "claro que si", "of course", "por supuesto", "de acuerdo", "esta bien", "that's fine", "thats fine", "sounds good", "i agree",
+  "i do", "han ji", "haan ji", "ji haan", "theek hai", "ठीक है", "जी हाँ", "जी हां", "yes", "yeah", "yep", "sure", "okay", "ok", "agreed",
+  "absolutely", "agree", "si", "claro", "haan", "han", "हाँ", "हां", "जी", "सहमत"];
+
+function onlyYes(words: string[]): boolean {
+  let rest = ` ${words.join(" ")} `;
+  for (const phrase of YES_PHRASES) {
+    while (rest.includes(` ${phrase} `)) rest = rest.replace(` ${phrase} `, " ");
+  }
+  return rest.trim() === "";
+}
+
 /** A short yes or no in any of Ruth's languages; anything longer or unclear is neither. */
 export function yesOrNo(text: string): "yes" | "no" | null {
   const t = text.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[¿?¡!.,।]/g, " ").trim();
   if (!t || t.split(/\s+/).length > 7) return null;
   // (?=\s|$), not \b: \b does not see word edges next to Devanagari letters
-  if (/^(no|nope|not yet|todavia no|aun no|nahi|nahin|नहीं|अभी नहीं)(?=\s|$)/.test(t)) return "no";
-  if (/^(yes|yeah|yep|sure|ok|okay|i agree|agreed|si|claro|de acuerdo|estoy de acuerdo|esta bien|haan|han ji|haan ji|ji haan|theek hai|हाँ|हां|जी|ठीक है|सहमत)(?=\s|$)/.test(t)) return "yes";
-  return null;
+  // a no anywhere wins: "claro que no", "okay, no", "sí, no", "जी नहीं" are not a yes
+  if (/(^|\s)(no|nope|not|dont|don't|wait|never|nunca|todavia|aun|nahi|nahin|mat|नहीं|नही|मत|रुको|रुकिए)(?=\s|$)/.test(t)) return "no";
+  // a yes is only yes words and courtesies ("sí, por favor", "okay, thank you"); "okay, order bread" is neither
+  const parts = t.split(/\s+/).filter((w) => !COURTESY.has(w));
+  if (!parts.length) return null;
+  return onlyYes(parts) ? "yes" : null;
 }

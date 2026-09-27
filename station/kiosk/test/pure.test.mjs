@@ -807,6 +807,10 @@ test("a yes or no to 'Do you agree?' in three languages; longer answers are neit
   for (const t of ["Yes", "yes, I agree", "Sí, estoy de acuerdo", "De acuerdo.", "हाँ", "haan ji", "ठीक है"]) assert.equal(yesOrNo(t), "yes", t);
   for (const t of ["No", "todavía no", "नहीं", "not yet"]) assert.equal(yesOrNo(t), "no", t);
   for (const t of ["I need bread", "", "what are the rules again and who set them for me today"]) assert.equal(yesOrNo(t), null, t);
+  // a no anywhere wins, and a yes followed by a request is not agreement
+  for (const t of ["claro que no", "जी नहीं", "okay, no", "yeah no", "sí, no", "no, wait"]) assert.equal(yesOrNo(t), "no", t);
+  for (const t of ["Okay, order bread", "yes and add milk", "sí, y leche"]) assert.equal(yesOrNo(t), null, t);
+  for (const t of ["Sí, por favor", "okay, thank you", "yes, of course", "जी हाँ"]) assert.equal(yesOrNo(t), "yes", t);
 });
 
 test("the judge being down changes what Ruth hears while Priyank decides", () => {

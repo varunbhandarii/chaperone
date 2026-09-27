@@ -196,8 +196,32 @@ def test_pin_wrong_then_paused_with_the_wait_said_then_open_again(line_url):
     paused = api(base, "verify_pin", "call-6", pin="2222")
     assert paused["locked"] is True and paused["retry_after_s"] == 120 and "2 minutes" in paused["say"]
     assert api(base, "verify_pin", "call-6", pin=PIN)["locked"] is True  # paused, even with the right PIN
-    server.CALLS["call-6"].pin_locked_until = 0  # the two minutes have passed
+    # hanging up and calling again does not reset the pause
+    assert api(base, "verify_pin", "call-6b", pin=PIN)["locked"] is True
+    server.CALLS["call-6"].pin_locked_until = server.PIN_LOCK["until"] = 0  # the two minutes have passed
     assert api(base, "verify_pin", "call-6", pin=PIN)["verified"] is True
+    server.PIN_LOCK["lockouts"] = 0
+
+
+def test_the_pin_never_reaches_the_ledger_even_after_it_is_verified(line_url):
+    base, mock_base, server = line_url
+    api(base, "verify_pin", "call-10", pin=PIN)
+    for said in ("4, 3, 2, 1.", "four three two one", "it's 4321 thanks"):
+        api(base, "budget_left", "call-10", ruth_said=said)
+    heard = " ".join(server.CALLS["call-10"].heard)
+    assert "4321" not in heard.replace(" ", "").replace(",", "") and "four three" not in heard
+    events = [e for e in httpx.get(f"{mock_base}/mock/log").json() if e.get("kind") == "event"]
+    assert not any("four three two one" in json.dumps(e) or "4, 3, 2, 1" in json.dumps(e) for e in events)
+
+
+def test_read_back_and_checkout_in_one_turn_is_not_a_yes_nor_is_a_no(line_url):
+    base, _, _ = line_url
+    found = api(base, "search_catalog", "call-11", query="bread", ruth_said="I need bread")
+    api(base, "add_to_cart", "call-11", sku=found["items"][0]["sku"])
+    api(base, "verify_pin", "call-11", pin=PIN)
+    api(base, "read_cart", "call-11", ruth_said="that's all, place it")
+    assert api(base, "checkout", "call-11", ruth_said="that's all, place it")["error"] == "confirmation_required"
+    assert api(base, "checkout", "call-11", ruth_said="no, wait")["error"] == "confirmation_required"
 
 
 def test_a_bill_needs_the_pin(line_url):

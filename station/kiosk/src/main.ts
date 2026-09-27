@@ -98,6 +98,8 @@ chooser.addEventListener("click", (e) => {
 $("replay-cancel").addEventListener("click", () => (chooser.hidden = true));
 $("receipt-reprint").addEventListener("click", () => void agent?.reprint());
 $("receipt-close").addEventListener("click", () => ui.receipt(null));
+// the Protected card covers the big button: a tap anywhere on it closes it, like Escape or the next press
+$("protected").addEventListener("click", () => ui.protect(null));
 
 window.addEventListener(
   "keydown",

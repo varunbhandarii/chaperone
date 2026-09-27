@@ -245,6 +245,10 @@ class Call:
     heard_start: int = 0
     # a new utterance after read_cart is the yes; checkout needs one
     heard_at_read: int = -1
+    read_at: float = 0.0
+    last_said: str = ""  # her words on the latest tool call, masked
+    read_said: str = ""  # her words on the read_cart call
+    refund_last4: str = ""
     verified_until: float = 0.0
     pin_attempts: int = 0
     # after PIN_TRIES wrong tries: no PIN is taken until this time (2, then 4, then 8 minutes, and so on)
@@ -261,6 +265,13 @@ ENDED_AFTER_S = 120  # no tool call for this long: the call is over (the Builder
 PIN_VALID_S = 600
 PIN_TRIES = 3
 PIN_LOCK_S = 120
+# a call borrowed without its call_id keeps its PIN only this soon after its last tool call: a second caller
+# minutes later starts unverified
+PIN_BORROW_S = 45
+# the PIN pause is the line's, not one call's: hanging up and calling again does not reset it
+PIN_LOCK = {"until": 0.0, "lockouts": 0}
+# the read-back takes seconds to say: the same words again this soon are the same turn, not her answer
+READ_BACK_MIN_S = 3.0
 
 
 def call_for(key: str | None) -> Call:
@@ -274,8 +285,26 @@ def call_for(key: str | None) -> Call:
         call = CALLS[key] = Call(session_id="s_line_" + secrets.token_hex(5))
         _post_event(call, "session_started", channel="line")
         _post_event(call, "line_call", call_id=call.call_id, phase="started")
+        _watch_end(call)
     call.seen = now
     return call
+
+
+def _watch_end(call: Call) -> None:
+    """Post line_call ended even when no later tool call comes: check again until the call has gone quiet."""
+    import asyncio
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    def tick() -> None:
+        end_quiet_calls(time.time())
+        if not call.ended:
+            loop.call_later(15, tick)
+
+    loop.call_later(ENDED_AFTER_S, tick)
 
 
 def end_quiet_calls(now: float) -> None:
@@ -309,13 +338,28 @@ def looks_like_pin(call: Call, text: str) -> bool:
     return (call.awaiting_pin or expected in re.sub(r"\D", "", text)) and len(pin_digits(text)) == len(expected)
 
 
+_DIGIT_TOKEN = "(?:" + "|".join(sorted(DIGIT_WORDS, key=len, reverse=True)) + r"|\d)"
+_DIGIT_RUN = re.compile(rf"(?<!\w){_DIGIT_TOKEN}(?:[\s,.;:\-]*{_DIGIT_TOKEN})*(?!\w)", re.IGNORECASE)
+
+
 def mask_pin(text: str) -> str:
-    """Never let the PIN reach the ledger, the wall or policy, however it was said."""
+    """Never let the PIN reach the ledger, the wall or policy, however it was said ("4321", "4, 3, 2, 1",
+    "four three two one", "cuatro tres dos uno"), before or after it was verified."""
     expected = (env("LINE_PIN") or "").strip()
     if not expected:
         return text
-    spaced = r"\s*".join(expected)
-    return re.sub(rf"(?<!\d){spaced}(?!\d)", "[PIN]", text)
+    return _DIGIT_RUN.sub(lambda m: "[PIN]" if expected in pin_digits(m.group(0)) else m.group(0), text)
+
+
+NO_WORDS = re.compile(r"(?<!\w)(no|nope|not|don'?t|wait|never|cancel|nunca|todav[ií]a|a[uú]n|espere|nahi|nahin|mat|ruko|"
+                      r"नहीं|नही|मत|रुको|रुकिए)(?!\w)", re.IGNORECASE)
+YES_WORDS = re.compile(r"(?<!\w)(yes|yeah|yep|sure|ok|okay|correct|go ahead|please do|s[ií]|claro|de acuerdo|est[aá] bien|dale|"
+                       r"haan|han|ji|theek|हाँ|हां|जी|ठीक)(?!\w)", re.IGNORECASE)
+
+
+def is_yes(text: str) -> bool:
+    """Her answer to the read-back: a yes word and no no ("no, wait" and "sí, no" are not a yes)."""
+    return bool(YES_WORDS.search(text)) and not NO_WORDS.search(text)
 
 
 def pin_needed(call: Call) -> dict:
@@ -326,10 +370,17 @@ def pin_needed(call: Call) -> dict:
 
 def heard(call: Call, ruth_said: str | None) -> None:
     text = mask_pin((ruth_said or "").strip())
-    # the Builder passes the same words on every tool call of one turn: keep them once, but a "sí" after the
-    # read-back is her new yes even when she said "sí" earlier in the call
-    if not text or (call.heard and call.heard[-1] == text and len(call.heard) > call.heard_at_read):
+    call.last_said = text
+    if not re.sub(r"\[PIN\]|[\W_]", "", text):  # nothing but her PIN: keep nothing
         return
+    # the Builder passes the same words on every tool call of one turn: keep them once. The same words right after
+    # read_cart are her new answer ("sí" earlier, "sí" again now), unless read_cart itself carried them and the
+    # read-back had no time to be spoken: read_cart and checkout in one turn with one ruth_said is not a yes.
+    if call.heard and call.heard[-1] == text:
+        same_turn = call.read_said == text and time.time() - call.read_at < READ_BACK_MIN_S
+        answer_after_read = len(call.heard) == call.heard_at_read and not same_turn
+        if not answer_after_read:
+            return
     call.heard.append(text[:1000])
     call.lang = guess_lang(text) or call.lang
     _post_event(call, "heard", role="shopper", text=text[:1000], lang=call.lang)
@@ -507,6 +558,8 @@ def t_read_cart(call: Call) -> dict:
                 "instruction": "The cart is empty. Do not call read_cart again: call add_to_cart with a sku from search_catalog (same call_id), then read_cart."}
     call.read_version = call.version
     call.heard_at_read = len(call.heard)
+    call.read_at = time.time()
+    call.read_said = call.last_said
     return {"lines": view["lines"], "total": view["total"], "say": read_back(call, view)}
 
 
@@ -519,6 +572,10 @@ async def t_checkout(call: Call) -> dict:
     if len(call.heard) <= call.heard_at_read:
         # her yes is a new utterance after the read-back, passed as ruth_said
         return {"error": "confirmation_required", "instruction": "Wait for Ruth's yes after the read-back and pass it as ruth_said on checkout."}
+    if not is_yes(" ".join(call.heard[call.heard_at_read:])):
+        # "no, wait" or "and milk" after the read-back is not a yes
+        return {"error": "confirmation_required",
+                "instruction": "Ruth did not say yes to the read-back. Ask whether to place the order, and call checkout only after a clear yes."}
     if not pin_ok(call):
         return pin_needed(call)
     call.last_cart_tool = "checkout"
@@ -527,7 +584,9 @@ async def t_checkout(call: Call) -> dict:
         "session_id": call.session_id, "mandate_id": MANDATE_ID, "read_back": True, "lang": call.lang, "channel": "line",
         "cart": {"merchant": next(iter(merchants)) if len(merchants) == 1 else MERCHANT_ID,
                  "items": [{"sku": l["sku"], "name": l["name"], "qty": l["qty"], "price": l["price"],
-                            "category": call.items[l["sku"]].get("category", "")} for l in view["lines"]],
+                            "category": call.items[l["sku"]].get("category", ""),
+                            **({"merchant": call.items[l["sku"]]["merchant"]} if call.items[l["sku"]].get("merchant") else {})}
+                           for l in view["lines"]],
                  "total": view["total"]},
         **({"transcript": " ".join(call.heard[call.heard_start:])[-2000:]} if call.heard[call.heard_start:] else {}),
     }
@@ -607,6 +666,7 @@ def t_verify_pin(call: Call, pin: str) -> dict:
     if not expected:
         return {"error": "no PIN is set up for this line", "say": say("store_unavailable", call.lang)}
     now = time.time()
+    call.pin_locked_until = max(call.pin_locked_until, PIN_LOCK["until"])
     if now < call.pin_locked_until:
         return locked(call, now)
     given = re.sub(r"\D", "", str(pin or ""))
@@ -619,8 +679,9 @@ def t_verify_pin(call: Call, pin: str) -> dict:
     left = PIN_TRIES - call.pin_attempts
     if left <= 0:
         # a pause that doubles each time keeps guessing slow; after it she can simply say her PIN again
-        call.pin_lockouts += 1
-        call.pin_locked_until = now + PIN_LOCK_S * 2 ** (call.pin_lockouts - 1)
+        PIN_LOCK["lockouts"] = max(PIN_LOCK["lockouts"], call.pin_lockouts) + 1
+        call.pin_lockouts = PIN_LOCK["lockouts"]
+        call.pin_locked_until = PIN_LOCK["until"] = now + PIN_LOCK_S * 2 ** (call.pin_lockouts - 1)
         call.pin_attempts = 0
         return locked(call, now)
     return {"verified": False, "tries_left": left,
@@ -647,7 +708,7 @@ async def t_order_status(call: Call, order_id: str | None) -> dict:
     words = STATUS_WORDS.get(state, {}).get(call.lang, state.replace("_", " "))
     code = spoken_code(order.get("pickup_code"))
     if progress == "ready_for_pickup" and code:
-        line = say("order_ready", call.lang, code=code, pickup_code=code)
+        line = say("order_ready", call.lang, code=code, pickup_code=code, store=str(order.get("store") or ""))
     elif progress in ("paid", "preparing") and code:
         line = say("order_status_pickup", call.lang, status=words, code=code)
     else:
@@ -677,11 +738,12 @@ async def t_refund(call: Call, order_id: str | None, sku: str | None, qty: int |
     if not confirmed and isinstance(preview, dict) and preview.get("amount") is not None:
         call.refund_preview, call.last_refund_tool = target, "preview"
         last4 = spoken_code(preview.get("card_last4"))
+        call.refund_last4 = last4
         return {"status": "preview", "amount": preview["amount"], "say": say("refund_preview", call.lang, amount=money(cents(preview["amount"]), call.lang), last4=last4, card_last4=last4)}
     refund = reply.get("refund") if isinstance(reply.get("refund"), dict) else reply
     if confirmed and str(refund.get("status", "")).upper() in ("PENDING", "TRANSMITTED", "SETTLED", "COMPLETED"):
         amount = (refund.get("refundAmountDetails") or {}).get("refundAmount")
-        return {"status": refund["status"], "say": say("refund_done", call.lang, amount=money(cents(amount or 0), call.lang), last4="")}
+        return {"status": refund["status"], "say": say("refund_done", call.lang, amount=money(cents(amount or 0), call.lang), last4=call.refund_last4)}
     key = reply.get("say_key") if reply.get("say_key") in LINES else "declined"
     return {"status": "declined", "say_key": reply.get("say_key"), "say": say(key, call.lang)}
 
@@ -762,6 +824,8 @@ def _call(ctx: Context, ruth_said: str = "", call_id: str = "", borrow_recent: b
         recent = max(CALLS.values(), key=lambda c: c.seen, default=None)
         if recent is not None and now - recent.seen < REUSE_S and not recent.ended:
             call = recent
+            if now - recent.seen > PIN_BORROW_S:
+                call.verified_until = 0.0
     if call is None:
         call = call_for(None if not session else session)
     CALLS[call.call_id] = call
@@ -807,7 +871,8 @@ async def scam_check(story: str, ctx: Context, caller_org: str = "", caller_phon
     return _done(call, await t_scam_check(call, story, caller_org, caller_phone), "scam_check")
 
 
-@mcp.tool(annotations=WRITE)
+# Read-only for the Builder: it changes nothing outside this call, and the Builder leaves write tools off by default.
+@mcp.tool(annotations=READ)
 async def verify_pin(pin: str, ctx: Context, ruth_said: str = "", call_id: str = "") -> dict:
     """Check Ruth's four-digit Chaperone PIN. Ask for it before any purchase, bill payment, cancel or return. Never repeat the PIN back. Returns verified and say."""
     call = _call(ctx, "", call_id)  # the PIN is never kept as her words

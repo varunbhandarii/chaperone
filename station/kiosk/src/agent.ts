@@ -1808,13 +1808,15 @@ export class StationAgent {
   }
 
   /** A fixed line, spoken verbatim (force_message) once the shopper and the model are quiet; never over them. */
-  private async speakFixed(text: string): Promise<void> {
-    if (this.replaying) return; // the recording carries its own audio
+  /** Says a fixed line once the station is quiet. True when it was spoken (the screen shows it either way). */
+  private async speakFixed(text: string): Promise<boolean> {
+    if (this.replaying) return false; // the recording carries its own audio
     const t0 = performance.now();
     while ((this.pressed || this.responseActive || this.player?.active) && performance.now() - t0 < 8000) await sleep(150);
-    if (!this.started || this.pressed || !this.configured) return; // the screen still shows it
+    if (!this.started || this.pressed || !this.configured) return false; // the screen still shows it
     this.lastSpoken = text; // only what was actually spoken can be repeated
     this.speakVerbatim(text);
+    return true;
   }
 
   // ---------------------------------------------------------------- the guards at the station
@@ -1905,9 +1907,10 @@ export class StationAgent {
     const mandate = await getMandate();
     if (!mandate) return;
     const say = sayFor("cosign_ask", this.lang, { rules: rulesInWords(mandate, this.lang) });
-    this.cosignPending = { until: Date.now() + 5 * 60_000 };
+    this.cosignPending = null;
     this.ui.notice("New rules from Priyank", say, "warn");
-    void this.speakFixed(say);
+    // her next turn answers the question only once she has heard it, never a read-back or an earlier question
+    if (await this.speakFixed(say)) this.cosignPending = { until: Date.now() + 5 * 60_000 };
   }
 
   /** Ruth's answer to "Do you agree?": a yes is recorded with her own words; anything else carries on as usual. */
@@ -2038,7 +2041,11 @@ export class StationAgent {
     this.pendingForce = null;
     this.waitingForCaregiver = false;
     this.rec = { t0: performance.now(), events: [] };
+    this.cosignPending = null;
     this.ui.cleared(this.sessionId);
+    // the reset cleared the pause and the cool-down on policy too: drop them here and read them back once it is done
+    this.showPaused(false);
+    void relay.then(() => this.loadGuardState());
     console.info(`[${ts()}] RESET (${reason}): new session ${this.sessionId}`);
     if (this.started) {
       // A new conversation: close the old socket first (tier 0 allows 10 concurrent sessions).
