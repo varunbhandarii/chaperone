@@ -111,7 +111,19 @@ def get_mandate():
     if stored:
         public = fill_v2({key: value for key, value in stored.items() if key not in ("passkey", "paused")})
         credential_id = (stored.get("passkey") or {}).get("credential_id")
-        return {"signed": True, "credential_id": credential_id, "mandate": public, "paused": paused}
+        body = {"signed": True, "credential_id": credential_id, "mandate": public, "paused": paused}
+        cosign_path = _cosign_path()
+        if cosign_path.exists():
+            import base64
+            import json
+
+            from policy.mandate import mandate_hash
+
+            saved = json.loads(cosign_path.read_text(encoding="utf-8") or "{}")
+            current = base64.urlsafe_b64encode(mandate_hash(stored)).decode().rstrip("=")
+            if saved.get("mandate_hash") == current:
+                body["cosign"] = saved
+        return body
     return {"signed": False, "mandate": DEFAULT_MANDATE, "detail": "unsigned mandate", "paused": paused}
 
 
@@ -566,6 +578,45 @@ def explain(decision_id: str, request: Request):
         return explain_decision(decision_id)
     except LookupError as exc:
         raise HTTPException(404, str(exc)) from exc
+
+
+def _cosign_path():
+    from pathlib import Path
+
+    from common.config import env
+
+    return Path(env("COSIGN_PATH", "sessions/cosign.json"))
+
+
+@app.post("/mandate/cosign")
+def mandate_cosign(payload: dict, request: Request):
+    import base64
+    import json
+    from datetime import datetime, timezone
+
+    from policy.mandate import mandate_hash
+
+    _lan_only(request)
+    stored = load_mandate()
+    if not stored:
+        raise HTTPException(404, "no signed mandate")
+    digest = base64.urlsafe_b64encode(mandate_hash(stored)).decode().rstrip("=")
+    record = {
+        "by": "ruth",
+        "method": "voice",
+        "said": str(payload.get("said") or "")[:200],
+        "lang": payload.get("lang") or "en",
+        "at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "session_id": payload.get("session_id"),
+        "mandate_hash": digest,
+    }
+    path = _cosign_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(record), encoding="utf-8")
+    post_event("cosigned", payload.get("session_id") or "none", stored.get("mandate_id") or "none", **{
+        "by": "ruth", "method": "voice", "said": record["said"], "lang": record["lang"], "mandate_hash": digest,
+    })
+    return record
 
 
 @app.get("/mandate/visa")

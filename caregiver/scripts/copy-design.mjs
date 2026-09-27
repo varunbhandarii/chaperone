@@ -8,3 +8,4 @@ mkdirSync(dest, { recursive: true });
 for (const name of ["tokens.css", "logo.svg", "shield.svg"]) {
   cpSync(join(here, "../../design", name), join(dest, name));
 }
+cpSync(join(here, "../../contracts/merchants.json"), join(here, "../lib/merchants.json"));

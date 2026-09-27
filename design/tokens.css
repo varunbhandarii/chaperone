@@ -15,6 +15,64 @@
   --ok: #1f7a4d;
 }
 
+.ch-btn {
+  font-size: 1.15rem;
+  padding: 0.8rem 1.1rem;
+  margin: 0.35rem 0.35rem 0.35rem 0;
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: var(--radius);
+  border: 1px solid var(--ch-text);
+  background: var(--ch-surface);
+  color: var(--ch-text);
+}
+
+.ch-card {
+  background: var(--ch-surface);
+  padding: var(--space);
+  margin: 0.8rem 0;
+  border-radius: var(--radius);
+}
+
+.ch-pill {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--ch-bg);
+  border: 1px solid var(--ch-text);
+}
+
+.ch-banner {
+  background: var(--ch-surface);
+  border-left: 6px solid var(--protected);
+  padding: var(--space);
+  border-radius: var(--radius);
+}
+
+.ch-tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  background: var(--ch-surface);
+  border-top: 1px solid var(--ch-text);
+}
+
+.ch-tabs button {
+  flex: 1;
+  min-height: 52px;
+  font-size: 0.85rem;
+  background: transparent;
+  border: 0;
+  color: var(--ch-text);
+}
+
+.ch-page {
+  padding-bottom: 5rem;
+  max-width: 36rem;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --ch-text: #f3efe6;

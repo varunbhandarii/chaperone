@@ -189,7 +189,7 @@ def decide(payload: dict, mandate: dict, risk: dict | None = None, history: list
         "reason": None,
         "mcc": mcc,
         "amount": amount,
-        "store": merchant.get("descriptor") or merchant.get("acceptor_id") or "",
+        "store": registry_store_name(merchant),
         "card_last4": card.get("last_four") or "",
         "hold_id": None,
         "consumed_pass": None,
@@ -238,6 +238,20 @@ def _decline(answer: dict, reason_key: str) -> dict:
     answer["reason"] = REASONS[reason_key]
     answer["hold_id"] = "h_" + (answer["token"] or "swipe")[:12]
     return answer
+
+
+def registry_store_name(merchant: dict) -> str:
+    """The name from contracts/merchants.json, not Lithic's descriptor."""
+    found = terminal_store(str(merchant.get("acceptor_id") or ""))
+    if found and found.get("name"):
+        return found["name"]
+    from common.merchants import all_merchants
+
+    mcc = str(merchant.get("mcc") or "")
+    for entry in all_merchants():
+        if str(entry.get("mcc")) == mcc:
+            return entry["name"]
+    return merchant.get("descriptor") or merchant.get("acceptor_id") or ""
 
 
 def terminal_store(acceptor_id: str) -> dict | None:
@@ -312,7 +326,7 @@ def handle_authorization(payload: dict, mandate: dict | None = None) -> dict:
         return public
 
 
-def allow_hold(hold_id: str, now: datetime | None = None) -> dict:
+def allow_hold(hold_id: str, now: datetime | None = None, mandate_id: str | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     with _lock:
         state = load_state()
@@ -333,8 +347,11 @@ def allow_hold(hold_id: str, now: datetime | None = None) -> dict:
             "used": False,
         })
         save_state(state)
+    from policy.store import load_mandate
+
+    posted_mandate = mandate_id or (load_mandate() or DEFAULT_MANDATE).get("mandate_id") or DEFAULT_MANDATE["mandate_id"]
     post_event(
-        "card_hold_released", "none", DEFAULT_MANDATE["mandate_id"],
+        "card_hold_released", "none", posted_mandate,
         hold_id=hold_id, store=hold.get("store"), max_amount=hold.get("max_amount"),
         allowed_until=until.isoformat(),
     )

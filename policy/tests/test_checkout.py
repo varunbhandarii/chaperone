@@ -345,6 +345,22 @@ def test_merchant_failure_during_approval_is_not_a_500(tmp_path, monkeypatch):
     assert result.json()["order"] is None
 
 
+def test_ruth_agrees_by_voice_beside_the_signed_mandate(tmp_path, monkeypatch):
+    monkeypatch.setenv("COSIGN_PATH", str(tmp_path / "cosign.json"))
+    from policy.mandate import DEFAULT_MANDATE
+    from policy.store import load_mandate, save_mandate
+
+    api = client(tmp_path, monkeypatch)
+    save_mandate({**DEFAULT_MANDATE, "passkey": {"credential_id": "priya", "public_key": "k", "response": {"id": "priya"}}})
+    before = load_mandate()
+    assert api.post("/mandate/cosign", headers={"x-forwarded-for": "8.8.8.8"}, json={"said": "yes"}).status_code == 403
+    agreed = api.post("/mandate/cosign", json={"session_id": "s_demo", "said": "Sí, estoy de acuerdo", "lang": "es"})
+    assert agreed.status_code == 200, agreed.text
+    body = api.get("/mandate").json()
+    assert body["cosign"]["by"] == "ruth" and body["cosign"]["said"] == "Sí, estoy de acuerdo"
+    assert load_mandate() == before
+
+
 def test_mandate_read_drops_the_assertion(tmp_path, monkeypatch):
     api = client(tmp_path, monkeypatch)
     from policy.mandate import DEFAULT_MANDATE

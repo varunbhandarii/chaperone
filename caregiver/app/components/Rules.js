@@ -1,4 +1,5 @@
 import { rulesSentence } from "@/lib/rulesSentence";
+import { storeNames, storefronts } from "@/lib/stores";
 import { btn, field } from "./styles";
 
 const BLOCKED = [
@@ -9,7 +10,7 @@ const BLOCKED = [
   ["lottery", "Lottery"],
 ];
 
-export default function Rules({ mandate, onChange, onToggleBlocked, onSign, onHome }) {
+export default function Rules({ mandate, cosign, onChange, onToggleBlocked, onToggleStore, onSign }) {
   return (
     <section>
       <h1>Ruth&apos;s rules</h1>
@@ -28,17 +29,19 @@ export default function Rules({ mandate, onChange, onToggleBlocked, onSign, onHo
           <input type="checkbox" checked={mandate.blocked_categories.includes(id)} onChange={() => onToggleBlocked(id)} /> {label}
         </label>
       ))}
-      <p style={{ fontSize: "1.2rem", background: "white", padding: "1rem" }}>{rulesSentence(mandate)}</p>
+      <p className="ch-card">{rulesSentence(mandate, storeNames)}</p>
       <h2>Stores</h2>
-      <p style={{ fontSize: "1.15rem" }}>{(mandate.allowed_merchants || []).map((id) => ({ corner_market: "Corner Market", parkside_pharmacy: "Parkside Pharmacy", main_street_home: "Main Street Home", peachtree_power: "Peachtree Power" }[id] || id)).join(", ")}</p>
+      {storefronts().map((store) => (
+        <label key={store.id} style={{ display: "block", fontSize: "1.15rem" }}>
+          <input type="checkbox" checked={(mandate.allowed_merchants || []).includes(store.id)} onChange={() => onToggleStore(store.id)} /> {store.name}
+        </label>
+      ))}
       <h2>Card</h2>
-      <p style={{ fontSize: "1.15rem" }}>
-        Gift cards, wires, crypto and lottery are blocked on the card.
-        A grocery swipe can be ${mandate.card && mandate.card.category_caps ? mandate.card.category_caps["5411"] : 150}.
-        After a scam check, risky spending drops for {mandate.card && mandate.card.cooldown ? mandate.card.cooldown.hours : 24} hours.
-      </p>
+      <p>Gift-card shops, crypto and wires stay blocked. A drugstore swipe can be up to $80. After a scam check, risky spending is tighter for a day.</p>
+      <h2>People Ruth trusts</h2>
+      {(mandate.trusted_contacts || []).map((person) => <p key={person.phone}>{person.name}, {person.relation}</p>)}
+      <p>{cosign ? `Ruth agreed by voice at ${new Date(cosign.at).toLocaleString("en-US", { hour: "numeric", minute: "2-digit" })}.` : "Waiting for Ruth."}</p>
       <button style={btn} onClick={onSign}>Sign with passkey</button>
-      <button style={btn} onClick={onHome}>Home</button>
     </section>
   );
 }
