@@ -47,7 +47,11 @@ WRITTEN_WITH_RULES = ["en_refund_overpay", "en_recovery_retainer", "es_aduana_ar
                       "hi_refund_screen_share", "hl_renewal_callback", "en_b_return_milk", "es_b_devolver_sopa",
                       "hi_b_order_status", "hl_b_return_extra_bread",
                       "en_utility_shutoff", "es_cuenta_segura", "hi_courier_sona", "hl_bitcoin_machine",
-                      "en_b_power_bill", "es_b_farmacia", "hi_b_bijli_bill", "hl_b_pota_visit"]
+                      "en_b_power_bill", "es_b_farmacia", "hi_b_bijli_bill", "hl_b_pota_visit",
+                      "es_corte_luz", "hi_bijli_kat", "en_safe_account", "hi_surakshit_khata", "en_crypto_atm",
+                      "es_cajero_cripto", "en_courier_gold", "es_mensajero", "en_voice_clone", "hl_pota_secret",
+                      "en_remote_ultraviewer", "hl_anydesk_bank", "en_b_power_outage", "es_b_pagar_luz",
+                      "hi_b_pota_milne", "hl_b_bijli_gayi"]
 MANDATE_SUMMARY = {k: DEFAULT_MANDATE[k] for k in (
     "currency", "per_purchase_cap", "monthly_cap", "approval_threshold", "allowed_categories", "blocked_categories")}
 
