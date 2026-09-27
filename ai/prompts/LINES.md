@@ -23,6 +23,7 @@
 | `card_allowed_once` | | Priyank allowed a held swipe once; clip `line.card_allowed_once` |
 | `cooldown_on` | | after a scam check puts the card on its 24-hour cool-down |
 | `scam_check_scam`, `scam_check_unsure`, `scam_check_ok` | | `/scam-check`'s fixed lines when Grok has no answer; clip `line.scam_check_scam` |
+| `scam_check_bill_paid`, `scam_check_family` | `{biller}`, `{name}` | `/scam-check`'s fixed scam line when her own accounts answer the story: the bill is paid, or the relative has a number on file |
 | `scam_check_unavailable` | | the scam check didn't answer at all |
 | `line_pin_ask`, `line_pin_ok` | | the phone line's PIN before any purchase |
 | `line_pin_wrong`, `line_pin_wrong_last`, `line_pin_locked` | `{left}`, `{minutes}` | a wrong PIN, the last try, then the pause |

@@ -116,7 +116,9 @@ SCHEMA = {
     },
 }
 
-_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="radar")
+# Calls wait on the network, not the CPU: a late answer may hold its thread for LATE_LIMIT_S, so there are enough
+# threads that late answers never make a new check wait.
+_pool = ThreadPoolExecutor(max_workers=16, thread_name_prefix="radar")
 _facts_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="radar-facts")
 _lock = threading.RLock()
 
@@ -236,6 +238,8 @@ def gather_facts(mandate_id: str, story: str, caller: dict) -> list[dict]:
             if caller.get("phone") and contact.get("phone"):
                 same = re.sub(r"\D", "", caller["phone"])[-10:] == re.sub(r"\D", "", contact["phone"])[-10:]
                 result += ", the same as the caller" if same else ", different from the caller"
+            if not caller.get("phone"):
+                result += "; the caller's number is unknown"
             facts.append({"fact": f"{name}'s number on file ({contact.get('relation', 'contact')})", "result": result})
     if BILLER_WORDS.search(text):
         for biller in mandate.get("billers") or DEMO_BILLERS:
@@ -347,36 +351,83 @@ def say_ok(say: str, lang: str = "en") -> bool:
     return bool(text) and len(_SENTENCE_END.findall(text + " ")) <= 2 and len(text.split()) <= SAY_WORDS.get(lang, 30)
 
 
-_NUM_WORDS = {
+# Number words, read as whole phrases: "two thousand five hundred" is 2500, "tres mil quinientos" 3500,
+# "दो हज़ार पांच सौ" 2500. Values under 100 on their own are not money ("two grandsons", "do not").
+_UNITS = {
     # en
-    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "a": 1,
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+    "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
+    "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+    "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
     # es
-    "un": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9,
-    "diez": 10, "doscientos": 200, "trescientos": 300, "cuatrocientos": 400, "quinientos": 500, "seiscientos": 600,
-    "setecientos": 700, "ochocientos": 800, "novecientos": 900, "cien": 100, "ciento": 100,
+    "uno": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9,
+    "diez": 10, "once": 11, "doce": 12, "trece": 13, "catorce": 14, "quince": 15, "dieciseis": 16, "dieciséis": 16,
+    "diecisiete": 17, "dieciocho": 18, "diecinueve": 19, "veinte": 20, "treinta": 30, "cuarenta": 40,
+    "cincuenta": 50, "sesenta": 60, "setenta": 70, "ochenta": 80, "noventa": 90,
     # hi (Devanagari and Latin)
     "एक": 1, "दो": 2, "तीन": 3, "चार": 4, "पांच": 5, "पाँच": 5, "छह": 6, "सात": 7, "आठ": 8, "नौ": 9, "दस": 10,
-    "ek": 1, "do": 2, "teen": 3, "char": 4, "paanch": 5, "panch": 5, "chhe": 6, "saat": 7, "aath": 8, "nau": 9, "das": 10,
+    "बीस": 20, "तीस": 30, "चालीस": 40, "पचास": 50, "साठ": 60, "सत्तर": 70, "अस्सी": 80, "नब्बे": 90,
+    "ek": 1, "do": 2, "teen": 3, "char": 4, "paanch": 5, "panch": 5, "chhe": 6, "saat": 7, "aath": 8, "nau": 9,
+    "das": 10, "bees": 20, "tees": 30, "chalees": 40, "pachas": 50, "saath": 60, "sattar": 70, "assi": 80, "nabbe": 90,
 }
-_MULTIPLIERS = {"hundred": 100, "thousand": 1000, "mil": 1000, "सौ": 100, "हज़ार": 1000, "हजार": 1000,
-                "sau": 100, "hazaar": 1000, "hazar": 1000, "hajar": 1000}
+_HUNDREDS = {"cien": 100, "ciento": 100, "doscientos": 200, "trescientos": 300, "cuatrocientos": 400,
+             "quinientos": 500, "seiscientos": 600, "setecientos": 700, "ochocientos": 800, "novecientos": 900}
+_TIMES_100 = {"hundred", "सौ", "sau"}
+_TIMES_1000 = {"thousand", "mil", "हज़ार", "हजार", "hazaar", "hazar", "hajar"}
+_ARTICLES = {"a", "un"}  # "a thousand", "un mil": one, only before a scale word
+_JOINERS = {"and", "y"}  # "two hundred and fifty", "cuarenta y cinco"
+_NOT_MONEY_AFTER = {"times", "veces", "बार", "baar", "people", "personas", "log", "लोग", "years", "años", "saal", "साल"}
 _DIGITS = re.compile(r"\$\s?(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s*(?:dollars?|d[oó]lares|usd|डॉलर|bucks)", re.IGNORECASE)
 
 
-def extract_amount(text: str) -> float | None:
-    """The largest dollar amount in a story ("$480", "2000 dólares", "two thousand dollars", "दो हज़ार")."""
-    found = [float((a or b).replace(",", "")) for a, b in _DIGITS.findall(text or "")]
-    words = re.findall(r"[\wऀ-ॿ]+", (text or "").lower())
-    for i, word in enumerate(words):
-        if word in _MULTIPLIERS:
-            base = _NUM_WORDS.get(words[i - 1], 1) if i else 1
-            value = base * _MULTIPLIERS[word]
-            if word == "mil" and i and words[i - 1].isdigit():
-                value = int(words[i - 1]) * 1000
+def _is_number_word(words: list[str], i: int) -> bool:
+    w = words[i]
+    nxt = words[i + 1] if i + 1 < len(words) else ""
+    scale = nxt in _TIMES_100 or nxt in _TIMES_1000
+    return (w in _UNITS or w in _HUNDREDS or w in _TIMES_100 or w in _TIMES_1000
+            or ((w in _ARTICLES or w.isdigit()) and scale))
+
+
+def _word_amounts(words: list[str]) -> list[float]:
+    found, i = [], 0
+    while i < len(words):
+        if not _is_number_word(words, i):
+            i += 1
+            continue
+        total = current = 0
+        j = i
+        while j < len(words):
+            w = words[j]
+            if w in _JOINERS and j + 1 < len(words) and _is_number_word(words, j + 1):
+                j += 1
+                continue
+            if not _is_number_word(words, j):
+                break
+            if w in _TIMES_100:
+                current = max(current, 1) * 100
+            elif w in _TIMES_1000:
+                total += max(current, 1) * 1000
+                current = 0
+            elif w in _HUNDREDS:
+                current += _HUNDREDS[w]
+            elif w in _ARTICLES:
+                current += 1
+            else:
+                current += int(w) if w.isdigit() else _UNITS[w]
+            j += 1
+        value = total + current
+        after = words[j] if j < len(words) else ""
+        if value >= 100 and after not in _NOT_MONEY_AFTER:
             found.append(float(value))
-        elif word in _NUM_WORDS and _NUM_WORDS[word] >= 100:
-            found.append(float(_NUM_WORDS[word]))
+        i = j
+    return found
+
+
+def extract_amount(text: str) -> float | None:
+    """The largest dollar amount in a story ("$480", "2000 dólares", "two thousand five hundred dollars",
+    "tres mil quinientos", "दो हज़ार")."""
+    found = [float((a or b).replace(",", "")) for a, b in _DIGITS.findall(text or "")]
+    found += _word_amounts(re.findall(r"[\wऀ-ॿ]+", (text or "").lower()))
     return max(found) if found else None
 
 
@@ -406,6 +457,22 @@ def _actions(raw: list[str], verdict: str, facts: list[dict]) -> list[str]:
 
 def _fallback(verdict: str, lang: str) -> str:
     return lines(lang)[f"scam_check_{verdict}"]
+
+
+def _fact_line(pattern: str | None, facts: list[dict], lang: str) -> str | None:
+    """A fixed scam line that uses her own accounts: the bill the caller threatens is paid, or the relative who
+    "called" has a number on file to call back. None when her facts don't answer the story."""
+    if pattern in ("utility_shutoff", "utility_impersonation"):
+        paid = next((f["fact"].removesuffix(" account") for f in facts
+                     if f["fact"].endswith(" account") and str(f.get("result", "")).startswith("nothing due")), None)
+        if paid:
+            return lines(lang)["scam_check_bill_paid"].format(biller=paid)
+    if pattern == "grandparent_emergency":
+        name = next((f["fact"].split("'s number")[0] for f in facts
+                     if "'s number on file" in f["fact"] and "(daughter)" not in f["fact"]), None)
+        if name:
+            return lines(lang)["scam_check_family"].format(name=name)
+    return None
 
 
 def pattern_entry(pattern: str | None, lang: str) -> dict | None:
@@ -506,7 +573,8 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
         pattern = rule_pattern or "gift_card_demand"
         cached = cache_get(story_key(key_text, lang)) or pattern_entry(pattern, lang)
         verdict, from_cache = "scam", bool(cached)
-        say = (cached or {}).get("say") if say_ok((cached or {}).get("say"), lang) else _fallback("scam", lang)
+        say = ((cached or {}).get("say") if say_ok((cached or {}).get("say"), lang)
+               else _fact_line(pattern, facts, lang) or _fallback("scam", lang))
         raw_actions = (cached or {}).get("actions") or ["hang_up", "do_not_pay"]
         sources = (cached or {}).get("sources") or []
         reported = (cached or {}).get("reported_recently")
@@ -524,7 +592,8 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
             sources, reported = v.get("sources") or [], v.get("reported_recently")
             grok_pattern = _slug(v.get("pattern"))
             pattern = grok_pattern if grok_pattern not in ("none", "unknown") else (rule_pattern or grok_pattern)
-            say = v.get("say") if say_ok(v.get("say"), lang) else _fallback(verdict, lang)
+            say = (v.get("say") if say_ok(v.get("say"), lang)
+                   else (verdict == "scam" and _fact_line(pattern, facts, lang)) or _fallback(verdict, lang))
             if not from_cache:
                 remember(v, key_text, lang, pattern)
         else:
@@ -533,7 +602,8 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
             plain = screen(heard, lang)
             verdict = "scam" if plain["action"] == "judge" else "unsure"
             pattern = rule_pattern or "unknown"
-            say, raw_actions = _fallback(verdict, lang), ["do_not_pay"]
+            say = (verdict == "scam" and _fact_line(pattern, facts, lang)) or _fallback(verdict, lang)
+            raw_actions = ["do_not_pay"]
             sources, reported = [], None
 
     cooldown_until = None

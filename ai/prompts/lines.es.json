@@ -31,6 +31,8 @@
   "scam_check_scam": "Ruth, esto parece una estafa que engaña a mucha gente inteligente. Por favor cuelgue y no envíe dinero; ya le avisé a Priyank.",
   "scam_check_unsure": "Ruth, todavía no sé si esto es real. Por favor no pague nada hasta que lo hablemos con Priyank.",
   "scam_check_ok": "Eso parece estar bien, Ruth. ¿Qué quiere que haga?",
+  "scam_check_bill_paid": "Ruth, su factura de {biller} está pagada, así que esta llamada es una estafa. Por favor cuelgue y no le pague a nadie; ya le avisé a Priyank.",
+  "scam_check_family": "Ruth, esta es una estafa común, y una voz se puede copiar. Por favor cuelgue y llame a {name} al número que tiene guardado; ya le avisé a Priyank.",
   "order_status": "Su pedido está {status}.",
   "no_orders": "Todavía no veo un pedido de hoy.",
   "refund_not_possible": "No puedo hacer esa devolución. En la tienda le pueden ayudar.",

@@ -348,7 +348,8 @@ LINE_KEYS = {"ordering_now", "asking_priya", "caregiver_approved", "caregiver_de
              "card_declined_atm", "card_allowed_once", "cooldown_on", "bill_due", "bill_past_due", "bill_paid",
              "refund_not_allowed_bill", "line_pin_ask", "line_pin_wrong", "pickup_line", "scam_check_scam",
              "scam_check_unsure", "scam_check_ok", "scam_check_unavailable", "asking_priya_check", "cosign_ask",
-             "cosign_thanks", "cosign_not_yet", "line_pin_wrong_last", "line_pin_locked", "line_pin_ok"}
+             "cosign_thanks", "cosign_not_yet", "line_pin_wrong_last", "line_pin_locked", "line_pin_ok",
+             "scam_check_bill_paid", "scam_check_family"}
 
 
 def test_line_files_share_keys_and_placeholders():

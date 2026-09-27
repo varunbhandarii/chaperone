@@ -52,7 +52,8 @@ def test_hard_rule_answers_at_once_and_sets_the_cooldown():
     out = client().post("/scam-check", json={"story": GRANDPARENT, "lang": "en", "session_id": "s1"}).json()
     assert (time.perf_counter() - start) < 0.5
     assert out["verdict"] == "scam" and out["pattern"] == "grandparent_emergency"
-    assert out["say"] == scamcheck.lines("en")["scam_check_scam"]
+    # her own contacts answer the story: call Alex back at the number she has saved
+    assert out["say"] == scamcheck.lines("en")["scam_check_family"].format(name="Alex")
     assert "tell_priya" in out["actions"]
     assert out["cooldown_until"] and risk.load_risk("m_ruth_2026_09")["active"]
     assert [t for t, _ in EVENTS][:2] == ["risk_changed", "scam_checked"]
@@ -115,6 +116,25 @@ def test_ok_verdict_sets_no_cooldown(monkeypatch):
 def test_facts_compare_the_caller_with_the_saved_number():
     facts = scamcheck.gather_facts("m", GRANDPARENT, {"name": "Alex", "phone": "+1 (678) 555-0100"})
     assert {"fact": "Alex's number on file (grandson)", "result": "+1-404-555-0187, different from the caller"} in facts
+
+
+def test_facts_say_when_the_callers_number_is_unknown():
+    facts = scamcheck.gather_facts("m", GRANDPARENT, {})
+    assert {"fact": "Alex's number on file (grandson)", "result": "+1-404-555-0187; the caller's number is unknown"} in facts
+
+
+@pytest.mark.parametrize("lang", ["en", "es", "hi"])
+def test_a_paid_bill_answers_the_power_company_call(monkeypatch, lang):
+    monkeypatch.setattr(scamcheck, "_biller_account", lambda m, a: {
+        "biller": "Peachtree Power", "balance_due": "0.00", "due_date": "2026-10-15", "past_due": False,
+        "disconnect_notice": False})
+    out = scamcheck.check(POWER, lang)
+    assert out["verdict"] == "scam" and out["say"] == scamcheck.lines(lang)["scam_check_bill_paid"].format(biller="Peachtree Power")
+
+
+def test_a_bill_with_money_due_keeps_the_plain_scam_line():
+    out = scamcheck.check(POWER, "en")  # $86.40 due: the threat is still a scam, but "your bill is paid" would be false
+    assert out["say"] == scamcheck.lines("en")["scam_check_scam"]
 
 
 def test_facts_read_the_real_power_bill():
@@ -261,6 +281,10 @@ def test_a_long_say_falls_back_to_the_fixed_line_and_keeps_sources(monkeypatch):
     ("necesita 2000 dólares para la fianza", 2000.0), ("quinientos dólares en tarjetas", 500.0),
     ("two thousand dollars", 2000.0), ("दो हज़ार डॉलर चाहिए", 2000.0), ("paanch sau dollar", 500.0),
     ("my grandson is visiting", None),
+    ("two thousand five hundred dollars", 2500.0), ("tres mil quinientos dólares", 3500.0),
+    ("दो हज़ार पांच सौ डॉलर", 2500.0), ("cuarenta y cinco mil", 45000.0), ("a thousand dollars in gift cards", 1000.0),
+    ("two hundred and fifty dollars", 250.0), ("do hazaar paanch sau", 2500.0), ("2 thousand dollars", 2000.0),
+    ("I told him a hundred times, it's $50", 50.0), ("do not tell mom", None), ("my two grandsons", None),
 ])
 def test_amount_is_read_from_the_story(text, amount):
     assert scamcheck.extract_amount(text) == amount

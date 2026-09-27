@@ -31,6 +31,8 @@
   "scam_check_scam": "Ruth, this sounds like a scam that fools many smart people. Please hang up and don't send any money; I've told Priyank.",
   "scam_check_unsure": "Ruth, I can't tell yet whether this is real. Please don't pay anything until we've checked with Priyank.",
   "scam_check_ok": "That sounds all right, Ruth. What would you like me to do?",
+  "scam_check_bill_paid": "Ruth, your {biller} bill is paid, so this call is a scam. Please hang up and don't pay anyone; I've told Priyank.",
+  "scam_check_family": "Ruth, this is a common scam, and a voice can be copied. Please hang up and call {name} at the number you have saved; I've told Priyank.",
   "order_status": "Your order is {status}.",
   "no_orders": "I don't see an order from today yet.",
   "refund_not_possible": "I can't make that return. The store can help you at the counter.",
