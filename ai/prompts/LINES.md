@@ -24,7 +24,10 @@
 | `cooldown_on` | | after a scam check puts the card on its 24-hour cool-down |
 | `scam_check_scam`, `scam_check_unsure`, `scam_check_ok` | | `/scam-check`'s fixed lines when Grok has no answer; clip `line.scam_check_scam` |
 | `scam_check_unavailable` | | the scam check didn't answer at all |
-| `line_pin_ask`, `line_pin_wrong` | | the phone line's PIN before any purchase |
+| `line_pin_ask`, `line_pin_ok` | | the phone line's PIN before any purchase |
+| `line_pin_wrong`, `line_pin_wrong_last`, `line_pin_locked` | `{left}`, `{minutes}` | a wrong PIN, the last try, then the pause |
+| `asking_priya_check` | | the safety check couldn't finish, so the order went to Priyank |
+| `cosign_ask`, `cosign_thanks`, `cosign_not_yet` | `{rules}` (ask only) | Ruth agrees to the rules by voice; `{rules}` is the station's plain-words summary in Ruth's language |
 | `checkout_unavailable`, `store_unavailable`, `over_monthly_cap`, `read_back_required`, `declined`, `cart_empty` | | checkout and store outcomes |
 | `budget_left` | `{left}` | budget question |
 | `agent_paused` | | the mandate is paused |

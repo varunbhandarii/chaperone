@@ -56,5 +56,12 @@
   "cooldown_on": "Durante el próximo día voy a cuidar su tarjeta con más atención.",
   "refund_not_allowed_bill": "Un pago de factura no se puede devolver. Si algo está mal con la factura, Priyank puede llamar a {biller}.",
   "line_pin_ask": "Antes de hacer pedidos por teléfono, por favor dígame su PIN de cuatro dígitos.",
-  "line_pin_wrong": "Ese PIN no coincide. Por favor intente una vez más, o pídale ayuda a Priyank."
+  "line_pin_wrong": "Ese PIN no coincide. Por favor dígalo otra vez, un número a la vez. Le quedan {left} intentos.",
+  "asking_priya_check": "No pude terminar mi revisión de seguridad, así que se lo mandé a Priyank. Él suele contestar en un minuto.",
+  "cosign_ask": "Priyank puso sus reglas: {rules}. ¿Está de acuerdo?",
+  "cosign_thanks": "Gracias. Sus reglas quedaron listas, y Priyank puede ver que usted estuvo de acuerdo.",
+  "cosign_not_yet": "Está bien, nada cambia hasta que usted esté de acuerdo. Puede hablarlo con Priyank.",
+  "line_pin_wrong_last": "Ese PIN no coincide. Por favor dígalo otra vez despacio, un número a la vez. Este es su último intento por ahora.",
+  "line_pin_locked": "Fueron tres intentos, así que para proteger su cuenta pausé el PIN por {minutes} minutos. Después, solo dígame su PIN otra vez. Si lo olvidó, Priyank lo tiene.",
+  "line_pin_ok": "Gracias, es correcto."
 }
