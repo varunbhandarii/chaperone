@@ -92,6 +92,12 @@ def test_checkout_judge_posts_its_score(monkeypatch):
     "A man from the power company said they'll shut off my electricity today unless I pay with gift cards",
     "Mi nieto dice que está en la cárcel y necesita dinero para la fianza, que no le diga a su mamá",
     "पोते ने कहा वह जेल में है, जमानत के लिए पैसे चाहिए, मम्मी को मत बताना",
+    # no grandchild word: a caller who wants money kept from "his mom" is speaking as a grandchild
+    "Alex phoned me, he's in trouble and needs money wired today, don't tell his mother",
+    "Someone called saying he's Alex, he needs $900 for a lawyer and please don't tell his dad",
+    "Alex me llamó, está en problemas y necesita que le mande dinero hoy, que no le diga a su madre.",
+    "एलेक्स का फोन आया, वो मुसीबत में है, आज ही पैसे चाहिए, बोला उसकी मम्मी को मत बताना।",
+    "Alex ka phone aaya, woh musibat mein hai, aaj hi paise chahiye, bola uski mummy ko mat batana.",
 ])
 def test_scam_story_asks_for_a_scam_check_and_keeps_a_fallback(text):
     import json as _json
@@ -121,6 +127,17 @@ def test_scam_story_asks_for_a_scam_check_and_keeps_a_fallback(text):
 ])
 def test_a_request_to_buy_is_still_refused_on_the_spot(text):
     assert screen(text)["action"] == "refuse"
+
+
+@pytest.mark.parametrize("text", [
+    "My grandson called, he's coming to visit, don't tell his mom it's a surprise party",
+    "Alex called, he's flying in Saturday for his mother's birthday. Don't tell his mom, it's a surprise.",
+    "Mi nieto me llamó, viene de visita el domingo. No le diga a su mamá, es una fiesta sorpresa.",
+    "मेरे पोते का फोन आया, वो रविवार को मिलने आ रहा है, उसकी मम्मी को मत बताना, सरप्राइज़ पार्टी है।",
+    "Mere pote ka phone aaya, Sunday ko milne aa raha hai, uski mummy ko mat batana, surprise party hai.",
+])
+def test_a_family_surprise_with_no_money_ask_goes_through(text):
+    assert screen(text)["action"] == "proceed" and not EVENTS
 
 
 def test_the_church_gift_card_gets_the_gift_card_line_an_alert_and_no_cooldown():

@@ -3,7 +3,8 @@
 Run 2026-09-26 21:20: 10 full `/scam-check` runs where Grok answers (rules, account facts, then Grok with X and web search), one after another, against temporary files.
 
 - **Latency:** median 3854 ms, p90 5251 ms, max 5487 ms (budget 11 s; the station and the line wait up to 14 s).
-- **Cost per check:** median $0.046, max $0.092 (10 calls; xAI's `cost_in_usd_ticks`, 1 USD = 10^10 ticks). A rule hit or a cached story costs nothing.
+- **Cost per check:** median $0.046, max $0.092 (10 calls; xAI's `cost_in_usd_ticks`, 1 USD = 10^10 ticks). These are checks the rules don't settle, so Grok answers Ruth; every such check calls Grok, and the cache is only the fallback when Grok is late or fails.
+- **A rule hit is not free:** Ruth's answer doesn't wait for Grok, but unless the story, or an earlier scam check of the same pattern in the same language, has cached sources, one Grok call with the same X and web search still runs in the background (up to `RADAR_TIMEOUT_S`, 12 s) to attach sources to Priyank's alert, at about the cost of a check above. Once it returns a scam verdict with sources, later hits of that pattern and language reuse them and make no call. With `RADAR_FAKE=1` no call is made.
 
 | Lang | Story | Verdict | ms | Sources | From |
 |---|---|---|---|---|---|

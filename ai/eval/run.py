@@ -17,7 +17,12 @@ table counts it in its own column.
 
 JUDGE_THRESHOLD is picked on one half of the set (stratified by language and label) over a
 0.50-0.80 grid. Every row of the results table is scored on the other (held-out) half only,
-for every layer, so the rows compare like with like.
+for every layer, so the rows compare like with like. A second table breaks the full set down by
+scam family (each script's `family`), with the languages each family covers.
+
+The scripts, the rule lexicon and the judge's prompt examples were written by the same people,
+many of the scripts alongside the rules they test, so every number is in-sample: it shows the
+layers do what they were built to do, not how they fare on scams nobody here has seen.
 """
 
 from __future__ import annotations
@@ -42,7 +47,11 @@ GRID = [round(0.50 + 0.05 * i, 2) for i in range(7)]
 # Benign scripts whose rules-only outcome changed after lexicon edits made while looking at them;
 # the rules-only rows are optimistic on these.
 TUNED_ON = ["en_b_medicare_card", "hi_b_own_otp", "en_b_read_label", "hl_b_beta_jaldi"]
-# Written by the rule author together with the refund, recovery and delivery rules.
+# Written by the rule author together with the rules they exercise (refund, recovery, delivery and the
+# v2 families). The rules caught 2 of the 8 scam scripts in the last block when they were first written;
+# the lexicon was then extended until all 8 were caught, and the surprise-party negatives were written with
+# the secrecy exception, so the rules-only rows fit these by design.
+FIRST_PASS = {"scams": 8, "caught": 2}
 WRITTEN_WITH_RULES = ["en_refund_overpay", "en_recovery_retainer", "es_aduana_arancel", "es_tecnico_reembolso",
                       "hi_refund_screen_share", "hl_renewal_callback", "en_b_return_milk", "es_b_devolver_sopa",
                       "hi_b_order_status", "hl_b_return_extra_bread",
@@ -51,7 +60,14 @@ WRITTEN_WITH_RULES = ["en_refund_overpay", "en_recovery_retainer", "es_aduana_ar
                       "es_corte_luz", "hi_bijli_kat", "en_safe_account", "hi_surakshit_khata", "en_crypto_atm",
                       "es_cajero_cripto", "en_courier_gold", "es_mensajero", "en_voice_clone", "hl_pota_secret",
                       "en_remote_ultraviewer", "hl_anydesk_bank", "en_b_power_outage", "es_b_pagar_luz",
-                      "hi_b_pota_milne", "hl_b_bijli_gayi"]
+                      "hi_b_pota_milne", "hl_b_bijli_gayi",
+                      "hl_bijli_line_kaat", "hl_rbi_account", "hi_bitcoin_machine", "hl_aadmi_gehne", "es_nieta_voz",
+                      "hi_poti_awaaz", "es_tecnico_programa", "hi_teamviewer",
+                      "en_b_savings_cd", "es_b_cuenta_ahorros", "hi_b_fd_renew", "hl_b_joint_account",
+                      "en_b_gas_station_atm", "es_b_cajero_efectivo", "hi_b_atm_nakad", "hl_b_qr_payment",
+                      "en_b_pharmacy_driver", "es_b_repartidor", "hi_b_courier_parcel", "hl_b_courier_saree",
+                      "en_b_laptop_help", "es_b_videollamada", "hi_b_video_call", "hl_b_zoom_doctor",
+                      "en_b_surprise_party", "es_b_fiesta_sorpresa", "hi_b_surprise_party", "hl_b_surprise_party"]
 MANDATE_SUMMARY = {k: DEFAULT_MANDATE[k] for k in (
     "currency", "per_purchase_cap", "monthly_cap", "approval_threshold", "allowed_categories", "blocked_categories")}
 
@@ -171,6 +187,31 @@ def table(rows: list[tuple[str, dict]]) -> list[str]:
     return out
 
 
+def family_table(scripts: list[dict], layers: list[tuple[str, dict[str, str]]]) -> list[str]:
+    """Full set by family: languages covered, then scams caught and false refusals for each layer."""
+    short = {"en": "en", "es": "es", "hi": "hi", "hi_latn": "hl"}
+    out = ["| Family | Scam scripts | Hard negatives | " + " | ".join(name for name, _ in layers) + " |",
+           "|---|---|---|" + "---|" * len(layers)]
+    families = sorted({s["family"] for s in scripts}, key=lambda f: (f == "everyday", f))
+    for fam in families:
+        sub = [s for s in scripts if s["family"] == fam]
+
+        def langs(label: str) -> str:
+            rows = [s for s in sub if s["label"] == label and s["expected"] != "category_block"]
+            if not rows:
+                return "none"
+            return f"{len(rows)} ({', '.join(short[lang] for lang in LANGS if any(s['lang'] == lang for s in rows))})"
+
+        cells = []
+        for _, preds in layers:
+            m = metrics(sub, preds)
+            parts = [f"caught {m['tp']}/{m['tp'] + m['fn']}"] if m["tp"] + m["fn"] else []
+            parts += [f"false refusals {m['fr']}/{m['n_benign']}"] if m["n_benign"] else []
+            cells.append(", ".join(parts))
+        out.append(f"| {fam} | {langs('scam')} | {langs('benign')} | " + " | ".join(cells) + " |")
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", default=f"{judge_mod.FAST_MODEL},{judge_mod.REASONING_MODEL}")
@@ -203,6 +244,13 @@ def main() -> None:
         f"({len(test)} scripts; the threshold is tuned on the other {len(tune)}). Small samples: read the Wilson intervals, "
         "not the point estimates. With 0 false refusals out of n, the true rate is only bounded by the upper end.",
         "",
+        "**These numbers are in-sample.** The same people wrote the scripts, the rule lexicon "
+        "(`ai/rules/rules_v1.yaml`) and the judge's prompt examples, and many scripts were written alongside the rules "
+        "they test (listed below). The held-out half keeps the judge's threshold honest, not the rules. The figures show "
+        "the layers do what they were built to do; they are not a measure of how they fare on scams nobody here has seen. "
+        f"The closest thing to that: when the last {FIRST_PASS['scams']} scam scripts were first written, the rules alone "
+        f"caught {FIRST_PASS['caught']} of them, before the lexicon was extended to cover them.",
+        "",
     ]
     cat_rows = [s for s in scripts if s["expected"] == "category_block"]
     cat_ok = sum(rule_preds[s["id"]] == "category_block" for s in cat_rows)
@@ -210,6 +258,7 @@ def main() -> None:
               and (rule_preds[s["id"]] != "allow") != (s["label"] == "scam")]
 
     model_sections: list[str] = []
+    layers: list[tuple[str, dict[str, str]]] = [("Rules only", rule_preds)]
     if not args.rules_only:
         for model in [m.strip() for m in args.models.split(",") if m.strip()]:
             print(f"judging with {model} ({args.runs} runs)...", flush=True)
@@ -225,6 +274,7 @@ def main() -> None:
             p90 = lat[min(len(lat) - 1, math.ceil(0.9 * len(lat)) - 1)] if lat else 0
             deadline = args.timeout or float(judge_mod.env("JUDGE_TIMEOUT_S", "3"))
             label = f"Rules + {model}"
+            layers.append((label, preds))
             rows += [(f"{label} / {lang}", metrics(sub, preds)) for lang, sub in by_lang.items()]
             rows.append((f"{label} / all", metrics(test, preds)))
             held = metrics(test, preds)
@@ -241,7 +291,7 @@ def main() -> None:
                 f"{statistics.median(lat) if lat else 0:.0f} ms, p90 {p90:.0f} ms ({args.workers} call(s) at a time).",
                 f"- Verdict flips across {args.runs} runs at the chosen threshold: {flips} of {len(res['scores'])} judged scripts.",
                 f"- Prompt cache: median cached prompt tokens per call {statistics.median(res['cached']) if res['cached'] else 0:.0f}.",
-                f"- Misclassified, full set: {', '.join(wrong) or 'none'}.",
+                f"- Misclassified, full set (a held script counts, scam or benign): {', '.join(wrong) or 'none'}.",
                 "",
             ]
             if res["errors"]:
@@ -253,13 +303,22 @@ def main() -> None:
 
     lines += ["## Results by layer and language (held-out half)", ""] + table(rows) + [""]
     lines += [
+        "## Results by scam family (full set)",
+        "",
+        "Both halves together, so the judge columns include the scripts its threshold was tuned on. Hard negatives are "
+        "honest requests that share words with the family (a surprise party kept from Mom, cash from an ATM, a delivery "
+        "driver); `everyday` are plain requests. Languages: en English, es Spanish, hi Hindi in Devanagari, hl Hinglish. "
+        "Innocent requests for a blocked item are left out here, as in the table above.",
+        "",
+    ] + family_table(scripts, layers) + [""]
+    lines += [
         "## Rules only",
         "",
         f"- Innocent requests for a blocked item (expected category block): {cat_ok}/{len(cat_rows)} blocked as a category.",
         f"- The lexicon was edited after these benign scripts were seen, which changed their rules-only outcome, so the "
         f"rules-only rows are optimistic on them: {', '.join(TUNED_ON)}.",
-        f"- These scripts were written together with the refund, recovery, delivery and v2 rules, so the rules-only "
-        f"rows are optimistic on them too: {', '.join(WRITTEN_WITH_RULES)}.",
+        f"- These scripts were written together with the rules they exercise (refund, recovery, delivery and the v2 "
+        f"families), so the rules-only rows are optimistic on them too: {', '.join(WRITTEN_WITH_RULES)}.",
         f"- Misclassified by rules alone, full set (the judge covers these): {', '.join(misses) or 'none'}.",
         "",
     ]

@@ -2,6 +2,8 @@
 
 Run 2026-09-26 17:01 on `grok-4.20-0309-non-reasoning` with `x_search` (last 30 days) and `web_search` limited to consumer.ftc.gov, ic3.gov, aarp.org, bbb.org, fcc.gov. Responses API, strict JSON schema, sources from the tool citations.
 
+This probe (`ai/radar_probe.py`) has its own prompt and made-up account facts (for example a $0.00 Peachtree Power balance on autopay), so the answers below are not what `/scam-check` says today: the production check (`policy/scamcheck.py`) reads Ruth's real accounts, speaks formally (usted, aap), keeps at most 8 sources, and answers a rule hit without waiting for Grok. See `RADAR_LATENCY.md` for the production path.
+
 | Story | Lang | ms | Verdict | Pattern | Actions | Sources | Cost (USD ticks) |
 |---|---|---|---|---|---|---|---|
 | grandparent | en | 4810 | scam | Grandparent scam: Fake grandson calls from jail after car accident, voice sounds different, begs not to tell mom, urgent bail money needed. Matches FBI/IC3 and AARP warnings on this exact tactic, including secrecy request and voice excuse. Recent X posts confirm ongoing similar scams targeting elderly with jail/bail after accidents. | call_trusted, do_not_pay | 19 | 602893500 |

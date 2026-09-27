@@ -318,35 +318,36 @@ rules:
         - "aaj hi"
         - "urgent"
 
+  # "Don't tell his mom, it's a surprise party" is not secrecy: a "don't tell" followed within a few
+  # words by surprise / sorpresa / सरप्राइज does not count. Money asks are still caught by the hard
+  # secrecy rules below, which have no such exception.
   R_secrecy:
     severity: soft
     pattern: secrecy
     detail: Instructions to hide the purchase from family or the caregiver.
     terms:
       en:
-        - "re:(?:dont|do not) tell"
-        - "re:not to tell"
+        - "re:(?:dont|do not) tell(?!(?: \\S+){0,8} surprise)"
+        - "re:not to tell(?!(?: \\S+){0,8} surprise)"
         - "re:(?:keep|its) (?:it |this )?(?:a )?secret"
         - "re:between (?:us|you and me)"
         - "re:no ?one (?:can|should|must) know"
         - "re:(?:dont|do not) (?:let|call) (?:priyank|anyone|my daughter|my son|the bank)"
       es:
-        - "re:no (?:le|les|se lo|se la) (?:digas|diga|cuentes|cuente)"
-        - "re:no (?:le )?digas? a nadie"
+        - "re:no (?:le|les|se lo|se la) (?:digas|diga|cuentes|cuente)(?!(?: \\S+){0,8} sorpresa)"
+        - "re:no (?:le )?digas? a nadie(?!(?: \\S+){0,8} sorpresa)"
         - "secreto"
         - "re:entre (?:nosotros|tu y yo)"
         - "re:nadie (?:puede|debe) saber"
       hi:
-        - "मत बताना"
-        - "मत बताओ"
-        - "मत बताइए"
-        - "किसी को नहीं बताना"
+        - "re:मत (?:बताना|बताओ|बताइए)(?!(?: \\S+){0,8} (?:सरप्राइज|surprise))"
+        - "re:किसी को नहीं बताना(?!(?: \\S+){0,8} (?:सरप्राइज|surprise))"
         - "re:राज (?:रखना|रखो|रखिए|की बात)"
         - "गुप्त"
         - "re:छुपा ?कर"
       hi_latn:
-        - "re:mat (?:batana|batao|bataiye|bataye)"
-        - "re:kisi ko (?:mat|nahi) (?:batana|batao)"
+        - "re:mat (?:batana|batao|bataiye|bataye)(?!(?: \\S+){0,8} surprise)"
+        - "re:kisi ko (?:mat|nahi) (?:batana|batao)(?!(?: \\S+){0,8} surprise)"
         - "re:raj (?:rakhna|rakho|rakhiye|ki baat)"
         - "re:chupa ?kar"
         - "secret"
@@ -522,15 +523,20 @@ rules:
         - "re:remote (?:access|desktop)"
         - "re:(?:ultra ?viewer|rust ?desk|log ?me ?in|splash ?top|quick ?support|zoho assist|supremo)"
         - "re:(?:give|let) (?:him|her|them) (?:control|access) (?:of|to) (?:my|the) (?:computer|pc|laptop|phone|screen)"
+        - "re:(?:technician|tech support|support (?:man|guy|agent|person))(?: \\S+){0,8} (?:download|install) (?:a |an |the |this |that )?(?:program|app|software)(?: \\S+){0,3} so (?:he|they) can (?:get in|get into|go into|access|control|take over|log in|log into|connect)"
       es:
         - "re:acceso remoto"
         - "re:compartir (?:su |mi |la )?pantalla"
+        - "re:(?:tecnico|soporte)(?: \\S+){0,8} (?:descargue|descargar|instale|instalar|baje|bajar) (?:un |una |el |la |este |esta |ese |esa )?(?:programa|aplicacion|app)(?: \\S+){0,3} para que (?:el |ellos )?(?:pueda |puedan )?(?:entrar|entre|entren|meterse|conectarse|se conecte|controlar|tomar el control)"
         - "re:(?:ultra ?viewer|rust ?desk|quick ?support)"
         - "re:any ?desk"
         - "re:team ?viewer"
       hi:
         - "re:स्क्रीन शेयर"
-        - "एनीडेस्क"
+        - "re:एनी ?डेस्क"
+        - "re:(?:टीम|अल्ट्रा) ?व्यूअर"
+        - "re:रस्ट ?डेस्क"
+        - "re:रिमोट (?:एक्सेस|डेस्कटॉप)"
       hi_latn:
         - "re:any ?desk"
         - "re:screen share"
@@ -698,8 +704,10 @@ rules:
         - "re:desconexion"
       hi:
         - "re:(?:बिजली|लाइट|गैस|पानी) (?:काट|कट|बंद)"
+        - "re:(?:कनेक्शन|लाइन|मीटर|सप्लाई) (?:काट|बंद कर) (?:देंगे|देगें|देगा|देगी|दिया जाएगा|दी जाएगी)"
       hi_latn:
         - "re:(?:bijli|light|gas) (?:kat|kaat|band)"
+        - "re:(?:connection|line|meter|supply) (?:kaat|band kar) (?:denge|dege|dega|degi|diya jayega|di jayegi)"
 
   R_safe_account:
     severity: hard
@@ -712,8 +720,10 @@ rules:
         - "re:cuenta (?:segura|protegida)"
       hi:
         - "re:(?:सुरक्षित|सेफ) (?:खाते|खाता|अकाउंट)"
+        - "re:(?:आरबीआई|rbi) (?:के |का |की |वाले )?(?:खाते|खाता|अकाउंट|account)"
       hi_latn:
         - "re:(?:safe|surakshit) (?:account|khata|khate)"
+        - "re:rbi (?:ke |ka |ki |wale )?(?:account|khata|khate)"
 
   R_move_money:
     severity: soft
@@ -758,9 +768,11 @@ rules:
       hi:
         - "re:(?:कूरियर|आदमी|ड्राइवर) (?:पैसे|कैश|सोना) (?:लेने|लेकर)"
         - "re:(?:पैसे|कैश|सोना|गहने) लेने (?:आएगा|आएंगे|आ रहा|आ रही)"
+        - "re:(?:कूरियर|आदमी|ड्राइवर|एजेंट) (?:\\S+ ){0,3}(?:पैसे|कैश|सोना|गहने|जेवर) (?:\\S+ ){0,2}(?:ले जाएगा|ले जाएगी|ले जाएंगे|लेकर जाएगा)"
       hi_latn:
         - "re:(?:courier|aadmi|driver) (?:vala )?(?:paise|cash|sona) (?:lene|lekar)"
         - "re:(?:paise|cash|sona) lene (?:ayega|aayega|aa raha|aa rahi)"
+        - "re:(?:courier|aadmi|driver|agent) (?:\\S+ ){0,3}(?:paise|cash|sona|gehne|zevar) (?:\\S+ ){0,2}(?:le jayega|le jayegi|le jayenge|le jaega|le jaenge|lekar jayega)"
 
   R_family_secrecy:
     severity: hard
@@ -776,6 +788,25 @@ rules:
         - "re:no (?:le )?(?:digas|diga|cuentes|cuente) (?:nada )?(?:a (?:(?:mi|su|tu) )?)?(?:mama|madre|papa|padre|padres|hija|hijo|familia|nadie)"
         - "re:(?:es )?(?:un )?secreto"
       hi:
-        - "re:(?:मम्मी|मां|माँ|पापा|घर वालों|किसी) को (?:मत|ना|नहीं) (?:बताना|बताओ|बताइए|बताइएगा)"
+        - "re:(?:मम्मी|मां|माँ|पापा|घर वालों|किसी) को (?:कुछ |कुछ भी )?(?:मत|ना|नहीं) (?:बताना|बताओ|बताइए|बताइएगा)"
       hi_latn:
-        - "re:(?:mummy|mummi|maa|papa|ghar valon|kisi) ko (?:mat|na|nahi) (?:batana|batao|bataiye)"
+        - "re:(?:mummy|mummi|maa|papa|ghar valon|kisi) ko (?:kuch |kuchh |kuch bhi )?(?:mat|na|nahi) (?:batana|batao|bataiye)"
+
+  # The same scam without the word grandson: a caller who wants money and says not to tell "his mom"
+  # is speaking as Ruth's grandchild ("Alex phoned, he needs money wired today, don't tell his mother").
+  # Needs a contact cue as well, so Ruth's own "buy Alex a $50 sweater, don't tell his mom" stays soft.
+  R_parent_secrecy:
+    severity: hard
+    needs: [story, money_ask]
+    pattern: grandparent_secrecy
+    detail: A caller asking for money and to keep it from "his mom" or "her dad" is posing as a grandchild.
+    terms:
+      en:
+        - "re:(?:dont|do not|please dont|please do not|not to|never) (?:tell|call|say anything to|let) (?:his |her |their |my )?(?:mom|mommy|mum|mother|dad|daddy|father|parents|folks)"
+        - "re:keep (?:it |this )?from (?:his|her|their|my) (?:mom|mum|mother|dad|father|parents|folks)"
+      es:
+        - "re:no (?:le |les )?(?:digas|diga|cuentes|cuente|avises|avise) (?:nada )?a (?:(?:su|sus|mi|mis|tu|tus) )?(?:mama|madre|papa|padre|padres|papas)"
+      hi:
+        - "re:(?:मम्मी|मां|माँ|पापा|माता पिता|मां बाप) को (?:कुछ |कुछ भी )?(?:मत|ना|नहीं) (?:बताना|बताओ|बताइए|बताइएगा)"
+      hi_latn:
+        - "re:(?:mummy|mummi|mumma|maa|papa|mata pita|maa baap) ko (?:kuch |kuchh |kuch bhi )?(?:mat|na|nahi) (?:batana|batao|bataiye|bataye)"
