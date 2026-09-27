@@ -8,7 +8,7 @@ export async function GET(request) {
   const relay = (process.env.RELAY_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
   const lastId = request.headers.get("last-event-id");
   const streamUrl = new URL(`${relay}/events/stream`);
-  streamUrl.searchParams.set("types", "refusal,approval_requested,caregiver_alerted");
+  streamUrl.searchParams.set("types", "caregiver_alerted,approval_requested,scam_checked,card_decision,card_hold_released,risk_changed,mandate_paused,cosigned");
   if (lastId) streamUrl.searchParams.set("last_event_id", lastId);
   else streamUrl.searchParams.set("since", String(Date.now()));
   const upstream = await fetch(streamUrl, {

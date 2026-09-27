@@ -254,15 +254,18 @@ def checkout(payload: dict) -> dict:
             expires = datetime.now(timezone.utc) + timedelta(seconds=90)
             code = f"{secrets.randbelow(1_000_000):06d}"
             judge_down = screen.get("action") == "judge" and judgment is None
+            groups = _carts_by_store(priced)
             approval = {
                 "approval_id": approval_id,
                 "session_id": session_id,
                 "amount": priced["total"],
                 "merchant": priced["merchant"],
-                "items": [{"name": item["name"], "qty": item["qty"]} for item in priced["items"]],
+                "stores": [group["merchant"] for group in groups],
+                "items": [{"name": item["name"], "qty": item["qty"], "merchant": item.get("merchant") or group["merchant"]}
+                          for group in groups for item in group["items"]],
                 "excerpt": transcript[:240],
                 "rule": "R7_scam_judge" if judge_down else "R6_approval_threshold",
-                "reason": "the safety check was unavailable, so I asked Priyank" if judge_down else None,
+                "reason": "the safety check was unavailable, so I asked Priyank" if judge_down else "This is over the amount you set.",
                 "expires_at": expires.isoformat(),
                 "nonce": new_nonce(),
                 "code_hash": code_mac(code, approval_id),

@@ -13,7 +13,7 @@ import jcs
 
 from policy.store import load_decisions, save_decision
 
-PUBLIC_FIELDS = ("approval_id", "expires_at", "amount", "merchant", "items", "excerpt", "rule", "decision_id", "message", "reason")
+PUBLIC_FIELDS = ("approval_id", "expires_at", "amount", "merchant", "stores", "items", "excerpt", "rule", "decision_id", "message", "reason")
 
 
 def code_key() -> bytes:
@@ -117,7 +117,7 @@ def find_approval(approval_id: str) -> dict | None:
 
 def public_approval(document: dict) -> dict:
     approval = document.get("approval") or {}
-    view = {key: approval.get(key) for key in PUBLIC_FIELDS if key not in ("message", "reason", "items") or approval.get(key)}
+    view = {key: approval.get(key) for key in PUBLIC_FIELDS if key not in ("message", "reason", "items", "stores") or approval.get(key)}
     view["state"] = state_of(approval)
     view["order"] = document.get("order")
     view["orders"] = document.get("orders") or ([document["order"]] if document.get("order") else [])

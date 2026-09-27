@@ -1,0 +1,16 @@
+{
+  "$comment": "Merchant registry. Names are fictional; the products are real. Each merchant with cybs_env uses <prefix>MERCHANT_ID, <prefix>API_KEY_ID and <prefix>SECRET_KEY; without them it falls back to the main account (VISA_ACCEPTANCE_) and tags its links with purchase_prefix and the store name. card_terminal_stores are physical stores for the card demo only; the agent never buys there.",
+  "merchants": [
+    {"id": "corner_market",     "name": "Corner Market",     "kind": "store",   "mcc": "5411", "categories": ["grocery"],                               "cybs_env": "VISA_ACCEPTANCE_", "purchase_prefix": "CM"},
+    {"id": "parkside_pharmacy", "name": "Parkside Pharmacy", "kind": "store",   "mcc": "5912", "categories": ["pharmacy", "pharmacy_pickup", "grocery"], "cybs_env": "CYBS_PARKSIDE_",   "purchase_prefix": "PHARM"},
+    {"id": "main_street_home",  "name": "Main Street Home",  "kind": "store",   "mcc": "5251", "categories": ["household"],                             "cybs_env": "CYBS_MAINST_",     "purchase_prefix": "HOME"},
+    {"id": "peachtree_power",   "name": "Peachtree Power",   "kind": "biller",  "mcc": "4900", "categories": ["utility_bill"],                          "cybs_env": "CYBS_PEACHTREE_",  "purchase_prefix": "POWER"},
+    {"id": "quickgift_cards",   "name": "QuickGift Cards",   "kind": "blocked", "mcc": "6540", "categories": ["gift_card"],                             "cybs_env": null,               "purchase_prefix": null}
+  ],
+  "card_terminal_stores": [
+    {"acceptor_id": "FIVEPTSDRUG01", "name": "Five Points Drug", "mcc": "5912", "city": "ATLANTA", "state": "GA"},
+    {"acceptor_id": "CORNERMKT01",   "name": "Corner Market",    "mcc": "5411", "city": "ATLANTA", "state": "GA"},
+    {"acceptor_id": "GIFTCARDMALL1", "name": "GiftCard Kiosk",   "mcc": "6540", "city": "ATLANTA", "state": "GA"},
+    {"acceptor_id": "COINATM0001",   "name": "Coin ATM",         "mcc": "6051", "city": "ATLANTA", "state": "GA"}
+  ]
+}

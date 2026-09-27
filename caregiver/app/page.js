@@ -2,11 +2,14 @@
 
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { useEffect, useState } from "react";
+import Approvals from "./components/Approvals";
 import HistoryView from "./components/HistoryView";
 import Home from "./components/Home";
 import Rules from "./components/Rules";
+import Safety from "./components/Safety";
 import Welcome from "./components/Welcome";
 import Why from "./components/Why";
+import { payeeName } from "@/lib/stores";
 
 const MANDATE = {
   mandate_id: "m_ruth_2026_09",
@@ -105,6 +108,13 @@ export default function Page() {
   const [paused, setPaused] = useState(false);
   const [alerts, setAlerts] = useState([]);
   const [explanation, setExplanation] = useState(null);
+  const [tab, setTab] = useState("home");
+  const [cosign, setCosign] = useState(null);
+  const [risk, setRisk] = useState(null);
+  const [holds, setHolds] = useState([]);
+  const [declines, setDeclines] = useState([]);
+  const [checks, setChecks] = useState([]);
+  const [protectedTotals, setProtectedTotals] = useState({ dollars: 0, scams_stopped: 0, card_declines: 0 });
 
   useEffect(() => {
     fetch("/api/config", { headers: { "ngrok-skip-browser-warning": "1" } })
@@ -112,7 +122,10 @@ export default function Page() {
       .then(setConfig);
     const pull = () => {
       fetch("/api/approvals", { headers: { "ngrok-skip-browser-warning": "1" } })
-        .then((response) => response.json())
+        .then((response) => {
+          if (response.ok) setScreen((current) => (current === "welcome" ? "home" : current));
+          return response.ok ? response.json() : [];
+        })
         .then((rows) => setApproval(Array.isArray(rows) && rows.length ? rows[0] : null))
         .catch(() => {});
     };
@@ -169,6 +182,7 @@ export default function Page() {
     note("signed in");
     setScreen("home");
     refreshHome().catch(() => {});
+    loadFamily().catch(() => {});
     armAlerts().catch(() => {});
   }
 
@@ -180,6 +194,7 @@ export default function Page() {
     if (mandateResponse.ok) {
       const body = await mandateResponse.json();
       setPaused(Boolean(body.paused));
+      setCosign(body.cosign || null);
       // Start the rules form from what Priyank last signed, so signing again never resets a limit.
       if (body.signed && body.mandate) setMandate((prev) => ({ ...prev, ...body.mandate }));
     }
@@ -190,6 +205,14 @@ export default function Page() {
     const number = Number(value);
     const typing = value.trim() === "" || value.endsWith(".");
     setMandate((prev) => ({ ...prev, [key]: !typing && Number.isFinite(number) ? number : value }));
+  }
+
+  function toggleStore(id) {
+    setMandate((prev) => {
+      const has = (prev.allowed_merchants || []).includes(id);
+      const allowed_merchants = has ? prev.allowed_merchants.filter((item) => item !== id) : [...(prev.allowed_merchants || []), id];
+      return { ...prev, allowed_merchants };
+    });
   }
 
   function toggleBlocked(id) {
@@ -266,7 +289,7 @@ export default function Page() {
             icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%238c2f2f'/%3E%3C/svg%3E",
             iconMustBeShown: false,
           },
-          payeeName: "Corner Market",
+          payeeName: payeeName(approval),
           payeeOrigin: window.location.origin,
           timeout: 90000,
         },
@@ -413,24 +436,27 @@ export default function Page() {
           const text = decoder.decode(value, { stream: true });
           const eventId = text.match(/^id: (\d+)/m);
           if (eventId) armAlerts.lastEventId = eventId[1];
-          if (text.includes("refusal") || text.includes("approval_requested") || text.includes("caregiver_alerted")) {
+          const loud = text.includes("approval_requested") || text.includes("scam_checked") || text.includes("card_decision");
+          if (text.includes("caregiver_alerted") || loud) {
             const dataLine = text.split("\n").find((line) => line.startsWith("data:"));
             if (dataLine) {
               try {
                 const event = JSON.parse(dataLine.slice(5).trim());
-                if (event.type === "refusal" || event.type === "caregiver_alerted") {
-                  setAlerts((prev) => [{ id: event.seq || Date.now(), text: event.type === "refusal" ? "Ruth was refused." : "Something was stopped. Open Why? for the reason.", decision_id: event.decision_id }, ...prev].slice(0, 12));
+                if (event.type === "caregiver_alerted") {
+                  setAlerts((prev) => [{ id: event.seq || Date.now(), text: "Something was stopped.", decision_id: event.decision_id }, ...prev].slice(0, 12));
                 }
               } catch {
                 /* a heartbeat is not an alert */
               }
             }
             refreshApprovals().catch(() => {});
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-            const beep = audio.createOscillator();
-            beep.connect(audio.destination);
-            beep.start();
-            beep.stop(audio.currentTime + 0.2);
+            if (loud) {
+              if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+              const beep = audio.createOscillator();
+              beep.connect(audio.destination);
+              beep.start();
+              beep.stop(audio.currentTime + 0.2);
+            }
           }
         }
       } catch {
@@ -440,40 +466,82 @@ export default function Page() {
     }
   }
 
+  async function loadFamily() {
+    const headers = { "ngrok-skip-browser-warning": "1" };
+    const [riskBody, cardBody, checksBody, protectedBody] = await Promise.all([
+      fetch("/api/risk", { headers }).then((response) => (response.ok ? response.json() : null)).catch(() => null),
+      fetch("/api/card", { headers }).then((response) => (response.ok ? response.json() : null)).catch(() => null),
+      fetch("/api/scam-checks", { headers }).then((response) => (response.ok ? response.json() : [])).catch(() => []),
+      fetch("/api/protected", { headers }).then((response) => (response.ok ? response.json() : null)).catch(() => null),
+    ]);
+    if (riskBody) setRisk(riskBody);
+    if (cardBody) {
+      setHolds(cardBody.holds || []);
+      setDeclines((cardBody.decisions || []).filter((row) => row.result === "declined"));
+    }
+    if (Array.isArray(checksBody)) setChecks(checksBody);
+    if (protectedBody) setProtectedTotals(protectedBody);
+    loadHistory().catch(() => {});
+  }
+
   return (
-    <main style={{ maxWidth: "36rem", fontSize: "18px" }}>
+    <main className="ch-page">
       {screen === "welcome" ? (
         <Welcome setupCode={setupCode} onSetupCode={setSetupCode} onRegister={() => register().catch((error) => note(String(error)))} onSignIn={() => signIn().catch((error) => note(String(error)))} />
-      ) : null}
-      {screen === "rules" ? (
-        <Rules mandate={mandate} onChange={changeRule} onToggleBlocked={toggleBlocked} onSign={() => assertMandate().catch((error) => note(String(error)))} onHome={() => setScreen("home")} />
-      ) : null}
-      {screen === "home" ? (
-        <Home
-          budget={budget}
-          paused={paused}
-          approval={approval}
-          now={now}
-          alerts={alerts}
-          declineNote={declineNote}
-          fallbackCode={fallbackCode}
-          onDecline={setDeclineNote}
-          onCode={setFallbackCode}
-          onApprove={() => approve().catch((error) => note(String(error)))}
-          onReject={() => reject().catch((error) => note(String(error)))}
-          onWhy={() => explainDecision().catch((error) => note(String(error)))}
-          onCodeSubmit={() => submitCode().catch((error) => note(String(error)))}
-          onPause={() => pauseAgent().catch((error) => note(String(error)))}
-          onResume={() => resumeAgent().catch((error) => note(String(error)))}
-          onRules={() => setScreen("rules")}
-          onHistory={() => { setScreen("history"); loadHistory().catch((error) => note(String(error))); }}
-          onAlertWhy={(id) => explainDecision(id).catch((error) => note(String(error)))}
-        />
-      ) : null}
-      {screen === "history" ? <HistoryView history={history} onHome={() => setScreen("home")} onCancel={(id) => cancelOrder(id).catch((error) => note(String(error)))} /> : null}
+      ) : (
+        <>
+          {tab === "home" ? (
+            <Home
+              budget={budget}
+              paused={paused}
+              risk={risk}
+              protectedTotals={protectedTotals}
+              history={history}
+              declines={declines}
+              ruthPhone={config && config.ruthPhone}
+              onPause={() => pauseAgent().catch((error) => note(String(error)))}
+              onResume={() => resumeAgent().catch((error) => note(String(error)))}
+              onClear={() => post("/api/risk/clear", {}).then(() => loadFamily()).catch((error) => note(String(error)))}
+            />
+          ) : null}
+          {tab === "safety" ? <Safety checks={checks} alerts={alerts} declines={declines} onWhy={(id) => explainDecision(id).catch((error) => note(String(error)))} /> : null}
+          {tab === "approvals" ? (
+            <Approvals
+              approval={approval}
+              now={now}
+              holds={holds}
+              declineNote={declineNote}
+              onDecline={setDeclineNote}
+              onApprove={() => approve().catch((error) => note(String(error)))}
+              onReject={() => reject().catch((error) => note(String(error)))}
+              onWhy={() => explainDecision().catch((error) => note(String(error)))}
+              onAllow={(id) => post(`/api/card/holds/${id}/allow`).then(() => loadFamily()).catch((error) => note(String(error)))}
+            />
+          ) : null}
+          {tab === "activity" ? <HistoryView history={history} onCancel={(id) => cancelOrder(id).catch((error) => note(String(error)))} /> : null}
+          {tab === "rules" ? (
+            <Rules
+              mandate={mandate}
+              cosign={cosign}
+              onChange={changeRule}
+              onToggleBlocked={toggleBlocked}
+              onToggleStore={toggleStore}
+              onSign={() => assertMandate().catch((error) => note(String(error)))}
+            />
+          ) : null}
+          <nav className="ch-tabs">
+            {["home", "safety", "approvals", "activity", "rules"].map((name) => (
+              <button key={name} type="button" onClick={() => { setTab(name); if (name !== "welcome") loadFamily().catch(() => {}); }} style={{ fontWeight: tab === name ? "700" : "400" }}>
+                {name[0].toUpperCase() + name.slice(1)}
+                {name === "approvals" && (approval || holds.length) ? " ·" : ""}
+                {name === "safety" && (alerts.length || checks.length) ? " ·" : ""}
+              </button>
+            ))}
+          </nav>
+        </>
+      )}
       <Why explanation={explanation} onClose={() => setExplanation(null)} />
-      <p style={{ fontSize: "1rem" }}>Approval codes are printed on the host screen, not on this phone.</p>
-      {log ? <p role="status" style={{ fontSize: "1rem" }}>{log.trim().split("\n").pop()}</p> : null}
+      {log ? <p role="status">{log.trim().split("\n").pop()}</p> : null}
     </main>
   );
 }

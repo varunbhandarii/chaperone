@@ -39,7 +39,7 @@ from concurrent.futures import TimeoutError as FutureTimeout
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from common.config import decisions_path, env, merchant_public_url
@@ -349,7 +349,8 @@ def _enrich_in_background(doc: dict, story: str, caller: dict, facts: list[dict]
 
 def _alert(doc: dict) -> None:
     post_event("caregiver_alerted", doc["session_id"], doc["mandate_id"], kind="scam_check", check_id=doc["check_id"],
-               pattern=doc["pattern"], say=doc["say"], sources=doc["sources"], cooldown_until=doc["cooldown_until"])
+               decision_id=doc.get("decision_id"), pattern=doc["pattern"], say=doc["say"], sources=doc["sources"],
+               cooldown_until=doc["cooldown_until"])
 
 
 def check(story: str = "", lang: str = "en", *, session_id: str | None = None, mandate_id: str | None = None,
@@ -364,6 +365,7 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
     session_id = session_id or "none"
     caller = {k: (caller or {}).get(k) for k in ("org", "name", "phone")}
     check_id = "sc_" + uuid.uuid4().hex[:10]
+    decision_id = "d_" + uuid.uuid4().hex[:12]
 
     screened = screen(heard, lang, session_id=session_id if session_id != "none" else None)
     patterns = [h["pattern"] for h in screened["hits"]]
@@ -415,8 +417,17 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
         "ms": round((time.perf_counter() - start) * 1000), "from_cache": from_cache,
         "session_id": session_id, "mandate_id": mandate_id, "lang": lang, "channel": channel,
         "story": story[:400], "transcript": transcript[:1000], "rule_ids": sorted({h["rule_id"] for h in screened["hits"]}),
-        "at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "at": dt.datetime.now(dt.timezone.utc).isoformat(), "decision_id": decision_id,
     }
+    from policy.store import save_decision
+
+    save_decision({
+        "decision_id": decision_id, "mandate_id": mandate_id, "session_id": session_id,
+        "decision": "deny" if verdict == "scam" else "allow", "source": "scam_check", "check_id": check_id,
+        "say_key": "refund_scam" if verdict == "scam" else "ordering_now",
+        "rules": [{"id": "scam_check", "passed": verdict != "scam", "detail": pattern}],
+        "ruth_said": story[:400], "created_at": doc["at"],
+    })
     save_check(doc)
     post_event("scam_checked", session_id, mandate_id, check_id=check_id, verdict=verdict, pattern=pattern,
                sources=sources, ms=doc["ms"], channel=channel)
@@ -429,8 +440,8 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
 
 
 def public(doc: dict) -> dict:
-    keys = ("check_id", "verdict", "pattern", "say", "actions", "facts_checked", "sources", "cooldown_until", "ms",
-            "from_cache")
+    keys = ("check_id", "decision_id", "verdict", "pattern", "say", "actions", "facts_checked", "sources",
+            "cooldown_until", "ms", "from_cache")
     return {k: doc.get(k) for k in keys}
 
 
@@ -463,8 +474,34 @@ def scam_check_route(body: CheckBody) -> dict:
                  channel=body.channel, caller=body.caller.model_dump(), transcript=body.transcript)
 
 
+def _marked(request: Request, marker_id: str, action: str) -> None:
+    from policy.approvals import marker_matches
+
+    if not marker_matches(marker_id, request.headers.get("x-chaperone-marker", ""), action):
+        raise HTTPException(403, "sign in required")
+
+
+@router.get("/scam-checks")
+def list_checks(request: Request, mandate_id: str = "", limit: int = 20) -> list:
+    _marked(request, "scam_checks", "list")
+    with _lock:
+        docs = list(_read(checks_path()).values())
+    if mandate_id:
+        docs = [doc for doc in docs if doc.get("mandate_id") == mandate_id]
+    docs.sort(key=lambda doc: doc.get("at") or "", reverse=True)
+    rows = []
+    for doc in docs[: max(1, min(limit, 50))]:
+        rows.append({
+            "check_id": doc.get("check_id"), "decision_id": doc.get("decision_id"), "verdict": doc.get("verdict"),
+            "pattern": doc.get("pattern"), "story_excerpt": (doc.get("story") or "")[:180], "say": doc.get("say"),
+            "sources": doc.get("sources") or [], "at": doc.get("at"),
+        })
+    return rows
+
+
 @router.get("/scam-check/{check_id}")
-def get_check_route(check_id: str) -> dict:
+def get_check_route(check_id: str, request: Request) -> dict:
+    _marked(request, check_id, "view")
     doc = get_check(check_id)
     if not doc:
         raise HTTPException(404, "unknown check")

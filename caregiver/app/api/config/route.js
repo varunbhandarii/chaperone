@@ -1,5 +1,5 @@
 import { origin, rpID } from "@/lib/passkeys";
 
 export async function GET() {
-  return Response.json({ rpID: rpID(), origin: origin() });
+  return Response.json({ rpID: rpID(), origin: origin(), ruthPhone: process.env.RUTH_PHONE || "" });
 }

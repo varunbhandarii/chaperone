@@ -1,64 +1,47 @@
-import { btn, card, field } from "./styles";
+import { money } from "@/lib/money";
+import { storeName } from "@/lib/stores";
 
-const STORES = {
-  corner_market: "Corner Market",
-  parkside_pharmacy: "Parkside Pharmacy",
-  main_street_home: "Main Street Home",
-  peachtree_power: "Peachtree Power",
-};
-
-function money(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number.toFixed(2) : value;
+function thisWeek(history, declines) {
+  const start = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recent = (list) => (list || []).filter((row) => !row.at || new Date(row.at).getTime() >= start);
+  const orders = recent(history && history.orders).filter((order) => order.status && order.status !== "cancelled" && order.status !== "awaiting_payment");
+  const bills = orders.filter((order) => order.store === "peachtree_power" || (order.items || []).some((line) => String(line).toLowerCase().includes("bill")));
+  const errands = orders.filter((order) => !bills.includes(order));
+  const stopped = recent(history && history.refusals).length + recent(declines).length;
+  return { errands: errands.length, bills: bills.length, stopped };
 }
 
-export default function Home({
-  budget, paused, approval, now, alerts, declineNote, fallbackCode,
-  onDecline, onCode, onApprove, onReject, onWhy, onCodeSubmit,
-  onPause, onResume, onRules, onHistory, onAlertWhy,
-}) {
-  const spent = budget ? budget.spent : "…";
-  const cap = budget ? budget.monthly_cap : 300;
-  const seconds = approval ? Math.max(0, Math.ceil((new Date(approval.expires_at).getTime() - now) / 1000)) : 0;
+export default function Home({ budget, paused, risk, protectedTotals, history, declines, ruthPhone, onPause, onResume, onClear }) {
+  const spent = budget ? Number(budget.spent) : 0;
+  const cap = budget ? Number(budget.monthly_cap) : 300;
+  const left = Math.max(0, cap - (Number.isFinite(spent) ? spent : 0));
+  const byStore = {};
+  for (const order of (history && history.orders) || []) {
+    const id = order.store || order.merchant || "corner_market";
+    byStore[id] = (byStore[id] || 0) + Number(order.total || 0);
+  }
+  const week = thisWeek(history, declines);
+  const until = risk && risk.active && risk.cooldown_until
+    ? new Date(risk.cooldown_until).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" })
+    : "";
   return (
     <section>
-      <h1>Chaperone</h1>
-      <p style={{ fontSize: "1.4rem" }}>This month: ${money(spent)} of ${money(cap)}</p>
-      <p style={{ fontSize: "1.15rem" }}>{paused ? "The agent is paused." : "The agent is running."}</p>
-      <p>
-        {paused ? <button style={btn} onClick={onResume}>Resume</button> : <button style={btn} onClick={onPause}>Pause</button>}
-        <a href="tel:+14045550194" style={{ fontSize: "1.15rem", marginLeft: "0.5rem" }}>Call Ruth</a>
-      </p>
-      <h2>Needs your approval</h2>
-      {approval ? (
-        <article style={{ ...card, background: "#8c2f2f", color: "white" }}>
-          <p style={{ fontSize: "2.4rem", margin: "0.2rem 0" }}>${money(approval.amount)}</p>
-          <p>{STORES[approval.merchant] || approval.merchant}</p>
-          {(approval.items || []).map((item) => <p key={item.name}>{item.qty} × {item.name}</p>)}
-          {approval.reason ? <p>{approval.reason}</p> : null}
-          <p>{approval.excerpt}</p>
-          <p>{seconds}s left</p>
-          <button style={btn} onClick={onApprove}>Approve with passkey</button>
-          <input value={declineNote} onChange={(event) => onDecline(event.target.value)} placeholder="optional note to Ruth" style={field} />
-          <button style={btn} onClick={onReject}>Reject</button>
-          <button style={btn} onClick={onWhy}>Why?</button>
-          <p>
-            <input value={fallbackCode} onChange={(event) => onCode(event.target.value)} inputMode="numeric" maxLength={6} placeholder="approval code" style={field} />
-            <button style={btn} onClick={onCodeSubmit}>Submit code</button>
-          </p>
-        </article>
-      ) : <p>Nothing waiting.</p>}
-      <h2>Alerts</h2>
-      {alerts.length === 0 ? <p>No alerts yet.</p> : alerts.map((alert) => (
-        <article key={alert.id} style={card}>
-          <p style={{ fontSize: "1.15rem" }}>{alert.text}</p>
-          {alert.decision_id ? <button style={btn} onClick={() => onAlertWhy(alert.decision_id)}>Why?</button> : null}
-        </article>
+      <div className="ch-banner">
+        <h1 style={{ margin: "0 0 0.3rem" }}>{risk && risk.active ? "Extra care on her card" : "Mom is protected"}</h1>
+        <p>{risk && risk.active ? `Until ${until}.` : paused ? "The agent is paused." : "The agent is running."}</p>
+        {risk && risk.active ? <button className="ch-btn" onClick={onClear}>Clear</button> : null}
+        {paused ? <button className="ch-btn" onClick={onResume}>Resume</button> : <button className="ch-btn" onClick={onPause}>Pause</button>}
+        {ruthPhone ? <a href={`tel:${ruthPhone}`}>Call Ruth</a> : null}
+      </div>
+      <h2>This month</h2>
+      <p>{money(spent)} of {money(cap)}. {money(left)} left.</p>
+      {Object.entries(byStore).map(([id, amount]) => (
+        <p key={id}>{storeName(id)} <span className="ch-pill">{money(amount)}</span></p>
       ))}
-      <p>
-        <button style={btn} onClick={onHistory}>Orders</button>
-        <button style={btn} onClick={onRules}>Rules</button>
-      </p>
+      <h2>Protected</h2>
+      <p>{money(protectedTotals.dollars)} stopped. {protectedTotals.scams_stopped} scams stopped. {protectedTotals.card_declines} card declines.</p>
+      <h2>This week</h2>
+      <p>{week.errands} errands done. {week.bills} bills paid. {week.stopped} attempts stopped.</p>
     </section>
   );
 }

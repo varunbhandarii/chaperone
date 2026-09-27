@@ -6,6 +6,7 @@ import { loadCredentials, origin, rpID, saveCredentials } from "@/lib/passkeys";
 import { actionMarker } from "@/lib/marker";
 import { requireSession } from "@/lib/session";
 import { APPROVAL_ID } from "@/lib/ids";
+import { payeeName } from "@/lib/stores";
 
 const policy = () => (process.env.POLICY_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
 
@@ -34,7 +35,7 @@ async function verifyPayment(response, approval) {
   const client = JSON.parse(Buffer.from(response.response.clientDataJSON, "base64url").toString("utf8"));
   const payment = client.payment || {};
   const amount = Number(approval.amount).toFixed(2);
-  if (payment.payeeName !== "Corner Market" || payment.payeeOrigin !== origin()) {
+  if (payment.payeeName !== payeeName(approval) || payment.payeeOrigin !== origin()) {
     return { error: "payment details do not match" };
   }
   if (!payment.total || payment.total.value !== amount || payment.total.currency !== "USD") {

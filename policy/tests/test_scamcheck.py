@@ -124,9 +124,11 @@ def test_call_trusted_names_the_contact(monkeypatch):
 
 def test_get_check_returns_the_stored_check():
     out = client().post("/scam-check", json={"story": POWER, "lang": "en"}).json()
-    got = client().get(f"/scam-check/{out['check_id']}").json()
-    assert got["check_id"] == out["check_id"] and got["story"].startswith("Peachtree Power")
-    assert client().get("/scam-check/sc_nope").status_code == 404
+    headers = {"X-Chaperone-Marker": action_marker(out["check_id"], "view")}
+    assert client().get(f"/scam-check/{out['check_id']}").status_code == 403
+    got = client().get(f"/scam-check/{out['check_id']}", headers=headers).json()
+    assert got["check_id"] == out["check_id"] and got["decision_id"] and got["story"].startswith("Peachtree Power")
+    assert client().get("/scam-check/sc_nope", headers={"X-Chaperone-Marker": action_marker("sc_nope", "view")}).status_code == 404
 
 
 def test_cooldown_extends_but_never_shortens():
@@ -164,7 +166,7 @@ def test_transcript_is_screened_even_when_the_summary_hides_it():
         "transcript": "He said he's my grandson Alex, he's in jail, needs $2,000 bail and don't tell his mom.",
         "lang": "en", "channel": "line"}).json()
     assert out["verdict"] == "scam" and out["pattern"] == "grandparent_emergency"
-    stored = client().get(f"/scam-check/{out['check_id']}").json()
+    stored = client().get(f"/scam-check/{out['check_id']}", headers={"X-Chaperone-Marker": action_marker(out["check_id"], "view")}).json()
     assert stored["channel"] == "line" and stored["transcript"].startswith("He said he's my grandson")
 
 

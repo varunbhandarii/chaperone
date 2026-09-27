@@ -27,6 +27,7 @@ def test_blocked_mcc_is_unauthorized_merchant():
     answer = decide(swipe("6540", 50, "GIFTCARDMALL1"), DEFAULT_MANDATE, now=NOW)
     assert answer["result"] == "UNAUTHORIZED_MERCHANT"
     assert answer["reason_key"] == "card_blocked_category"
+    assert answer["store"] == "GiftCard Kiosk"
 
 
 def test_over_the_cap():

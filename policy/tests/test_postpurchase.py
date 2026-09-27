@@ -114,6 +114,8 @@ def test_pause_blocks_checkout_words_and_explain_is_cached(tmp_path, monkeypatch
     assert api.get("/decisions/d_why/explain", headers={"X-Chaperone-Marker": action_marker("d_why", "explain")}).json() == explained
     assert api.get("/decisions/d_why/explain", headers={"x-forwarded-for": "8.8.8.8"}).status_code == 403
     assert api.get("/history", headers={"x-forwarded-for": "8.8.8.8"}).status_code == 403
+    assert api.post("/refunds", headers={"x-forwarded-for": "8.8.8.8"}, json={"order_id": "ord_hist"}).status_code == 403
+    assert api.post("/orders/ord_hist/cancel", headers={"x-forwarded-for": "8.8.8.8"}, json={"mandate_id": "m_ruth_2026_09"}).status_code == 403
 
 
 def test_old_refund_is_outside_the_window(tmp_path, monkeypatch):

@@ -35,13 +35,23 @@ DEFAULT_MANDATE = {
     ],
 }
 
-# Display names and MCCs for GET /mandate/visa. Caps come from the card rules when present.
-VISA_STORES = {
-    "corner_market": ("Corner Market", "Grocery Stores, Supermarkets", "5411", "Groceries for Ruth, per purchase"),
-    "parkside_pharmacy": ("Parkside Pharmacy", "Drug Stores and Pharmacies", "5912", "Medicine for Ruth, per purchase"),
-    "main_street_home": ("Main Street Home", "Hardware Stores", "5251", "Household items for Ruth, per purchase"),
-    "peachtree_power": ("Peachtree Power", "Utilities", "4900", "Ruth's power bill"),
+# Visa category labels keyed by MCC. Store names come from contracts/merchants.json.
+_VISA_CATEGORY = {
+    "5411": ("Grocery Stores, Supermarkets", "Groceries for Ruth, per purchase"),
+    "5912": ("Drug Stores and Pharmacies", "Medicine for Ruth, per purchase"),
+    "5251": ("Hardware Stores", "Household items for Ruth, per purchase"),
+    "4900": ("Utilities", "Ruth's power bill"),
 }
+
+
+def visa_stores() -> dict:
+    from common.merchants import storefronts
+
+    rows = {}
+    for entry in storefronts():
+        category, description = _VISA_CATEGORY.get(str(entry.get("mcc")), (entry["name"], entry["name"]))
+        rows[entry["id"]] = (entry["name"], category, str(entry.get("mcc")), description)
+    return rows
 
 MONTHLY_BASELINE = 142.10
 
@@ -92,10 +102,11 @@ def visa_view(mandate: dict) -> dict:
     except ValueError:
         epoch = "1798761599"
     entries = []
+    stores = visa_stores()
     for merchant_id in mandate.get("allowed_merchants") or []:
-        if merchant_id not in VISA_STORES:
+        if merchant_id not in stores:
             continue
-        name, category, mcc, description = VISA_STORES[merchant_id]
+        name, category, mcc, description = stores[merchant_id]
         if merchant_id == "peachtree_power":
             bill = next((row for row in (mandate.get("billers") or []) if row.get("merchant_id") == merchant_id), {})
             amount = f"{float(bill.get('monthly_cap') or 0):.2f}"
