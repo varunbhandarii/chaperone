@@ -409,11 +409,23 @@ def simulate_swipe(acceptor_id: str, amount_cents: int) -> dict:
         mcc=str(store["mcc"]),
         merchant_acceptor_id=acceptor_id,
     )
-    txn = client.transactions.retrieve(sim.token)
+    # Our /card/asa decided this swipe before simulate returned, under the same token; Lithic's own transaction
+    # record only appears about a second later (an immediate GET answers 404).
+    decided = next((d for d in reversed(load_state()["decisions"]) if d.get("token") == sim.token), None)
+    result, status = (decided or {}).get("lithic_result"), "DECIDED" if decided else None
+    for _ in range(12 if not decided else 0):
+        try:
+            txn = client.transactions.retrieve(sim.token)
+            result, status = txn.result, txn.status
+            break
+        except Exception:  # noqa: BLE001 - not found yet; the record lags the authorization
+            time.sleep(0.25)
     return {
         "token": sim.token,
-        "result": txn.result,
-        "status": txn.status,
+        "result": result or "UNKNOWN",
+        "status": status or "PENDING",
+        "reason_key": (decided or {}).get("reason_key"),
+        "reason": (decided or {}).get("reason"),
         "ms": elapsed_ms(started),
         "store": store["name"],
         "card_last4": card.get("last_four") or "",
