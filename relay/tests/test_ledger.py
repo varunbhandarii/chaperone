@@ -210,9 +210,10 @@ def test_session_page_shows_one_line_per_turn_rules_checks_and_payment(client):
     page = r.text
     assert page.count("necesito") == 1 and "necesito pan y mi medicina" in page
     assert "<script>" not in page and "&lt;script&gt;" in page
-    assert "ALLOW · every rule passed" in page and "5 of 5 checks passed" in page
+    assert "Inside Ruth's rules" in page and "every rule passed" in page and "5 of 5 checks passed" in page
+    assert "ALLOW" not in page  # plain words, not the policy's enum
     assert "n-123" in page and "Paid $11.49" in page
-    assert "Merchant rejected the request" in page  # the replayed order is listed, the card shows the pass
+    assert "The store rejected a request" in page  # the replayed order is listed, the card shows the pass
     assert client.get("/sessions/nobody", params={"format": "html"}).status_code == 404
     assert client.get("/sessions/s1").json()[0]["type"] == "heard"  # JSON stays the default
 
@@ -235,5 +236,6 @@ def test_session_page_lists_every_order(client):
             client.post("/events", json={**event("paid", order_id=order_id, total=amount, via="host"),
                                          "source": "merchant"})
     page = client.get("/sessions/s1", params={"format": "html"}).text
-    assert "Paid $11.49" in page and "Paid $49.95" in page and "Waiting for payment $8.00" in page
+    assert "Paid $11.49" in page and "Paid $49.95" in page
+    assert "$8.00" in page.split("Waiting for payment", 1)[1][:200]  # the status row: words, then the amount
     assert page.index("ord_a") < page.index("ord_b") < page.index("ord_c")

@@ -202,9 +202,10 @@ def test_session_page_and_dispute_record_show_the_order_after_payment(client, me
         client.post("/events", json={"session_id": "s1", "mandate_id": "m_ruth_2026_09", "t": int(time.time() * 1000), **e})
     page = client.get("/sessions/s1", params={"format": "html"}).text
     assert "Dispute-ready record" in page and 'href="s1/record.json"' in page
-    assert "partly refunded" in page and "Refund $3.49" in page and "sandbox processor stub" in page
-    timeline = page.split(f'{order["order_id"]}</span></h2>')[1][:400]  # the order's own section
-    assert order["pickup_code"] not in timeline and "Corner Market ·" in page
+    assert "Partly refunded" in page and "Refund $3.49" in page and "sandbox processor stub" in page
+    # the order's own card, without its id (random hex that could hold the three digits by chance)
+    card = page.split(f'id="order-{order["order_id"]}"')[1].split("</section>")[0].replace(order["order_id"], "")
+    assert order["pickup_code"] not in card and "Corner Market ·" in page
     assert '<meta http-equiv="refresh" content="30">' in page and "Corner Market · Visa sandbox" not in page
     r = client.get("/sessions/s1/record.json")
     assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
@@ -251,7 +252,7 @@ def test_session_page_and_record_carry_card_swipes_and_scam_checks(client, merch
                "amount": 50, "result": "declined", "reason_key": "card_blocked_category", "reason": "blocked", "source": "policy"}):
         assert client.post("/events", json={**base, **e}).status_code == 202
     page = client.get("/sessions/s9", params={"format": "html"}).text
-    assert "Scam check" in page and "Declined $480.00" in page and "Visa VTC: decline" in page
+    assert "Scam check" in page and "Declined $480.00" in page and "Visa VTC · decline" in page
     assert "Priyank allowed it once" in page and "Corner Market" not in page and "GiftCard Kiosk" not in page
     record = client.get("/sessions/s9/record.json").json()
     assert record["scam_checks"][0]["verdict"] == "scam"
