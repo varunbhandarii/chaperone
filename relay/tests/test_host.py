@@ -202,7 +202,9 @@ def test_session_page_and_dispute_record_show_the_order_after_payment(client, me
     page = client.get("/sessions/s1", params={"format": "html"}).text
     assert "Dispute-ready record" in page and 'href="s1/record.json"' in page
     assert "partly refunded" in page and "Refund $3.49" in page and "sandbox processor stub" in page
-    assert order["pickup_code"] not in page.split("Order " + order["order_id"])[1][:400]
+    timeline = page.split(f'{order["order_id"]}</span></h2>')[1][:400]  # the order's own section
+    assert order["pickup_code"] not in timeline and "Corner Market ·" in page
+    assert '<meta http-equiv="refresh" content="30">' in page and "Corner Market · Visa sandbox" not in page
     r = client.get("/sessions/s1/record.json")
     assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
     record = r.json()
@@ -226,3 +228,21 @@ def test_record_carries_the_mandate_hash_the_passkey_signed():
     record = session_view.dispute_record("s1", [], [], mandate)
     page = session_view.render("s1", [], [], [], record)
     assert record["mandate"]["hash_b64url"] == digest and digest in page and "signed by passkey cred-1" in page
+
+
+def test_session_page_and_record_carry_card_swipes_and_scam_checks(client, merchant):
+    now = int(time.time() * 1000)
+    base = {"mandate_id": "m_ruth_2026_09", "t": now}
+    for e in ({"type": "heard", "session_id": "s9", "role": "shopper", "text": "they said my power is cut", "source": "station"},
+              {"type": "scam_checked", "session_id": "s9", "check_id": "sc9", "verdict": "scam", "pattern": "utility",
+               "sources": [{"title": "FTC", "url": "https://ftc.gov"}], "source": "policy"},
+              {"type": "card_decision", "session_id": "none", "token": "tok9", "store": "Five Points Drug", "mcc": "5912",
+               "amount": 480, "result": "declined", "reason_key": "card_cooldown", "reason": "cool-down", "source": "policy"},
+              {"type": "vtc_decision", "session_id": "none", "token": "tok9", "store": "Five Points Drug", "mcc": "5912",
+               "amount": 480, "should_decline": True, "rule": "PCT_GLOBAL", "source": "relay"}):
+        assert client.post("/events", json={**base, **e}).status_code == 202
+    page = client.get("/sessions/s9", params={"format": "html"}).text
+    assert "Scam check" in page and "Declined $480.00" in page and "Visa VTC: decline" in page
+    record = client.get("/sessions/s9/record.json").json()
+    assert record["scam_checks"][0]["verdict"] == "scam"
+    assert [c["type"] for c in record["card_decisions"]] == ["card_decision", "vtc_decision"]
