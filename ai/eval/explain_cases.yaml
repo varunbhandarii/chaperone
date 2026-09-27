@@ -81,3 +81,27 @@ cases:
         - {id: S_screen_R_overpay_sendback, passed: false, detail: refund_scam}
       judge: null
       cart: {items: [], total: 0}
+
+  - id: scam_check_grandparent
+    ruth_said: My grandson Alex called crying, he's in jail and needs $2,000 for bail today, and he said don't tell his mom.
+    screen_hits:
+      - {pattern: family_emergency, term: in jail}
+      - {pattern: secrecy, term: don't tell}
+      - {pattern: grandparent_secrecy, term: don't tell his mom}
+    decision:
+      decision: deny
+      say_key: scam_check_scam
+      rules:
+        - {id: S_scam_check_grandparent_emergency, passed: false, detail: grandparent_emergency}
+      judge: null
+      cart: {items: [], total: 0}
+      scam_check:
+        verdict: scam
+        pattern: grandparent_emergency
+        facts_checked: [{fact: "Alex's number on file (grandson)", result: "+1-404-555-0187"}]
+        reported_recently: FTC and AARP describe fake-grandchild bail calls, now often with cloned voices.
+        amount: 2000
+        cooldown_until: "2026-09-27T21:05:00+00:00"
+        sources:
+          - {title: "Family emergency scams | Consumer Advice", url: "https://consumer.ftc.gov/articles/family-emergency-scams"}
+          - {title: "Grandparent Scams | AARP", url: "https://www.aarp.org/money/scams-fraud/grandparent/"}
