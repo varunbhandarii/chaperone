@@ -48,19 +48,25 @@ contexts:
     es: ["re:enlace", "re:pag(?:ar|ue|o)", "re:haga clic"]
     hi: ["लिंक", "re:भुगतान", "re:पेमेंट"]
     hi_latn: ["re:link", "re:pay kar", "re:payment"]
+  # story = a contact cue: someone reached Ruth by call, text, email or pop-up, or a caller is quoted.
+  # /screen routes a hard hit to the scam check only with a contact cue AND a money or payment ask
+  # (payment_ask, or the ask itself: remote access, reading codes, a safe account, a crypto ATM, a courier).
+  # Bare "someone" is not a contact cue: "a gift card for someone at church" stays a plain refusal.
   story:
-    en: ["re:(?:called|calls|calling|phoned|texted|messaged|emailed)", "re:(?:said|says|told|asked) (?:me|that|to|i|we|my)",
-         "re:(?:a|the|this) (?:call|text|message|email|pop ?up|voicemail)", "re:(?:someone|somebody|a man|a woman|a lady|a guy|the caller)",
-         "re:on the (?:phone|line)", "re:(?:he|she|they) (?:said|says|told|wants|want)"]
-    es: ["re:(?:llamo|llamaron|me llama|me escribio|me escribieron)", "re:(?:dijo|dijeron|dice|dicen) que",
-         "re:(?:una|la) (?:llamada|mensaje|correo)", "re:(?:un|el|una|la) (?:senor|senora|hombre|mujer)", "re:por telefono"]
-    hi: ["re:(?:फोन|कॉल|मैसेज) (?:आया|आई|किया)", "re:(?:ने )?कहा", "re:बोला", "re:(?:वाले|वाली) ने", "re:फोन पर"]
-    hi_latn: ["re:(?:phone|fone|call|message) (?:aaya|aayi|kiya)", "re:(?:ne )?kaha", "re:bola", "re:(?:vale|vali) ne", "re:(?:phone|fone) (?:pe|par)"]
+    en: ["re:(?<!i )(?<!we )(?:called|phoned|texted|messaged|emailed|rang)",
+         "re:(?:got|had|received|there was|there is) (?:a |an )?(?:call|phone call|text|message|email|pop ?up|voicemail)",
+         "re:(?:the|this|that) (?:call|caller|text|message|email|pop ?up|voicemail)",
+         "re:(?:a|the) (?:man|woman|lady|guy|person|officer|agent) (?:on the phone|called|said|says|told|asked|wants)",
+         "re:(?:called|calling) from", "re:on the (?:phone|line)", "re:pop ?up (?:said|says|told)"]
+    es: ["re:(?:me )?(?:llamo|llamaron|escribio|escribieron|mandaron un mensaje)", "re:(?:una|la|esa) (?:llamada|mensaje|correo|ventana)",
+         "re:(?:un|el|una|la) (?:senor|senora|hombre|mujer|agente) (?:me )?(?:llamo|dijo|dice|pidio)", "re:por telefono"]
+    hi: ["re:(?:फोन|कॉल|मैसेज) (?:आया|आई|किया)", "re:फोन पर", "re:(?:वाले|वाली|आदमी|औरत) ने (?:फोन|कॉल|कहा|बोला)"]
+    hi_latn: ["re:(?:phone|fone|call|message) (?:aaya|aayi|kiya)", "re:(?:phone|fone) (?:pe|par)", "re:(?:vale|vali|aadmi|aurat) ne (?:phone|fone|call|kaha|bola)"]
   payment_ask:
-    en: ["re:pay(?:s|ing|ment)?", "re:money", "re:dollars?", "re:gift ?cards?", "re:bitcoin|crypto", "re:wire", "re:zelle|venmo|cash ?app", "re:card number"]
-    es: ["re:pag(?:ar|ue|o|a|ues)", "re:dinero", "re:dolares?", "re:tarjetas? (?:de )?regalo", "re:bitcoin|cripto", "re:transferencia"]
-    hi: ["re:पैसे|पैसा|रुपये", "re:भुगतान", "re:पेमेंट", "re:गिफ्ट ?कार्ड", "re:बिटकॉइन"]
-    hi_latn: ["re:paise|paisa|rupaye", "re:pay kar|payment", "re:gift ?card", "re:bitcoin"]
+    en: ["re:pay(?:s|ing|ment)?", "re:money", "re:dollars?", "re:gift ?cards?", "re:bitcoin|crypto", "re:wire", "re:zelle|venmo|cash ?app", "re:card number", "bail"]
+    es: ["re:pag(?:ar|ue|o|a|ues)", "re:dinero", "re:dolares?", "re:tarjetas? (?:de )?regalo", "re:bitcoin|cripto", "re:transferencia", "fianza"]
+    hi: ["re:पैसे|पैसा|रुपये", "re:भुगतान", "re:पेमेंट", "re:गिफ्ट ?कार्ड", "re:बिटकॉइन", "re:डॉलर", "re:(?:ज़मानत|जमानत)"]
+    hi_latn: ["re:paise|paisa|rupaye", "re:pay kar|payment", "re:gift ?card", "re:bitcoin", "re:dollars?", "re:jamanat"]
   soon:
     en: ["today", "tonight", "re:in (?:an|one|two|\\d+) hours?", "re:within (?:an|one|two|\\d+) hours?", "re:right (?:now|away)", "immediately"]
     es: ["hoy", "re:esta noche", "re:(?:en|dentro de) (?:una|dos|\\d+) horas?", "re:ahora mismo", "re:de inmediato"]

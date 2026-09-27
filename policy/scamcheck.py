@@ -2,9 +2,13 @@
 
     POST /scam-check {session_id, mandate_id, lang, channel: station|line, story?, transcript?,
                       caller: {org, name, phone}}      (story or transcript, or both)
-      -> {check_id, verdict: scam|unsure|ok, pattern, say, actions[], facts_checked[], sources[],
-          cooldown_until, ms, from_cache}
-    GET  /scam-check/{check_id}     the stored check, for Priyank's app
+      -> {check_id, decision_id, verdict: scam|unsure|ok, pattern, say, actions[], facts_checked[], sources[],
+          cooldown_until, amount, ms, from_cache}
+    GET  /scam-checks?mandate_id=&limit=20   Priyank's Safety list (caregiver marker ("scam_checks", "list"))
+    GET  /scam-check/{check_id}              one stored check (caregiver marker (check_id, "view"))
+
+Every check is also saved as a decision document (decision "deny" for a scam, "caution" or "noted"
+otherwise, never "allow"), so /decisions/{decision_id}/explain answers Priyank's "Why?".
 
 `story` is the voice model's summary; `transcript` is Ruth's exact words. The rules screen both, so a
 paraphrase can't hide a hard hit, and Grok sees both.
@@ -14,8 +18,12 @@ Order of work:
    Grok then runs in the background to attach sources to Priyank's alert.
 2. Facts from Ruth's own accounts: trusted contacts (mandate v2), the biller balance and
    recent orders. They go to Grok and come back as facts_checked.
-3. Grok Responses with x_search and web_search, within RADAR_TIMEOUT_S (12 s); then the cache
-   (sessions/radar_cache.json, by story and by pattern and language); then a rules-only verdict.
+3. Grok Responses with x_search and web_search. One budget covers the whole check (RADAR_BUDGET_S,
+   11 s): the facts get at most 1.5 s of it and Grok the rest. A Grok answer that arrives late is cached
+   for the next check of the same story. Then the cache (sessions/radar_cache.json): by story, the full
+   answer; by pattern and language, only the sources and the generic line, never another story's details.
+   Then a rules-only verdict.
+`say` is at most two sentences and 30 words; a longer one is replaced by the fixed line (sources kept).
 
 Events: scam_checked; for a scam, caregiver_alerted {check_id, sources} and risk_changed (a 24-hour
 card cool-down through policy.risk).
@@ -52,6 +60,9 @@ RESPONSES_URL = "https://api.x.ai/v1/responses"
 DOMAINS = ["consumer.ftc.gov", "ic3.gov", "aarp.org", "bbb.org", "fcc.gov"]
 DEFAULT_MANDATE_ID = "m_ruth_2026_09"
 COOLDOWN_HOURS = 24
+BUDGET_S = 11.0  # the whole check; the station and the line give up at 14 s
+FACTS_S = 1.5  # facts get at most this slice of it; Grok gets the rest
+LATE_LIMIT_S = 30.0  # a Grok answer later than the budget is still cached until this
 LANG_NAMES = {"en": "English", "es": "Spanish", "hi": "Hindi"}
 
 # Until mandate v2 and the biller land on main, the demo account's facts.
@@ -104,6 +115,7 @@ SCHEMA = {
 }
 
 _pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="radar")
+_facts_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="radar-facts")
 _lock = threading.RLock()
 
 
@@ -247,14 +259,38 @@ def gather_facts(mandate_id: str, story: str, caller: dict) -> list[dict]:
 
 # ---------------------------------------------------------------- Grok radar
 
+def _parse(resp: dict) -> dict:
+    """The verdict and its sources from a Responses API reply; raises RadarError."""
+    verdict, sources = None, []
+    parts = [part for item in resp.get("output", []) if item.get("type") == "message"
+             for part in item.get("content") or [] if part.get("type") == "output_text"]
+    for part in parts:
+        try:
+            verdict = json.loads(part.get("text") or "")
+        except json.JSONDecodeError as e:
+            raise RadarError("unparsable verdict") from e
+        sources += [{"title": a.get("title") or "", "url": a["url"]}
+                    for a in part.get("annotations") or [] if a.get("type") == "url_citation" and a.get("url")]
+    if not isinstance(verdict, dict) or verdict.get("verdict") not in ("scam", "unsure", "ok") or not verdict.get("say"):
+        raise RadarError("no usable verdict")
+    verdict["sources"] = list({s["url"]: s for s in sources}.values())[:8]
+    verdict["cost_usd_ticks"] = (resp.get("usage") or {}).get("cost_in_usd_ticks")
+    return verdict
+
+
 def radar(story: str, lang: str, caller: dict, facts: list[dict], hints: list[str], timeout: float,
-          transcript: str = "") -> dict:
-    """One Grok Responses call with X and web search; raises RadarError."""
+          transcript: str = "", on_late=None) -> dict:
+    """One Grok Responses call with X and web search; raises RadarError.
+
+    If the deadline passes first, `on_late(verdict)` still gets the answer when it arrives, so it can be cached.
+    """
     if env("RADAR_FAKE", "0") == "1":
         raise RadarError("RADAR_FAKE=1")
     key = env("XAI_API_KEY")
     if not key:
         raise RadarError("XAI_API_KEY is not set")
+    if timeout <= 0.2:
+        raise RadarError("no time left in the budget")
     today = dt.date.today()
     said = f"Ruth's exact words: {transcript}\nSummary: {story}" if transcript else f"Ruth said: {story}"
     content = (f"Language: {LANG_NAMES.get(lang, 'English')}. {said}\n"
@@ -273,31 +309,70 @@ def radar(story: str, lang: str, caller: dict, facts: list[dict], hints: list[st
     }
 
     def call() -> dict:
-        r = httpx.post(RESPONSES_URL, headers={"Authorization": f"Bearer {key}"}, json=body, timeout=timeout)
+        # The HTTP call itself may run past the budget, so a late answer can still be cached.
+        r = httpx.post(RESPONSES_URL, headers={"Authorization": f"Bearer {key}"}, json=body, timeout=LATE_LIMIT_S)
         r.raise_for_status()
         return r.json()
 
+    future = _pool.submit(call)
     try:
-        resp = _pool.submit(call).result(timeout=timeout)
+        resp = future.result(timeout=timeout)
     except FutureTimeout as e:
-        raise RadarError(f"no answer within {timeout:g} s") from e
+        if on_late:
+            def late(f):
+                try:
+                    on_late(_parse(f.result()))
+                except Exception:  # noqa: BLE001 - a late answer is a bonus
+                    pass
+            future.add_done_callback(late)
+        raise RadarError(f"no answer within {timeout:.1f} s") from e
     except Exception as e:  # noqa: BLE001 - HTTP errors, bad JSON
         raise RadarError(f"{type(e).__name__}: {e}") from e
-    verdict, sources = None, []
-    parts = [part for item in resp.get("output", []) if item.get("type") == "message"
-             for part in item.get("content") or [] if part.get("type") == "output_text"]
-    for part in parts:
-        try:
-            verdict = json.loads(part.get("text") or "")
-        except json.JSONDecodeError as e:
-            raise RadarError("unparsable verdict") from e
-        sources += [{"title": a.get("title") or "", "url": a["url"]}
-                    for a in part.get("annotations") or [] if a.get("type") == "url_citation" and a.get("url")]
-    if not isinstance(verdict, dict) or verdict.get("verdict") not in ("scam", "unsure", "ok") or not verdict.get("say"):
-        raise RadarError("no usable verdict")
-    verdict["sources"] = list({s["url"]: s for s in sources}.values())[:8]
-    verdict["cost_usd_ticks"] = (resp.get("usage") or {}).get("cost_in_usd_ticks")
-    return verdict
+    return _parse(resp)
+
+
+# ---------------------------------------------------------------- what Ruth hears, amounts
+
+_SENTENCE_END = re.compile(r"[.!?।](?:\s|$)")
+
+
+def say_ok(say: str) -> bool:
+    """At most two short sentences and 30 words, as the station and phone line speak it."""
+    text = (say or "").strip()
+    return bool(text) and len(_SENTENCE_END.findall(text + " ")) <= 2 and len(text.split()) <= 30
+
+
+_NUM_WORDS = {
+    # en
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "a": 1,
+    # es
+    "un": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9,
+    "diez": 10, "doscientos": 200, "trescientos": 300, "cuatrocientos": 400, "quinientos": 500, "seiscientos": 600,
+    "setecientos": 700, "ochocientos": 800, "novecientos": 900, "cien": 100, "ciento": 100,
+    # hi (Devanagari and Latin)
+    "एक": 1, "दो": 2, "तीन": 3, "चार": 4, "पांच": 5, "पाँच": 5, "छह": 6, "सात": 7, "आठ": 8, "नौ": 9, "दस": 10,
+    "ek": 1, "do": 2, "teen": 3, "char": 4, "paanch": 5, "panch": 5, "chhe": 6, "saat": 7, "aath": 8, "nau": 9, "das": 10,
+}
+_MULTIPLIERS = {"hundred": 100, "thousand": 1000, "mil": 1000, "सौ": 100, "हज़ार": 1000, "हजार": 1000,
+                "sau": 100, "hazaar": 1000, "hazar": 1000, "hajar": 1000}
+_DIGITS = re.compile(r"\$\s?(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s*(?:dollars?|d[oó]lares|usd|डॉलर|bucks)", re.IGNORECASE)
+
+
+def extract_amount(text: str) -> float | None:
+    """The largest dollar amount in a story ("$480", "2000 dólares", "two thousand dollars", "दो हज़ार")."""
+    found = [float((a or b).replace(",", "")) for a, b in _DIGITS.findall(text or "")]
+    words = re.findall(r"[\wऀ-ॿ]+", (text or "").lower())
+    for i, word in enumerate(words):
+        if word in _MULTIPLIERS:
+            base = _NUM_WORDS.get(words[i - 1], 1) if i else 1
+            value = base * _MULTIPLIERS[word]
+            if word == "mil" and i and words[i - 1].isdigit():
+                value = int(words[i - 1]) * 1000
+            found.append(float(value))
+        elif word in _NUM_WORDS and _NUM_WORDS[word] >= 100:
+            found.append(float(_NUM_WORDS[word]))
+    return max(found) if found else None
 
 
 # ---------------------------------------------------------------- the check
@@ -328,6 +403,18 @@ def _fallback(verdict: str, lang: str) -> str:
     return lines(lang)[f"scam_check_{verdict}"]
 
 
+def remember(v: dict, text: str, lang: str, pattern: str) -> None:
+    """Cache a Grok verdict: the full answer for this story; for the pattern, only its sources (never another
+    story's details, which the generic line replaces)."""
+    say = v.get("say") if say_ok(v.get("say")) else None
+    cache_put({"verdict": v["verdict"], "pattern": pattern, "say": say, "actions": v.get("actions") or [],
+               "reported_recently": v.get("reported_recently"), "sources": v.get("sources") or []},
+              story_key(text, lang))
+    if v["verdict"] == "scam" and v.get("sources"):
+        cache_put({"verdict": "scam", "pattern": pattern, "say": None, "actions": ["hang_up", "do_not_pay"],
+                   "reported_recently": None, "sources": v["sources"]}, f"pattern:{pattern}:{lang}")
+
+
 def _enrich_in_background(doc: dict, story: str, caller: dict, facts: list[dict], hints: list[str],
                           transcript: str = "") -> None:
     """After a hard-rule answer, fetch sources for Priyank's alert and warm the cache."""
@@ -337,11 +424,11 @@ def _enrich_in_background(doc: dict, story: str, caller: dict, facts: list[dict]
         except RadarError:
             v = None
         if v and v.get("verdict") == "scam":
-            entry = {k: v[k] for k in ("verdict", "pattern", "say", "actions", "reported_recently", "sources")}
-            cache_put(entry, story_key(transcript or story, doc["lang"]), f"pattern:{doc['pattern']}:{doc['lang']}")
+            remember(v, transcript or story, doc["lang"], doc["pattern"])
             doc["sources"] = v["sources"]
             doc["reported_recently"] = v.get("reported_recently")
             save_check(doc)
+            _save_decision(doc)
         _alert(doc)
 
     threading.Thread(target=run, daemon=True).start()
@@ -349,13 +436,41 @@ def _enrich_in_background(doc: dict, story: str, caller: dict, facts: list[dict]
 
 def _alert(doc: dict) -> None:
     post_event("caregiver_alerted", doc["session_id"], doc["mandate_id"], kind="scam_check", check_id=doc["check_id"],
-               decision_id=doc.get("decision_id"), pattern=doc["pattern"], say=doc["say"], sources=doc["sources"],
-               cooldown_until=doc["cooldown_until"])
+               decision_id=doc["decision_id"], pattern=doc["pattern"], say=doc["say"], sources=doc["sources"],
+               amount=doc.get("amount"), cooldown_until=doc["cooldown_until"])
+
+
+_DECISION = {"scam": "deny", "unsure": "caution", "ok": "noted"}  # never "allow": that word authorizes orders
+
+
+def _save_decision(doc: dict) -> None:
+    """Store the check as a decision document, so /decisions/{id}/explain can answer Priyank's "Why?"."""
+    from policy.store import save_decision
+
+    save_decision({
+        "decision_id": doc["decision_id"], "decision": _DECISION[doc["verdict"]], "source": "scam_check",
+        "check_id": doc["check_id"], "say_key": f"scam_check_{doc['verdict']}",
+        "rules": [{"id": f"S_scam_check_{doc['pattern']}", "passed": doc["verdict"] != "scam", "detail": doc["pattern"]}],
+        "judge": None, "cart": {"items": [], "total": 0}, "order": None, "approval": None,
+        "mandate_id": doc["mandate_id"], "session_id": doc["session_id"], "lang": doc["lang"],
+        "ruth_said": (doc.get("transcript") or doc.get("story") or "")[:400], "screen_hits": doc.get("screen_hits") or [],
+        "scam_check": {k: doc.get(k) for k in ("verdict", "pattern", "facts_checked", "reported_recently", "sources",
+                                               "amount", "cooldown_until")},
+        "amount": doc.get("amount"), "created_at": doc["at"],
+    })
+
+
+def _wait(future, seconds: float, default):
+    try:
+        return future.result(timeout=max(0.0, seconds))
+    except Exception:  # noqa: BLE001 - facts are best effort within their slice of the budget
+        return default
 
 
 def check(story: str = "", lang: str = "en", *, session_id: str | None = None, mandate_id: str | None = None,
           channel: str = "station", caller: dict | None = None, transcript: str = "") -> dict:
     start = time.perf_counter()
+    deadline = start + float(env("RADAR_BUDGET_S", str(BUDGET_S)))
     story, transcript = (story or "").strip(), (transcript or "").strip()
     story = story or transcript
     heard = " ".join(dict.fromkeys(t for t in (transcript, story) if t))  # what the rules screen
@@ -365,39 +480,41 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
     session_id = session_id or "none"
     caller = {k: (caller or {}).get(k) for k in ("org", "name", "phone")}
     check_id = "sc_" + uuid.uuid4().hex[:10]
-    decision_id = "d_" + uuid.uuid4().hex[:12]
 
+    facts_future = _facts_pool.submit(gather_facts, mandate_id, heard, caller)
     screened = screen(heard, lang, session_id=session_id if session_id != "none" else None)
     patterns = [h["pattern"] for h in screened["hits"]]
     hints = sorted(set(patterns))
     hard = screened["action"] == "refuse"
-    facts = gather_facts(mandate_id, heard, caller)
     rule_pattern = _rule_pattern(patterns)
-    from_cache, v = False, None
+    from_cache = False
 
     if hard:
+        facts = _wait(facts_future, min(FACTS_S, deadline - time.perf_counter()), [])
         pattern = rule_pattern or "gift_card_demand"
-        cached = cache_get(story_key(key_text, lang), f"pattern:{pattern}:{lang}")
+        cached = cache_get(story_key(key_text, lang)) or cache_get(f"pattern:{pattern}:{lang}")
         verdict, from_cache = "scam", bool(cached)
         say = (cached or {}).get("say") or _fallback("scam", lang)
         raw_actions = (cached or {}).get("actions") or ["hang_up", "do_not_pay"]
         sources = (cached or {}).get("sources") or []
         reported = (cached or {}).get("reported_recently")
     else:
+        # Facts get a small slice of the budget; Grok gets what is left.
+        facts = _wait(facts_future, min(FACTS_S, deadline - time.perf_counter()), [])
+        late = lambda v: remember(v, key_text, lang, _slug(v.get("pattern")) or rule_pattern or "unknown")  # noqa: E731
         try:
-            v = radar(story, lang, caller, facts, hints, float(env("RADAR_TIMEOUT_S", "12")), transcript)
+            v = radar(story, lang, caller, facts, hints, deadline - time.perf_counter(), transcript, on_late=late)
         except RadarError:
-            keys = [story_key(key_text, lang)] + ([f"pattern:{rule_pattern}:{lang}"] if rule_pattern else [])
-            v = cache_get(*keys)
+            v = cache_get(story_key(key_text, lang)) or (cache_get(f"pattern:{rule_pattern}:{lang}") if rule_pattern else None)
             from_cache = bool(v)
         if v:
-            verdict, say, raw_actions = v["verdict"], v["say"], v.get("actions") or []
+            verdict, raw_actions = v["verdict"], v.get("actions") or []
             sources, reported = v.get("sources") or [], v.get("reported_recently")
             grok_pattern = _slug(v.get("pattern"))
             pattern = grok_pattern if grok_pattern not in ("none", "unknown") else (rule_pattern or grok_pattern)
-            if not from_cache and verdict == "scam":
-                entry = {k: v.get(k) for k in ("verdict", "pattern", "say", "actions", "reported_recently", "sources")}
-                cache_put(entry, story_key(key_text, lang), f"pattern:{pattern}:{lang}")
+            say = v.get("say") if say_ok(v.get("say")) else _fallback(verdict, lang)
+            if not from_cache:
+                remember(v, key_text, lang, pattern)
         else:
             # Rules only: two or more soft signals are treated as a scam, one as unsure. Screened without the
             # session: after an earlier refusal the session screen says "judge" for anything, even a visit.
@@ -411,26 +528,18 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
     if verdict == "scam":
         cooldown_until = risk.set_cooldown(mandate_id, COOLDOWN_HOURS, pattern, check_id, session_id)["cooldown_until"]
     doc = {
-        "check_id": check_id, "verdict": verdict, "pattern": pattern, "say": say,
-        "actions": _actions(raw_actions, verdict, facts), "facts_checked": facts, "sources": sources,
-        "reported_recently": reported, "cooldown_until": cooldown_until,
+        "check_id": check_id, "decision_id": "d_" + uuid.uuid4().hex[:12], "verdict": verdict, "pattern": pattern,
+        "say": say, "actions": _actions(raw_actions, verdict, facts), "facts_checked": facts, "sources": sources,
+        "reported_recently": reported, "cooldown_until": cooldown_until, "amount": extract_amount(heard),
         "ms": round((time.perf_counter() - start) * 1000), "from_cache": from_cache,
         "session_id": session_id, "mandate_id": mandate_id, "lang": lang, "channel": channel,
         "story": story[:400], "transcript": transcript[:1000], "rule_ids": sorted({h["rule_id"] for h in screened["hits"]}),
-        "at": dt.datetime.now(dt.timezone.utc).isoformat(), "decision_id": decision_id,
+        "screen_hits": screened["hits"], "at": dt.datetime.now(dt.timezone.utc).isoformat(),
     }
-    from policy.store import save_decision
-
-    save_decision({
-        "decision_id": decision_id, "mandate_id": mandate_id, "session_id": session_id,
-        "decision": "deny" if verdict == "scam" else "allow", "source": "scam_check", "check_id": check_id,
-        "say_key": "refund_scam" if verdict == "scam" else "ordering_now",
-        "rules": [{"id": "scam_check", "passed": verdict != "scam", "detail": pattern}],
-        "ruth_said": story[:400], "created_at": doc["at"],
-    })
     save_check(doc)
-    post_event("scam_checked", session_id, mandate_id, check_id=check_id, verdict=verdict, pattern=pattern,
-               sources=sources, ms=doc["ms"], channel=channel)
+    _save_decision(doc)
+    post_event("scam_checked", session_id, mandate_id, check_id=check_id, decision_id=doc["decision_id"],
+               verdict=verdict, pattern=pattern, sources=sources, amount=doc["amount"], ms=doc["ms"], channel=channel)
     if verdict == "scam":
         if hard and not sources:
             _enrich_in_background(doc, story, caller, facts, hints, transcript)
@@ -441,8 +550,16 @@ def check(story: str = "", lang: str = "en", *, session_id: str | None = None, m
 
 def public(doc: dict) -> dict:
     keys = ("check_id", "decision_id", "verdict", "pattern", "say", "actions", "facts_checked", "sources",
-            "cooldown_until", "ms", "from_cache")
+            "cooldown_until", "amount", "ms", "from_cache")
     return {k: doc.get(k) for k in keys}
+
+
+def summary(doc: dict) -> dict:
+    """One row of Priyank's Safety list."""
+    return {"check_id": doc["check_id"], "decision_id": doc.get("decision_id"), "verdict": doc["verdict"],
+            "pattern": doc["pattern"], "story_excerpt": (doc.get("transcript") or doc.get("story") or "")[:160],
+            "say": doc["say"], "sources": doc.get("sources") or [], "amount": doc.get("amount"), "at": doc["at"],
+            "channel": doc.get("channel")}
 
 
 # ---------------------------------------------------------------- routes
@@ -466,6 +583,13 @@ class CheckBody(BaseModel):
 router = APIRouter()
 
 
+def _require_marker(request: Request, marker_id: str, action: str) -> None:
+    from policy.approvals import marker_matches
+
+    if not marker_matches(marker_id, request.headers.get("x-chaperone-marker", ""), action):
+        raise HTTPException(401, "sign in required")
+
+
 @router.post("/scam-check")
 def scam_check_route(body: CheckBody) -> dict:
     if not (body.story.strip() or body.transcript.strip()):
@@ -474,36 +598,23 @@ def scam_check_route(body: CheckBody) -> dict:
                  channel=body.channel, caller=body.caller.model_dump(), transcript=body.transcript)
 
 
-def _marked(request: Request, marker_id: str, action: str) -> None:
-    from policy.approvals import marker_matches
-
-    if not marker_matches(marker_id, request.headers.get("x-chaperone-marker", ""), action):
-        raise HTTPException(403, "sign in required")
-
-
 @router.get("/scam-checks")
-def list_checks(request: Request, mandate_id: str = "", limit: int = 20) -> list:
-    _marked(request, "scam_checks", "list")
+def list_checks_route(request: Request, mandate_id: str = "", limit: int = 20) -> list[dict]:
+    """Priyank's Safety list, newest first (caregiver marker for ("scam_checks", "list"))."""
+    _require_marker(request, "scam_checks", "list")
     with _lock:
         docs = list(_read(checks_path()).values())
-    if mandate_id:
-        docs = [doc for doc in docs if doc.get("mandate_id") == mandate_id]
-    docs.sort(key=lambda doc: doc.get("at") or "", reverse=True)
-    rows = []
-    for doc in docs[: max(1, min(limit, 50))]:
-        rows.append({
-            "check_id": doc.get("check_id"), "decision_id": doc.get("decision_id"), "verdict": doc.get("verdict"),
-            "pattern": doc.get("pattern"), "story_excerpt": (doc.get("story") or "")[:180], "say": doc.get("say"),
-            "sources": doc.get("sources") or [], "at": doc.get("at"),
-        })
-    return rows
+    docs = [d for d in docs if not mandate_id or d.get("mandate_id") == mandate_id]
+    docs.sort(key=lambda d: d.get("at") or "", reverse=True)
+    return [summary(d) for d in docs[:max(1, min(limit, 100))]]
 
 
 @router.get("/scam-check/{check_id}")
 def get_check_route(check_id: str, request: Request) -> dict:
-    _marked(request, check_id, "view")
+    """One stored check (caregiver marker for (check_id, "view"))."""
+    _require_marker(request, check_id, "view")
     doc = get_check(check_id)
     if not doc:
         raise HTTPException(404, "unknown check")
-    return {**public(doc), "facts_checked": doc.get("facts_checked"), "reported_recently": doc.get("reported_recently"),
-            "story": doc.get("story"), "transcript": doc.get("transcript"), "at": doc.get("at"), "channel": doc.get("channel"), "lang": doc.get("lang")}
+    return {**public(doc), "reported_recently": doc.get("reported_recently"), "story": doc.get("story"),
+            "transcript": doc.get("transcript"), "at": doc.get("at"), "channel": doc.get("channel"), "lang": doc.get("lang")}

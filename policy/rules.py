@@ -135,6 +135,10 @@ def _compile(term: str) -> re.Pattern:
     return re.compile(f"{_LEFT}(?:{body}){_RIGHT}")
 
 
+# A hit on one of these is itself the ask a story needs (no money word required).
+ASK_PATTERNS = {"remote_access", "code_reading", "safe_account", "crypto_atm", "courier_pickup"}
+
+
 @dataclass
 class Hit:
     rule_id: str
@@ -153,7 +157,7 @@ class Verdict:
     patterns: list[str]
     hits: list[Hit] = field(default_factory=list)
     elapsed_ms: float = 0.0
-    story: bool = False  # reported speech: Ruth is telling what someone else said
+    story: bool = False  # someone contacted Ruth and asked for money or access: route to the scam check
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -231,7 +235,7 @@ class RuleSet:
             list(dict.fromkeys(h.pattern for h in hits)),
             hits,
             round((time.perf_counter() - start) * 1000, 3),
-            "story" in present,
+            "story" in present and ("payment_ask" in present or bool(ASK_PATTERNS & {h.pattern for h in hits})),
         )
 
 

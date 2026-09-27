@@ -91,7 +91,18 @@ def build_input(decision: dict, *, ruth_said: str = "", screen_hits: list | None
                            for i in cart.get("items") or []],
                  "total": cart.get("total")},
         "limits": limits or {},
+        "scam_check": _scam_check(decision.get("scam_check")),
     }
+
+
+def _scam_check(check: dict | None) -> dict | None:
+    """What the scam radar found, for a decision that came from POST /scam-check."""
+    if not check:
+        return None
+    return {"verdict": check.get("verdict"), "pattern": check.get("pattern"),
+            "facts_checked": check.get("facts_checked") or [], "reported_recently": check.get("reported_recently"),
+            "amount": check.get("amount"), "card_cooldown_until": check.get("cooldown_until"),
+            "sources": [s.get("title") or s.get("url") for s in check.get("sources") or []][:5]}
 
 
 def problems(out: dict) -> list[str]:
