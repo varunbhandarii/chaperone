@@ -35,11 +35,14 @@ RULES = {
 }
 
 
+def missing() -> list[str]:
+    gone = [p.name for p in (CERT, KEY) if not p.exists()]
+    return gone + [v for v in ("VISA_VDP_USER_ID", "VISA_VDP_PASSWORD", "VISA_VTC_PAN") if not os.environ.get(v)]
+
+
 def session() -> requests.Session:
-    missing = [p.name for p in (CERT, KEY) if not p.exists()]
-    missing += [v for v in ("VISA_VDP_USER_ID", "VISA_VDP_PASSWORD", "VISA_VTC_PAN") if not os.environ.get(v)]
-    if missing:
-        raise SystemExit(f"missing: {', '.join(missing)} (see the docstring)")
+    if missing():
+        raise RuntimeError(f"missing: {', '.join(missing())} (see merchant/vtc_probe.py)")
     s = requests.Session()
     s.cert = (str(CERT), str(KEY))
     s.auth = (os.environ["VISA_VDP_USER_ID"], os.environ["VISA_VDP_PASSWORD"])
@@ -47,12 +50,15 @@ def session() -> requests.Session:
     return s
 
 
-def decision_request(pan: str, amount: int = 480) -> dict:
+def decision_request(pan: str, amount: float = 480, mcc: str = "5912", store: str = "Five Points Drug",
+                     reference: int | None = None) -> dict:
+    """A card-present swipe for /vctc/validation/v1/decisions. reference makes the retrieval and transaction ids."""
+    ref = reference if reference is not None else int(round(amount * 100))
     return {"primaryAccountNumber": pan, "cardholderBillAmount": amount, "decisionType": "RECOMMENDED",
-            "messageType": "0100", "processingCode": "000000", "retrievalReferenceNumber": f"{amount:012d}",
-            "transactionID": f"{amount:03d}" * 3,
+            "messageType": "0100", "processingCode": "000000", "retrievalReferenceNumber": f"{ref % 10**12:012d}",
+            "transactionID": f"{ref % 10**15:015d}",
             "dateTimeLocal": datetime.datetime.now(datetime.timezone.utc).strftime("%m%d%H%M%S"),
-            "merchantInfo": {"name": "Five Points Drug", "merchantCategoryCode": "5912", "countryCode": "USA",
+            "merchantInfo": {"name": store[:25], "merchantCategoryCode": str(mcc), "countryCode": "USA",
                              "currencyCode": "840", "transactionAmount": amount, "city": "Atlanta", "region": "GA",
                              "postalCode": "30303"},
             # Required: a card-present swipe at a store's attended terminal (enum values from the API's 400s).
@@ -73,7 +79,10 @@ def step(name: str, response: requests.Response) -> dict:
 
 
 def main():
-    s, pan = session(), os.environ["VISA_VTC_PAN"]
+    try:
+        s, pan = session(), os.environ["VISA_VTC_PAN"]
+    except RuntimeError as e:
+        raise SystemExit(str(e)) from e
     step("helloworld", s.get(f"{BASE}/vdp/helloworld", timeout=20))
     enrolled = step("enroll PAN", s.post(f"{BASE}/vctc/customerrules/v1/consumertransactioncontrols",
                                          json={"primaryAccountNumber": pan}, timeout=20))

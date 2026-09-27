@@ -153,6 +153,9 @@ async def post_event(request: Request):
     if errors:
         raise HTTPException(422, [f"{'/'.join(map(str, e.path)) or '(root)'}: {e.message}" for e in errors])
     stored = LEDGER.append(event)
+    from relay import vtc
+
+    vtc.after_event(stored, LEDGER.append)  # Visa VTC's answer for a swipe, off the swipe's path
     return {"seq": stored["seq"], "rt": stored["rt"]}
 
 

@@ -28,3 +28,19 @@ posts `risk_scored`. Live check, one order per store on its own sandbox account:
 | Parkside Pharmacy | `…7937` | ACCEPTED, score 28 (`7904710434086892304806`) | 292 |
 | Main Street Home | `…8309` | ACCEPTED, score 28 (`7904710436976708304805`) | 244 |
 | Peachtree Power | `…2505` | ACCEPTED, score 27 (`7904710440356708504805`) | 480 |
+
+## Sat Sep 26, ~9:10pm: VTC mirror in the relay
+
+`relay/vtc.py`: after a `card_decision` is stored, a worker thread mirrors Ruth's card rules to her VTC test PAN
+(once per relay start and on every `mandate_signed`; global threshold = `card.default_cap`, ATM = `atm_daily_cap`,
+e-commerce, gambling blocked) and asks `/vctc/validation/v1/decisions` about the same swipe, then posts
+`vtc_decision {token, store, mcc, amount, should_decline, rule, ms, error}`. Live:
+
+| Swipe | Visa VTC | Chaperone |
+|---|---|---|
+| $480 Five Points Drug (5912) | **decline**, `PCT_GLOBAL`, 180 ms | decline (cool-down / unusual) |
+| $45 Five Points Drug (5912) | approve, 252 ms | approve (declines only during a cool-down) |
+| $50 GiftCard Kiosk (6540) | approve, 268 ms: **VTC has no gift-card category** | decline (`card_blocked_category`) |
+
+The last row is the pitch: a bank's card controls can't see "gift card"; Chaperone's rules can.
+Off without `keys/visa/` or with `VTC_MIRROR=0`; tests set `VTC_MIRROR=0` (root `conftest.py`).
