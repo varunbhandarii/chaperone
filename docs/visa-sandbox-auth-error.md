@@ -91,7 +91,7 @@ Sources: [usd_outlet_id/usd_terminal_id thread (2026)](https://community.develop
 - [ ] Email developer@cybersource.com (or use **Get help** on the transaction's details page in the Business Center) with the merchant ID and request IDs above.
 - [ ] After any "fixed" reply, verify: `.venv/bin/python -m merchant.cybs_check` must print `AUTHORIZED`.
 - [ ] Then pay a fresh link (`.venv/bin/python -m merchant.spike_link`) with 4111 1111 1111 1111, 12/30, 123 and confirm Card Authorization turns green in Transaction Management.
-- [ ] Deadline Sat 6pm: if still broken, demo uses the real link and checkout page, and the Host marks paid with Confirm payment on the Host page.
+- [ ] If it is still broken, the demo uses the real link and checkout page, and the Host marks the order paid with Confirm payment on the Host page.
 - [ ] Optional backup (only if support can't help): charge a saved test card via REST `POST /pts/v2/payments` on the public `testrest` merchant, which gives a real AUTHORIZED response. Disclose that it is Cybersource's shared sample merchant.
 
 ## Email draft
